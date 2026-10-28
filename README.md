@@ -11,6 +11,7 @@
 ./scripts/demo.sh done    # 触发绿色「任务完成」卡片（按设置的秒数自动收起）
 ./scripts/demo.sh alert   # 触发红色「出口异常」卡片
 build/Notchkeeper.app/Contents/MacOS/Notchkeeper --selftest            # 事件过滤自检 + 会话计数
+swift test                # GuardCore 单元测试
 build/Notchkeeper.app/Contents/MacOS/Notchkeeper --login-item status   # 开机启动状态
 ```
 
@@ -23,5 +24,9 @@ build/Notchkeeper.app/Contents/MacOS/Notchkeeper --login-item status   # 开机�
 - 悬停刘海展开：鼠标移到刘海 → 弹出“岛”，显示出口 IPv4（颜色表示是否允许）和近 30 分钟的活跃会话（项目名 / agent / 运行中或空闲 / 时长）。不放拦截点击的窗口，只监听鼠标位置。
 - 会话发现是被动只读的：Claude Code `~/.claude/projects/*/*.jsonl`（跳过 `subagents/` 和 `isSidechain`），Codex `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`（跳过 `session_meta.source.subagent`），外加 claude / codex 进程计数。
 - 事件模型（`AgentEvents.swift`）：每个 agent 1 个“回合结束”钩子 → `AgentEvent` → 子 agent / stop_hook_active / 中断 / 宿主前台过滤 → 去重。**本阶段不安装任何钩子。**
+
+## M3（进行中）
+
+- `GuardCore`（`Sources/GuardCore/`）：出口健康三态判定（healthy / unknown / violated）的纯逻辑，规则见 `EgressGuard.swift` 的类型注释；`swift test` 跑它的测试。还没接到 App 里。
 
 **尚未实现（占位）**：Clash / utun 检测、结束 Claude 进程、CLI shim、钩子安装与完成提示接线、原创吉祥物美术。
