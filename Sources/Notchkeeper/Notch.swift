@@ -9,11 +9,12 @@ struct NotchCard: Identifiable, Equatable {
     var tint: Color
     var persistent: Bool
     var mood: MascotMood = .idle
+    var isAlert = false
 
     static func exitAlert(ip: String?) -> NotchCard {
         NotchCard(title: "出口异常",
                   detail: ip.map { "当前出口 \($0) 不在允许列表" } ?? "当前出口不在允许列表",
-                  symbol: "exclamationmark.shield.fill", tint: .red, persistent: true, mood: .worried)
+                  symbol: "exclamationmark.shield.fill", tint: .red, persistent: true, mood: .worried, isAlert: true)
     }
     static func taskDone(title: String = "✅ 任务完成", detail: String = "演示：编程助手已完成任务") -> NotchCard {
         NotchCard(title: title, detail: detail, symbol: "checkmark.seal.fill", tint: .green, persistent: false, mood: .happy)
@@ -24,24 +25,63 @@ struct NotchCard: Identifiable, Equatable {
     }
 }
 
+enum NotchMode: Equatable { case closed, card, dashboard }
+
 @MainActor
 final class NotchModel: ObservableObject {
     @Published var card: NotchCard?
-    @Published var expanded = false
+    @Published var expanded = false      // 卡片是否展开
+    @Published var hovering = false      // 鼠标悬停展开的“岛”
     @Published var notchSize: CGSize = CGSize(width: 190, height: 32)
+    @Published var cardDuration: TimeInterval = 4
+
+    var mode: NotchMode {
+        if expanded, card != nil { return .card }
+        if hovering { return .dashboard }
+        return .closed
+    }
+}
+
+/// 三种形态的尺寸，视图和悬停命中测试共用
+enum NotchLayout {
+    static let cardWidth: CGFloat = 400
+    static let dashWidth: CGFloat = 440
+    static let rowHeight: CGFloat = 34
+    static let maxRows = 5
+
+    static func topInset(_ notch: CGSize) -> CGFloat { max(notch.height, 24) }
+
+    static func size(_ mode: NotchMode, notch: CGSize, rows: Int) -> CGSize {
+        switch mode {
+        case .closed: return notch
+        case .card: return CGSize(width: cardWidth, height: topInset(notch) + 72)
+        case .dashboard:
+            let n = min(rows, maxRows)
+            let list = n == 0 ? 36 : CGFloat(n) * rowHeight
+            return CGSize(width: dashWidth, height: topInset(notch) + 75 + list)
+        }
+    }
 }
 
 /// 刘海区域的透明窗口。收起时黑色形状与刘海重合（看不见），展开时从刘海里弹出。
+/// 悬停检测不放任何拦截点击的窗口：用全局 / 本地 mouseMoved 监听判断鼠标是否在刘海热区里，
+/// 所以不会抢焦点，也不会挡住别处的点击。
 @MainActor
 final class NotchController {
-    static let autoDismiss: TimeInterval = 4
-    static let windowSize = CGSize(width: 520, height: 200)
+    static let windowSize = CGSize(width: 580, height: 320)
 
     private let window: NSPanel
     private let model = NotchModel()
+    private let state = AppState.shared
     private var dismissWork: DispatchWorkItem?
     private var pendingAlert: NotchCard?
     private(set) var hasNotch = false
+
+    private var moveMonitors: [Any] = []
+    private var hoverIntent: DispatchWorkItem?
+    private var leaveWork: DispatchWorkItem?
+    private var hoverPoll: Timer?
+    private var screenFrame: NSRect = .zero
 
     init() {
         window = NSPanel(contentRect: NSRect(origin: .zero, size: Self.windowSize),
@@ -55,7 +95,7 @@ final class NotchController {
         window.isReleasedWhenClosed = false
         window.animationBehavior = .none
 
-        let host = FirstMouseHostingView(rootView: NotchRoot(model: model, onDismiss: { [weak self] in
+        let host = FirstMouseHostingView(rootView: NotchRoot(model: model, state: state, onDismiss: { [weak self] in
             self?.dismissCurrent()
         }))
         host.sizingOptions = []
@@ -84,18 +124,26 @@ final class NotchController {
             // 没有刘海的屏幕：从屏幕顶端中间“长”出来
             model.notchSize = CGSize(width: 180, height: 0)
         }
+        screenFrame = s.frame
         let f = s.frame
         window.setFrame(NSRect(x: f.midX - Self.windowSize.width / 2, y: f.maxY - Self.windowSize.height,
                                width: Self.windowSize.width, height: Self.windowSize.height), display: true)
     }
 
-    func show(_ card: NotchCard) {
+    // MARK: 卡片
+
+    func show(_ input: NotchCard) {
+        let cfg = ConfigStore.shared.config
+        var card = input
+        if card.isAlert { card.persistent = cfg.alertPersistent }
+        model.cardDuration = cfg.cardAutoDismissSeconds
         dismissWork?.cancel()
         if card.persistent { pendingAlert = card }
+        if cfg.soundEnabled { NSSound(named: card.isAlert ? "Basso" : "Glass")?.play() }
         window.orderFrontRegardless()
         window.ignoresMouseEvents = false
-        if model.expanded, model.card != nil {
-            withAnimation(.spring(response: 0.38, dampingFraction: 0.8)) { model.card = card }
+        if model.mode != .closed {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { model.card = card; model.expanded = true }
         } else {
             model.card = card
             withAnimation(Motion.notchOpen) { model.expanded = true }
@@ -107,7 +155,7 @@ final class NotchController {
                 self.dismissCurrent()
             }
             dismissWork = work
-            DispatchQueue.main.asyncAfter(deadline: .now() + Self.autoDismiss, execute: work)
+            DispatchQueue.main.asyncAfter(deadline: .now() + cfg.cardAutoDismissSeconds, execute: work)
         }
     }
 
@@ -136,10 +184,87 @@ final class NotchController {
     }
 
     private func collapse() {
-        withAnimation(Motion.notchClose) { model.expanded = false }
+        withAnimation(model.hovering ? Motion.page : Motion.notchClose) { model.expanded = false }
         window.ignoresMouseEvents = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             if !self.model.expanded { self.model.card = nil }
+        }
+    }
+
+    // MARK: 悬停展开
+
+    func setHoverEnabled(_ on: Bool) {
+        if on {
+            guard moveMonitors.isEmpty else { return }
+            if let g = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged], handler: { _ in
+                Task { @MainActor in self.mouseMoved() }
+            }) { moveMonitors.append(g) }
+            if let l = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved], handler: { ev in
+                Task { @MainActor in self.mouseMoved() }
+                return ev
+            }) { moveMonitors.append(l) }
+        } else {
+            moveMonitors.forEach { NSEvent.removeMonitor($0) }
+            moveMonitors.removeAll()
+            hoverIntent?.cancel()
+            setHovering(false)
+        }
+    }
+
+    /// 刘海本体（或无刘海屏顶端中间一条细带）略放大一点作为触发热区
+    private var triggerRect: NSRect {
+        let f = screenFrame
+        let n = model.notchSize
+        let w = (hasNotch ? n.width : 200) + 16
+        let h = hasNotch ? n.height + 2 : 6
+        return NSRect(x: f.midX - w / 2, y: f.maxY - h, width: w, height: h)
+    }
+
+    /// 当前可见形状（展开后）的屏幕区域，留 10pt 余量
+    private var visibleRect: NSRect {
+        let s = NotchLayout.size(model.mode, notch: model.notchSize, rows: state.sessions.count)
+        let f = screenFrame
+        return NSRect(x: f.midX - s.width / 2, y: f.maxY - s.height, width: s.width, height: s.height).insetBy(dx: -10, dy: -10)
+    }
+
+    private func mouseMoved() {
+        let p = NSEvent.mouseLocation
+        if model.hovering {
+            if visibleRect.contains(p) || triggerRect.contains(p) {
+                leaveWork?.cancel(); leaveWork = nil
+            } else if leaveWork == nil {
+                let w = DispatchWorkItem { [weak self] in self?.setHovering(false) }
+                leaveWork = w
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: w)
+            }
+        } else if triggerRect.contains(p) {
+            guard hoverIntent == nil else { return }
+            let w = DispatchWorkItem { [weak self] in
+                guard let self else { return }
+                self.hoverIntent = nil
+                if self.triggerRect.contains(NSEvent.mouseLocation) { self.setHovering(true) }
+            }
+            hoverIntent = w
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: w)
+        } else {
+            hoverIntent?.cancel(); hoverIntent = nil
+        }
+    }
+
+    private func setHovering(_ on: Bool) {
+        leaveWork?.cancel(); leaveWork = nil
+        guard model.hovering != on else { return }
+        if on {
+            state.scanSessions()
+            window.orderFrontRegardless()
+            withAnimation(Motion.notchOpen) { model.hovering = true }
+            // 兜底：鼠标飞快离开、没有产生 mouseMoved 时也能收起
+            hoverPoll = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { _ in
+                Task { @MainActor in self.mouseMoved() }
+            }
+        } else {
+            hoverPoll?.invalidate(); hoverPoll = nil
+            withAnimation(Motion.notchClose) { model.hovering = false }
         }
     }
 }
@@ -173,47 +298,180 @@ struct NotchShape: Shape {
 
 struct NotchRoot: View {
     @ObservedObject var model: NotchModel
+    @ObservedObject var state: AppState
     let onDismiss: () -> Void
 
     var body: some View {
-        let closed = model.notchSize
-        let expanded = model.expanded
-        let openW: CGFloat = 400
-        let openH: CGFloat = max(closed.height, 24) + 72
-        let w = expanded ? openW : closed.width
-        let h = expanded ? openH : closed.height
-        let t: CGFloat = expanded ? 14 : 4
-        let b: CGFloat = expanded ? 28 : 8
+        let mode = model.mode
+        let size = NotchLayout.size(mode, notch: model.notchSize, rows: state.sessions.count)
+        let open = mode != .closed
+        let t: CGFloat = open ? 14 : 4
+        let b: CGFloat = mode == .dashboard ? 26 : (open ? 28 : 8)
         let shape = NotchShape(topRadius: t, bottomRadius: b)
+        let glow: Color = mode == .card ? (model.card?.tint ?? .clear) : .white
 
         ZStack(alignment: .top) {
             shape
                 .fill(Color.black)
-                .overlay(alignment: .top) {
-                    if expanded, let card = model.card {
-                        NotchCardView(card: card, onDismiss: onDismiss)
-                            .id(card.id)
-                            .padding(.top, max(closed.height, 24) - 2)
-                            .padding(.horizontal, t)
-                            .transition(.asymmetric(
-                                insertion: .opacity.combined(with: .scale(scale: 0.92, anchor: .top))
-                                    .animation(.spring(response: 0.4, dampingFraction: 0.8).delay(0.1)),
-                                removal: .opacity.animation(.easeIn(duration: 0.12))))
-                    }
-                }
+                .frame(width: size.width, height: size.height)
+                .overlay(alignment: .top) { content(mode, inset: t) }
                 .overlay {
-                    shape.stroke((model.card?.tint ?? .clear).opacity(expanded ? 0.35 : 0), lineWidth: 1)
+                    shape.stroke(glow.opacity(mode == .card ? 0.35 : (open ? 0.08 : 0)), lineWidth: 1)
                 }
                 .clipShape(shape)
-                .frame(width: w, height: h)
-                .shadow(color: (model.card?.tint ?? .black).opacity(expanded ? 0.28 : 0), radius: 18, y: 6)
+                .shadow(color: (mode == .card ? glow : .black).opacity(open ? 0.3 : 0), radius: 18, y: 6)
+                .animation(Motion.page, value: state.sessions.count)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    @ViewBuilder
+    private func content(_ mode: NotchMode, inset: CGFloat) -> some View {
+        let top = NotchLayout.topInset(model.notchSize) - 2
+        switch mode {
+        case .card:
+            if let card = model.card {
+                NotchCardView(card: card, duration: model.cardDuration, onDismiss: onDismiss)
+                    .id(card.id)
+                    .padding(.top, top)
+                    .padding(.horizontal, inset)
+                    .transition(Self.contentTransition)
+            }
+        case .dashboard:
+            NotchDashboard(state: state)
+                .frame(width: NotchLayout.dashWidth)
+                .padding(.top, top)
+                .transition(Self.contentTransition)
+        case .closed:
+            EmptyView()
+        }
+    }
+
+    static let contentTransition = AnyTransition.asymmetric(
+        insertion: .opacity.combined(with: .scale(scale: 0.92, anchor: .top))
+            .animation(.spring(response: 0.4, dampingFraction: 0.8).delay(0.08)),
+        removal: .opacity.animation(.easeIn(duration: 0.1)))
+}
+
+/// 悬停展开内容：出口 + 活跃会话。只显示项目名 / agent / 状态 / 时间，不显示任何对话内容。
+struct NotchDashboard: View {
+    @ObservedObject var state: AppState
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                Mascot(mood: state.status.mood, size: 30)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Circle().fill(state.status.color).frame(width: 7, height: 7)
+                            .shadow(color: state.status.color.opacity(0.8), radius: 3)
+                        Text(state.status.title).font(.system(size: 13, weight: .semibold)).foregroundStyle(.white)
+                    }
+                    Text(state.exitIP.map { "出口 \($0)" } ?? "出口 —")
+                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .foregroundStyle(state.status == .unhealthy ? Color.red.opacity(0.9) : .white.opacity(0.6))
+                }
+                Spacer(minLength: 8)
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("进程").font(.system(size: 9, weight: .medium)).foregroundStyle(.white.opacity(0.35))
+                    Text("claude \(state.processes.claude) · codex \(state.processes.codex)")
+                        .font(.system(size: 10, design: .monospaced)).foregroundStyle(.white.opacity(0.55))
+                }
+            }
+            .frame(height: 40)
+
+            Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1)
+
+            if state.sessions.isEmpty {
+                HStack(spacing: 6) {
+                    Image(systemName: "moon.zzz").font(.system(size: 11))
+                    Text("近 30 分钟没有活跃的编程会话").font(.system(size: 12))
+                }
+                .foregroundStyle(.white.opacity(0.45))
+                .frame(maxWidth: .infinity, minHeight: 36)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(state.sessions.prefix(NotchLayout.maxRows)) { s in
+                        SessionRow(session: s).frame(height: NotchLayout.rowHeight)
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.bottom, 12)
+    }
+}
+
+struct SessionRow: View {
+    let session: AgentSession
+    var dark = true
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { ctx in
+            HStack(spacing: 10) {
+                Image(systemName: session.agent.symbol)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(session.agent.tint)
+                    .frame(width: 22, height: 22)
+                    .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(session.agent.tint.opacity(0.18)))
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(session.project).font(.system(size: 12.5, weight: .semibold)).lineLimit(1)
+                        .foregroundStyle(dark ? Color.white : Color.primary)
+                    Text(session.agent.displayName).font(.system(size: 10))
+                        .foregroundStyle(dark ? Color.white.opacity(0.45) : Color.secondary)
+                }
+                Spacer(minLength: 6)
+                StatePill(running: session.state == .running, dark: dark)
+                Text(elapsed(ctx.date))
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(dark ? Color.white.opacity(0.6) : Color.secondary)
+                    .frame(minWidth: 58, alignment: .trailing)
+            }
+        }
+    }
+
+    private func elapsed(_ now: Date) -> String {
+        if session.state == .running {
+            return Self.duration(now.timeIntervalSince(session.turnStart ?? session.lastActivity))
+        }
+        return Self.duration(now.timeIntervalSince(session.lastActivity)) + "前"
+    }
+
+    static func duration(_ t: TimeInterval) -> String {
+        let s = max(0, Int(t))
+        if s < 60 { return "\(s)秒" }
+        if s < 3600 { return "\(s / 60)分\(String(format: "%02d", s % 60))秒" }
+        return "\(s / 3600)时\(String(format: "%02d", (s % 3600) / 60))分"
+    }
+}
+
+struct StatePill: View {
+    let running: Bool
+    var dark = true
+    @State private var pulse = false
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Circle()
+                .fill(running ? Color.green : Color.gray)
+                .frame(width: 6, height: 6)
+                .scaleEffect(running && pulse ? 1.35 : 1)
+                .opacity(running && pulse ? 0.55 : 1)
+            Text(running ? "运行中" : "空闲").font(.system(size: 10, weight: .medium))
+        }
+        .foregroundStyle(running ? Color.green : (dark ? Color.white.opacity(0.5) : Color.secondary))
+        .padding(.horizontal, 7).padding(.vertical, 3)
+        .background(Capsule().fill((running ? Color.green : Color.gray).opacity(0.14)))
+        .onAppear {
+            guard running else { return }
+            withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) { pulse = true }
+        }
     }
 }
 
 struct NotchCardView: View {
     let card: NotchCard
+    let duration: TimeInterval
     let onDismiss: () -> Void
     @State private var progress: CGFloat = 1
 
@@ -251,7 +509,7 @@ struct NotchCardView: View {
         .onAppear {
             guard !card.persistent else { return }
             progress = 1
-            withAnimation(.linear(duration: NotchController.autoDismiss)) { progress = 0 }
+            withAnimation(.linear(duration: duration)) { progress = 0 }
         }
     }
 }

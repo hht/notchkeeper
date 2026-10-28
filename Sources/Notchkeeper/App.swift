@@ -1,9 +1,22 @@
 import AppKit
+import Combine
 
 @main
 @MainActor
 enum NotchkeeperMain {
     static func main() {
+        let args = CommandLine.arguments
+        if args.contains("--selftest") {
+            exit(SelfTest.run() ? 0 : 1)
+        }
+        if let i = args.firstIndex(of: "--login-item") {
+            let op = args.count > i + 1 ? args[i + 1] : "status"
+            if op == "enable" || op == "disable" {
+                if let err = LoginItem.set(op == "enable") { print("error: \(err)") }
+            }
+            print("login item: \(LoginItem.statusText)")
+            exit(0)
+        }
         let app = NSApplication.shared
         let delegate = AppDelegate()
         app.delegate = delegate
@@ -18,6 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: StatusItemController!
     var panel: PanelController!
     var notch: NotchController!
+    private var cancellables = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         notch = NotchController()
@@ -32,7 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         state.onStatusChange = { [weak self] old, new in
             guard let self else { return }
             self.statusItem.update(new, animated: true)
-            if new == .unhealthy, self.state.autoAlert {
+            if new == .unhealthy, ConfigStore.shared.config.autoAlert {
                 self.notch.show(.exitAlert(ip: self.state.simulateUnhealthy ? nil : self.state.exitIP))
             } else if old == .unhealthy, new == .healthy {
                 self.notch.clearAlert(showRecovered: true)
@@ -44,8 +58,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             name: Notification.Name("local.hht.notchkeeper.card"), object: nil,
             suspensionBehavior: .deliverImmediately)
 
+        // 设置变化（含 config.json 热加载）实时生效
+        ConfigStore.shared.$config
+            .receive(on: RunLoop.main)
+            .sink { [weak self] c in
+                self?.statusItem.setStyle(c.iconStyle)
+                self?.notch.setHoverEnabled(c.hoverExpand)
+            }
+            .store(in: &cancellables)
+
         state.start()
-        state.addLog("Notchkeeper 启动（M1 预览，仅界面）")
+        state.addLog("Notchkeeper 启动（M2 预览）")
         Log.write("status item created: \(statusItem.item.button != nil); notch screen: \(notch.hasNotch)")
     }
 
@@ -60,7 +83,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         add("立即检查出口", #selector(checkNow))
         m.addItem(.separator())
         add("演示：出口异常卡片（红，常驻）", #selector(demoAlert))
-        add("演示：任务完成卡片（绿，4 秒）", #selector(demoDone))
+        add("演示：任务完成卡片（绿，自动收起）", #selector(demoDone))
         add("收起刘海卡片", #selector(dismissCard))
         m.addItem(.separator())
         add("退出 Notchkeeper", #selector(quit), "q")

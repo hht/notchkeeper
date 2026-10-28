@@ -2,22 +2,22 @@ import AppKit
 import SwiftUI
 
 enum PanelTab: Int, CaseIterable, Identifiable {
-    case status, allow, block, logs
+    case status, block, logs, settings
     var id: Int { rawValue }
     var title: String {
         switch self {
         case .status: return "状态"
-        case .allow: return "允许出口"
         case .block: return "拦截"
         case .logs: return "日志"
+        case .settings: return "设置"
         }
     }
     var symbol: String {
         switch self {
         case .status: return "shield.lefthalf.filled"
-        case .allow: return "checklist"
         case .block: return "hand.raised.fill"
         case .logs: return "text.alignleft"
+        case .settings: return "gearshape.fill"
         }
     }
 }
@@ -25,16 +25,16 @@ enum PanelTab: Int, CaseIterable, Identifiable {
 struct PanelRoot: View {
     @ObservedObject var model: PanelModel
     @ObservedObject var state: AppState
+    @ObservedObject var store: ConfigStore
     let notch: NotchController
     let close: () -> Void
 
     private let shape = RoundedRectangle(cornerRadius: 24, style: .continuous)
 
     var body: some View {
-        PanelContent(state: state, notch: notch)
+        PanelContent(state: state, store: store, notch: notch)
             .frame(width: PanelController.contentSize.width, height: PanelController.contentSize.height)
-            .background(VisualEffect(material: .popover))
-            .clipShape(shape)
+            .modifier(PanelSurface(glass: store.config.panelMaterial == .liquidGlass, shape: shape))
             .overlay(shape.strokeBorder(Color.white.opacity(0.14), lineWidth: 1))
             .shadow(color: .black.opacity(0.28), radius: 20, y: 10)
             .scaleEffect(model.shown ? 1 : 0.55, anchor: model.anchor)
@@ -48,6 +48,7 @@ struct PanelRoot: View {
 
 struct PanelContent: View {
     @ObservedObject var state: AppState
+    @ObservedObject var store: ConfigStore
     let notch: NotchController
     @State private var tab: PanelTab = .status
     @State private var forward = true
@@ -88,7 +89,7 @@ struct PanelContent: View {
             // 吉祥物插槽（占位，原创角色稍后替换）
             Mascot(mood: state.status.mood, size: 40)
             VStack(alignment: .leading, spacing: 2) {
-                Text("Notchkeeper").font(.system(size: 15, weight: .semibold))
+                Text("Notchkeeper").font(NK.title)
                 Text(state.status.title)
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
@@ -142,15 +143,15 @@ struct PanelContent: View {
     private func page(_ t: PanelTab) -> some View {
         switch t {
         case .status: StatusPage(state: state, notch: notch)
-        case .allow: AllowPage(state: state)
         case .block: BlockPage()
         case .logs: LogPage(state: state)
+        case .settings: SettingsPage(state: state, store: store)
         }
     }
 
     private var footer: some View {
         HStack {
-            Text("M1 预览 · 仅界面，暂不拦截")
+            Text("M2 预览 · 拦截尚未启用")
                 .font(.system(size: 11))
                 .foregroundStyle(.tertiary)
             Spacer()
@@ -175,8 +176,8 @@ struct StatusPage: View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 10) {
                 hero
-                row("Clash 内核", value: "M2 检测（占位）", symbol: "cpu", placeholder: true)
-                row("utun 路由", value: "M2 检测（占位）", symbol: "point.3.connected.trianglepath.dotted", placeholder: true)
+                sessions
+                row("Clash / utun 检测", value: "下一阶段", symbol: "point.3.connected.trianglepath.dotted", placeholder: true)
                 demo
             }
         }
@@ -221,6 +222,30 @@ struct StatusPage: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 14)
         .hoverCard(16, base: 0.05)
+    }
+
+    private var sessions: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("活跃会话").font(NK.caption.weight(.medium)).foregroundStyle(.secondary)
+                Spacer()
+                Text("claude \(state.processes.claude) · codex \(state.processes.codex) 个进程")
+                    .font(NK.footnote).foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 4)
+            VStack(spacing: 0) {
+                if state.sessions.isEmpty {
+                    Text("近 30 分钟没有活跃的编程会话").font(NK.caption).foregroundStyle(.tertiary)
+                        .frame(maxWidth: .infinity).padding(.vertical, 12)
+                } else {
+                    ForEach(state.sessions.prefix(4)) { s in
+                        SessionRow(session: s, dark: false).padding(.horizontal, 12).frame(height: 36)
+                    }
+                }
+            }
+            .groupCard()
+            .animation(Motion.page, value: state.sessions)
+        }
     }
 
     private func row(_ title: String, value: String, symbol: String, placeholder: Bool = false) -> some View {
@@ -272,68 +297,7 @@ struct StatusPage: View {
     }
 }
 
-// MARK: - 允许出口
-
-struct AllowPage: View {
-    @ObservedObject var state: AppState
-    @State private var draft = ""
-    @State private var invalid = false
-
-    var body: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("出口 IPv4 在此列表中才视为健康").font(.system(size: 11)).foregroundStyle(.secondary)
-                VStack(spacing: 6) {
-                    ForEach(state.allowlist, id: \.self) { ip in
-                        AllowRow(ip: ip, isCurrent: ip == state.exitIP) {
-                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { state.removeAllowed(ip) }
-                        }
-                        .transition(.asymmetric(insertion: .move(edge: .top).combined(with: .opacity),
-                                                removal: .scale(scale: 0.9).combined(with: .opacity)))
-                    }
-                }
-                HStack(spacing: 8) {
-                    TextField("新增，例如 203.0.113.10", text: $draft)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 13, design: .monospaced))
-                        .padding(.horizontal, 12).padding(.vertical, 9)
-                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .strokeBorder(invalid ? Color.red.opacity(0.7) : Color.primary.opacity(0.12)))
-                        .onSubmit(add)
-                    Button(action: add) {
-                        Image(systemName: "plus").font(.system(size: 13, weight: .bold))
-                            .frame(width: 36, height: 34)
-                            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.accentColor.opacity(0.2)))
-                    }
-                    .buttonStyle(PressableStyle())
-                }
-                .offset(x: invalid ? -4 : 0)
-                if invalid {
-                    Text("不是合法的 IPv4，或已在列表中").font(.system(size: 11)).foregroundStyle(.red)
-                        .transition(.opacity)
-                }
-                Toggle(isOn: $state.autoAlert) {
-                    Text("出口异常时自动弹出刘海红卡").font(.system(size: 12))
-                }
-                .toggleStyle(.switch).controlSize(.mini)
-                .padding(.horizontal, 12).padding(.vertical, 8)
-                .hoverCard()
-                Text("M1 暂存在 UserDefaults；M2 改为可热加载的 JSON 配置。")
-                    .font(.system(size: 10)).foregroundStyle(.tertiary)
-            }
-        }
-    }
-
-    private func add() {
-        let ok = withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { state.addAllowed(draft) }
-        if ok {
-            draft = ""
-            withAnimation { invalid = false }
-        } else {
-            withAnimation(.spring(response: 0.2, dampingFraction: 0.3)) { invalid = true }
-        }
-    }
-}
+// MARK: - 允许出口（行组件，编辑器在 Settings.swift）
 
 struct AllowRow: View {
     let ip: String
@@ -382,7 +346,7 @@ struct BlockPage: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 6) {
                     Image(systemName: "hammer.fill")
-                    Text("占位：M2 实现，当前开关不生效")
+                    Text("占位：后续里程碑实现，当前开关不生效")
                 }
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.orange)

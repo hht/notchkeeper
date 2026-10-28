@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import Combine
 
 enum GuardStatus: String {
     case healthy, unhealthy, unknown
@@ -47,18 +48,16 @@ struct LogEntry: Identifiable {
 final class AppState: ObservableObject {
     static let shared = AppState()
 
+    let store = ConfigStore.shared
+
     @Published private(set) var status: GuardStatus = .unknown
     @Published private(set) var exitIP: String?
     @Published private(set) var lastChecked: Date?
     @Published private(set) var checking = false
     @Published private(set) var logs: [LogEntry] = []
+    @Published private(set) var sessions: [AgentSession] = []
+    @Published private(set) var processes = ProcessCounts()
 
-    @Published var allowlist: [String] {
-        didSet { UserDefaults.standard.set(allowlist, forKey: "allowlist"); reevaluate() }
-    }
-    @Published var autoAlert: Bool {
-        didSet { UserDefaults.standard.set(autoAlert, forKey: "autoAlert") }
-    }
     /// 调试用：强制视为出口异常，用来看图标变色和红色卡片
     @Published var simulateUnhealthy = false {
         didSet { addLog(simulateUnhealthy ? "开启模拟出口异常" : "关闭模拟出口异常"); reevaluate() }
@@ -66,18 +65,38 @@ final class AppState: ObservableObject {
 
     var onStatusChange: ((GuardStatus, GuardStatus) -> Void)?
     private var timer: Timer?
+    private var sessionTimer: Timer?
+    private var interval = 0
+    private var allow: [String] = []
+    private var scanning = false
+    private var cancellables = Set<AnyCancellable>()
 
-    static let defaultAllowlist = ["216.36.90.150", "216.36.90.116"]
+    var allowlist: [String] { store.config.allowlist }
 
-    init() {
-        allowlist = UserDefaults.standard.stringArray(forKey: "allowlist") ?? AppState.defaultAllowlist
-        autoAlert = (UserDefaults.standard.object(forKey: "autoAlert") as? Bool) ?? true
-    }
+    init() { allow = store.config.allowlist }
 
     func start() {
+        store.$config
+            .receive(on: RunLoop.main)
+            .sink { [weak self] c in self?.apply(c) }
+            .store(in: &cancellables)
+        apply(store.config)
         refresh()
-        timer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { _ in
-            Task { @MainActor in AppState.shared.refresh() }
+        scanSessions()
+        sessionTimer = Timer.scheduledTimer(withTimeInterval: 4, repeats: true) { _ in
+            Task { @MainActor in AppState.shared.scanSessions() }
+        }
+    }
+
+    private func apply(_ c: NKConfig) {
+        if c.allowlist != allow { allow = c.allowlist; reevaluate() }
+        let iv = max(5, min(300, c.checkIntervalSeconds))
+        if iv != interval {
+            interval = iv
+            timer?.invalidate()
+            timer = Timer.scheduledTimer(withTimeInterval: TimeInterval(iv), repeats: true) { _ in
+                Task { @MainActor in AppState.shared.refresh() }
+            }
         }
     }
 
@@ -93,12 +112,29 @@ final class AppState: ObservableObject {
         }
     }
 
-    var exitInAllowlist: Bool { exitIP.map { allowlist.contains($0) } ?? false }
+    /// 后台线程只读扫描会话文件；结果只含项目名 / agent / 状态 / 时间
+    func scanSessions() {
+        guard !scanning else { return }
+        scanning = true
+        Task.detached(priority: .utility) {
+            let s = SessionScanner.scan()
+            let p = ProcessCounts.current()
+            await MainActor.run { AppState.shared.applyScan(s, p) }
+        }
+    }
+
+    private func applyScan(_ s: [AgentSession], _ p: ProcessCounts) {
+        scanning = false
+        if s != sessions { sessions = s }
+        if p != processes { processes = p }
+    }
+
+    var exitInAllowlist: Bool { exitIP.map { allow.contains($0) } ?? false }
 
     private func reevaluate() {
         let new: GuardStatus
         if simulateUnhealthy { new = .unhealthy }
-        else if exitIP == nil { new = lastChecked == nil ? .unknown : .unknown }
+        else if exitIP == nil { new = .unknown }
         else { new = exitInAllowlist ? .healthy : .unhealthy }
         guard new != status else { return }
         let old = status
@@ -115,14 +151,14 @@ final class AppState: ObservableObject {
     @discardableResult
     func addAllowed(_ raw: String) -> Bool {
         let ip = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard IPProbe.isIPv4(ip), !allowlist.contains(ip) else { return false }
-        allowlist.append(ip)
+        guard IPProbe.isIPv4(ip), !store.config.allowlist.contains(ip) else { return false }
+        store.config.allowlist.append(ip)
         addLog("允许列表：新增 1 项")
         return true
     }
 
     func removeAllowed(_ ip: String) {
-        allowlist.removeAll { $0 == ip }
+        store.config.allowlist.removeAll { $0 == ip }
         addLog("允许列表：移除 1 项")
     }
 
@@ -178,7 +214,14 @@ enum Log {
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir.appendingPathComponent("notchkeeper.log")
     }()
-    private static let formatter = ISO8601DateFormatter()
+    /// 本地时间 + 时区偏移，例如 2026-10-28 14:03:21 -07:00
+    private static let formatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = .current
+        f.dateFormat = "yyyy-MM-dd HH:mm:ss xxxxx"
+        return f
+    }()
 
     static func write(_ msg: String) {
         let line = "\(formatter.string(from: Date())) \(msg)\n"

@@ -30,7 +30,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         button.action = #selector(clicked(_:))
         button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         button.toolTip = "Notchkeeper"
-        update(.unknown, animated: false)
+        render(.unknown, animated: false, bounce: false)
     }
 
     var buttonScreenFrame: NSRect? {
@@ -38,24 +38,51 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         return w.convertToScreen(b.convert(b.bounds, to: nil))
     }
 
+    private(set) var style: IconStyle = .filled
+
+    func setStyle(_ s: IconStyle) {
+        guard s != style else { return }
+        style = s
+        render(current, animated: false, bounce: false)
+    }
+
     func update(_ status: GuardStatus, animated: Bool) {
-        guard let img = NSImage(systemSymbolName: status.symbol, accessibilityDescription: status.title) else { return }
-        item.button?.setAccessibilityLabel("Notchkeeper：\(status.title)")
-        item.button?.toolTip = "Notchkeeper · \(status.title)"
         let changed = status != current
         current = status
-        if animated && changed {
+        render(status, animated: animated && changed, bounce: animated && changed && status == .unhealthy)
+    }
+
+    private func symbolName(_ s: GuardStatus) -> String {
+        guard style == .outline else { return s.symbol }
+        switch s {
+        case .healthy: return "checkmark.shield"
+        case .unhealthy: return "xmark.shield"
+        case .unknown: return "shield"
+        }
+    }
+
+    /// 单色样式下正常 / 未知跟随菜单栏颜色，异常仍然标红
+    private func tint(_ s: GuardStatus) -> NSColor? {
+        if style == .mono { return s == .unhealthy ? .systemRed : nil }
+        return s.nsColor
+    }
+
+    private func render(_ status: GuardStatus, animated: Bool, bounce: Bool) {
+        guard let img = NSImage(systemSymbolName: symbolName(status), accessibilityDescription: status.title) else { return }
+        item.button?.setAccessibilityLabel("Notchkeeper：\(status.title)")
+        item.button?.toolTip = "Notchkeeper · \(status.title)"
+        if animated {
             iconView.setSymbolImage(img, contentTransition: .replace)
             NSAnimationContext.runAnimationGroup { ctx in
                 ctx.duration = 0.35
                 ctx.allowsImplicitAnimation = true
-                iconView.contentTintColor = status.nsColor
+                iconView.contentTintColor = tint(status)
             }
-            if status == .unhealthy { iconView.addSymbolEffect(.bounce) }
         } else {
             iconView.image = img
-            iconView.contentTintColor = status.nsColor
+            iconView.contentTintColor = tint(status)
         }
+        if bounce { iconView.addSymbolEffect(.bounce) }
     }
 
     @objc private func clicked(_ sender: NSStatusBarButton) {

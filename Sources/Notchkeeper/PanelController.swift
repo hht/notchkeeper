@@ -15,7 +15,7 @@ final class PanelModel: ObservableObject {
 /// 菜单栏图标下方的无边框面板；动画全部在 SwiftUI 里做（窗口本身只是透明容器）
 @MainActor
 final class PanelController {
-    static let contentSize = CGSize(width: 380, height: 500)
+    static let contentSize = CGSize(width: 400, height: 580)
     static let pad: CGFloat = 28  // 给阴影留的透明边
 
     private let panel: KeyablePanel
@@ -40,7 +40,7 @@ final class PanelController {
         panel.isReleasedWhenClosed = false
         panel.animationBehavior = .none
 
-        let root = PanelRoot(model: model, state: state, notch: notch, close: { [weak self] in self?.close() })
+        let root = PanelRoot(model: model, state: state, store: ConfigStore.shared, notch: notch, close: { [weak self] in self?.close() })
         let host = FirstMouseHostingView(rootView: root)
         host.sizingOptions = []
         host.frame = NSRect(origin: .zero, size: windowSize)
