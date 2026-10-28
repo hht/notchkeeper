@@ -69,6 +69,14 @@ enum NotchLayout {
 @MainActor
 final class NotchController {
     static let windowSize = CGSize(width: 580, height: 320)
+    /// 收起时的层级：在系统菜单栏之上，但在下拉菜单之下
+    static let restLevel = NSWindow.Level(rawValue: NSWindow.Level.mainMenu.rawValue + 3)
+    /// 展开时的层级：要压过铺满顶部的第三方菜单栏覆盖层，否则卡片上沿会被盖住一截。
+    /// 只在展开期间用，收起后降回 restLevel，平时不挡下拉菜单。
+    /// 实测（2026-10-28，CGWindowListCopyWindowInfo，macOS 26.5）：控制中心 25 层，
+    /// Vibe Island 27 层（同 mainMenu + 3），iBar Pro 101 层（popUpMenu，铺满菜单栏），
+    /// 红卡期间打开刘海旁的下拉菜单未被遮挡。
+    static let openLevel = NSWindow.Level(rawValue: NSWindow.Level.popUpMenu.rawValue + 1)
 
     private let window: NSPanel
     private let model = NotchModel()
@@ -78,9 +86,10 @@ final class NotchController {
     private(set) var hasNotch = false
 
     private var moveMonitors: [Any] = []
+    private let tracker = NotchMouseTracker()
+    private var hoverEnabled = false
     private var hoverIntent: DispatchWorkItem?
     private var leaveWork: DispatchWorkItem?
-    private var hoverPoll: Timer?
     private var screenFrame: NSRect = .zero
 
     init() {
@@ -89,7 +98,7 @@ final class NotchController {
         window.isOpaque = false
         window.backgroundColor = .clear
         window.hasShadow = false
-        window.level = NSWindow.Level(rawValue: NSWindow.Level.mainMenu.rawValue + 3)
+        window.level = Self.restLevel
         window.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]
         window.ignoresMouseEvents = true
         window.isReleasedWhenClosed = false
@@ -101,8 +110,17 @@ final class NotchController {
         host.sizingOptions = []
         host.frame = NSRect(origin: .zero, size: Self.windowSize)
         window.contentView = host
+        // 窗口接收鼠标后，全局监听收不到发给本 App 的事件，而这个面板不会成为 key window；
+        // 用 activeAlways 的 tracking area 接住移动和移出，鼠标离开形状时才能及时恢复穿透
+        // @see https://developer.apple.com/documentation/appkit/nstrackingarea/options/activealways
+        // @see https://developer.apple.com/documentation/appkit/nsevent/addglobalmonitorforevents(matching:handler:)
+        tracker.onMove = { [weak self] in self?.mouseMoved() }
+        host.addTrackingArea(NSTrackingArea(rect: .zero,
+                                            options: [.activeAlways, .mouseMoved, .mouseEnteredAndExited, .inVisibleRect],
+                                            owner: tracker, userInfo: nil))
         position()
         window.orderFrontRegardless()
+        installMouseMonitors()
 
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
                                                object: nil, queue: .main) { [weak self] _ in
@@ -141,13 +159,13 @@ final class NotchController {
         if card.persistent { pendingAlert = card }
         if cfg.soundEnabled { NSSound(named: card.isAlert ? "Basso" : "Glass")?.play() }
         window.orderFrontRegardless()
-        window.ignoresMouseEvents = false
         if model.mode != .closed {
             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { model.card = card; model.expanded = true }
         } else {
             model.card = card
             withAnimation(Motion.notchOpen) { model.expanded = true }
         }
+        updateMouseCapture()
         if !card.persistent {
             let id = card.id
             let work = DispatchWorkItem { [weak self] in
@@ -185,7 +203,7 @@ final class NotchController {
 
     private func collapse() {
         withAnimation(model.hovering ? Motion.page : Motion.notchClose) { model.expanded = false }
-        window.ignoresMouseEvents = true
+        updateMouseCapture()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             if !self.model.expanded { self.model.card = nil }
         }
@@ -194,21 +212,28 @@ final class NotchController {
     // MARK: 悬停展开
 
     func setHoverEnabled(_ on: Bool) {
-        if on {
-            guard moveMonitors.isEmpty else { return }
-            if let g = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged], handler: { _ in
-                Task { @MainActor in self.mouseMoved() }
-            }) { moveMonitors.append(g) }
-            if let l = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved], handler: { ev in
-                Task { @MainActor in self.mouseMoved() }
-                return ev
-            }) { moveMonitors.append(l) }
-        } else {
-            moveMonitors.forEach { NSEvent.removeMonitor($0) }
-            moveMonitors.removeAll()
-            hoverIntent?.cancel()
+        hoverEnabled = on
+        if !on {
+            hoverIntent?.cancel(); hoverIntent = nil
             setHovering(false)
         }
+    }
+
+    /// 鼠标位置监听常驻：卡片的点击穿透也靠它，所以不随「悬停展开」开关装卸
+    private func installMouseMonitors() {
+        if let g = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged], handler: { _ in
+            Task { @MainActor in self.mouseMoved() }
+        }) { moveMonitors.append(g) }
+    }
+
+    /// 窗口收不收鼠标、在哪一层只由这里决定：鼠标落在当前看得见的形状里才接收，
+    /// 其余（包括 580×320 窗口的透明部分）一律穿透，不挡菜单栏和别的 App
+    private func updateMouseCapture() {
+        let open = model.mode != .closed
+        let level = open ? Self.openLevel : Self.restLevel
+        if window.level != level { window.level = level }
+        let capture = open && shapeRect.contains(NSEvent.mouseLocation)
+        if window.ignoresMouseEvents == capture { window.ignoresMouseEvents = !capture }
     }
 
     /// 刘海本体（或无刘海屏顶端中间一条细带）略放大一点作为触发热区
@@ -220,14 +245,19 @@ final class NotchController {
         return NSRect(x: f.midX - w / 2, y: f.maxY - h, width: w, height: h)
     }
 
-    /// 当前可见形状（展开后）的屏幕区域，留 10pt 余量
-    private var visibleRect: NSRect {
+    /// 当前可见形状的屏幕区域（与视图共用 NotchLayout 的尺寸）
+    private var shapeRect: NSRect {
         let s = NotchLayout.size(model.mode, notch: model.notchSize, rows: state.sessions.count)
         let f = screenFrame
-        return NSRect(x: f.midX - s.width / 2, y: f.maxY - s.height, width: s.width, height: s.height).insetBy(dx: -10, dy: -10)
+        return NSRect(x: f.midX - s.width / 2, y: f.maxY - s.height, width: s.width, height: s.height)
     }
 
+    /// 判断悬停是否离开时多留 10pt 余量
+    private var visibleRect: NSRect { shapeRect.insetBy(dx: -10, dy: -10) }
+
     private func mouseMoved() {
+        updateMouseCapture()
+        guard hoverEnabled else { return }
         let p = NSEvent.mouseLocation
         if model.hovering {
             if visibleRect.contains(p) || triggerRect.contains(p) {
@@ -258,20 +288,27 @@ final class NotchController {
             state.scanSessions()
             window.orderFrontRegardless()
             withAnimation(Motion.notchOpen) { model.hovering = true }
-            // 兜底：鼠标飞快离开、没有产生 mouseMoved 时也能收起
-            hoverPoll = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { _ in
-                Task { @MainActor in self.mouseMoved() }
-            }
+            updateMouseCapture()
         } else {
-            hoverPoll?.invalidate(); hoverPoll = nil
             withAnimation(Motion.notchClose) { model.hovering = false }
+            updateMouseCapture()
         }
     }
+}
+
+/// 接住宿主视图 tracking area 的鼠标事件，转给 NotchController
+final class NotchMouseTracker: NSResponder {
+    var onMove: () -> Void = {}
+    override func mouseMoved(with event: NSEvent) { onMove() }
+    override func mouseEntered(with event: NSEvent) { onMove() }
+    override func mouseExited(with event: NSEvent) { onMove() }
 }
 
 struct NotchShape: Shape {
     var topRadius: CGFloat
     var bottomRadius: CGFloat
+    /// false 时不画顶边（描边用）：卡片顶部和刘海连成一体，不出现一条线
+    var closed = true
 
     var animatableData: AnimatablePair<CGFloat, CGFloat> {
         get { AnimatablePair(topRadius, bottomRadius) }
@@ -291,7 +328,7 @@ struct NotchShape: Shape {
         p.addQuadCurve(to: CGPoint(x: r.maxX - t, y: r.maxY - b), control: CGPoint(x: r.maxX - t, y: r.maxY))
         p.addLine(to: CGPoint(x: r.maxX - t, y: r.minY + t))
         p.addQuadCurve(to: CGPoint(x: r.maxX, y: r.minY), control: CGPoint(x: r.maxX - t, y: r.minY))
-        p.closeSubpath()
+        if closed { p.closeSubpath() }
         return p
     }
 }
@@ -316,7 +353,12 @@ struct NotchRoot: View {
                 .frame(width: size.width, height: size.height)
                 .overlay(alignment: .top) { content(mode, inset: t) }
                 .overlay {
-                    shape.stroke(glow.opacity(mode == .card ? 0.35 : (open ? 0.08 : 0)), lineWidth: 1)
+                    // 卡片描边从两侧往下由淡到实，底边最亮；其余形态是一条很淡的白线
+                    NotchShape(topRadius: t, bottomRadius: b, closed: false)
+                        .stroke(mode == .card
+                                ? AnyShapeStyle(LinearGradient(colors: [glow.opacity(0.3), glow], startPoint: .top, endPoint: .bottom))
+                                : AnyShapeStyle(glow.opacity(open ? 0.08 : 0)),
+                                lineWidth: 1)
                 }
                 .clipShape(shape)
                 .shadow(color: (mode == .card ? glow : .black).opacity(open ? 0.3 : 0), radius: 18, y: 6)
