@@ -242,14 +242,20 @@ final class NotchController {
         let n = model.notchSize
         let w = (hasNotch ? n.width : 200) + 16
         let h = hasNotch ? n.height + 2 : 6
-        return NSRect(x: f.midX - w / 2, y: f.maxY - h, width: w, height: h)
+        return NSRect(x: f.midX - w / 2, y: f.maxY - h, width: w, height: h + Self.topEdgeSlack)
     }
+
+    /// 鼠标顶到屏幕最上沿时 NSEvent.mouseLocation.y 恰好等于 frame.maxY，而 NSRect.contains 不含上边界，
+    /// 所以命中区要越过屏幕顶边 1pt，否则贴顶的鼠标永远判在区外（2026-10-28 在刘海机型上用 CGWarpMouseCursorPosition 实测）
+    /// @see https://developer.apple.com/documentation/appkit/nsevent/mouselocation
+    /// @see https://developer.apple.com/documentation/corefoundation/cgrect
+    private static let topEdgeSlack: CGFloat = 1
 
     /// 当前可见形状的屏幕区域（与视图共用 NotchLayout 的尺寸）
     private var shapeRect: NSRect {
         let s = NotchLayout.size(model.mode, notch: model.notchSize, rows: state.sessions.count)
         let f = screenFrame
-        return NSRect(x: f.midX - s.width / 2, y: f.maxY - s.height, width: s.width, height: s.height)
+        return NSRect(x: f.midX - s.width / 2, y: f.maxY - s.height, width: s.width, height: s.height + Self.topEdgeSlack)
     }
 
     /// 判断悬停是否离开时多留 10pt 余量
