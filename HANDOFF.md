@@ -25,7 +25,7 @@
 | 阶段 | 内容 | 状态 |
 |---|---|---|
 | 0 | 文档重置：CLAUDE.md、README、本文件、`docs/dundun.md`、`docs/firewall.md`；删除旧文档和 `prototype/` | 已完成 |
-| 1 | 后端：删除没人用的拦截接缝（`onVerdictChange`、`Verdict.intercepts`）；guardd 读上一份状态时不再用 `try?` 吞错误 | 进行中 |
+| 1 | 后端：删除没人用的拦截接缝（`onVerdictChange`、`Verdict.intercepts`）；guardd 读上一份状态时不再用 `try?` 吞错误 | 已完成 |
 | 2 | 盾盾新动画（见下方「接手要点」） | 下一步 |
 | 3 | App 外壳重写：<br>• 新增 `NotchCore`：GuardPresentation、CardQueue、HoverMachine、MascotResolver、配置解码（同时修 P0）<br>• 刘海视图只订阅 `presentation`，不订阅含 `checkedAt` 的 `display`：Watcher 每轮都发是为了设置页的「上次检查」，不是 bug，但不该让整棵视图每 5 秒重算<br>• 接上 AgentWatch 的完成卡<br>• 精简设置页<br>• 删除 `AgentEvents.swift`、`Sessions.swift`、SelfTest<br>• `demo.sh` 的通知只在 DEBUG 构建里监听 | 待做 |
 | 4 | 防火墙：资料已查（`docs/firewall.md` 第 6 节）。顺序：root 实测 → 恢复脚本并实测 → 试运行和自动回滚 → 规则、LaunchDaemon、安装脚本、App 开关 | 待做 |

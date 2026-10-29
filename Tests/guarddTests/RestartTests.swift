@@ -53,6 +53,17 @@ import GuardCore
     }
 
     @Test func noPreviousFileStartsFresh() throws {
-        #expect(Guardd.resumedGuard(stateURL: try scratch()).verdict == .unknown)
+        var logged: [String] = []
+        #expect(Guardd.resumedGuard(stateURL: try scratch(), log: { logged.append($0) }).verdict == .unknown)
+        #expect(logged.isEmpty)
+    }
+
+    /// 文件在但读不出来（这里用同名目录模拟）：拿不到证据，不能凭空判 violated，从 unknown 开始；但要记一行，不能悄悄吞掉
+    @Test func unreadablePreviousFileStartsFreshAndIsLogged() throws {
+        let url = try scratch()
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: false)
+        var logged: [String] = []
+        #expect(Guardd.resumedGuard(stateURL: url, log: { logged.append($0) }).verdict == .unknown)
+        #expect(logged.count == 1)
     }
 }
