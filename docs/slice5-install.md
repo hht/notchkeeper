@@ -1,6 +1,6 @@
 # Slice 5：把 guardd 装成登录后常驻（Jason 2026-10-28）
 
-**状态：只有文件，还没装。** 下面的命令要 Haitao 自己批了再跑；到现在为止只跑过 `--dry-run`、`bash -n`、`plutil -lint` 和 shellcheck 0.11（0 条）。
+**状态：已安装（2026-10-28 20:02，Haitao 批准，提交 `4ba3998`）。** guardd 作为 `gui/501` 的 LaunchAgent 在跑。安装前跑过 `--dry-run`、`bash -n`、`plutil -lint` 和 shellcheck 0.11（0 条）。
 
 **不需要管理员密码。** guardd 是每用户 LaunchAgent，不是 LaunchDaemon：安装就是 Haitao 在自己登录的终端里跑 `bash scripts/install-guardd.sh`，不弹密码框、不用 sudo / osascript 提权；两个脚本以 root 运行都会拒绝。
 

@@ -33,7 +33,7 @@
      - **A. 只显示**：琥珀色提示，什么都不拦。violated 只由路由触发。代价：Claude 真的换到不允许的节点时，新启动也放行，只靠路由兜底。
      - **B. 拦新启动**：琥珀色，拒绝新启动，不杀已在跑的。代价：回显服务被分到别的节点时，Claude 会被误拦、启动不了；而且要把「`observe` 下坏 IP 拒绝新启动」写进 `AGENTS.md:44` 的修改稿。
 2. 切到 `enforce` 之前，Haitao 需要在 Clash 里**亲手**做好一件事（我们不碰 Clash）：把 `ipify.org`、`ipinfo.io`、`ifconfig.me` 三个域名放进 Claude 所在的同一个策略组；并且这个组要么只有一个节点，要么组内每个节点的出口 IP 都在允许列表里。做到之后，回显服务看到的 IP 就等于 Claude 的出口 IP，`enforce` 不会误杀。
-3. 设置页「出口守卫」显示最近几轮去重后的出口 IP（末段打码），方便 Haitao 对照允许列表、决定什么时候切 `enforce`。这些 IP 只在内存里显示，不写日志、不落盘。
+3. 设置页「出口守卫」显示最近几轮去重后的出口 IP（完整显示，Haitao 2026-10-28 确认），方便 Haitao 对照允许列表、决定什么时候切 `enforce`。这些 IP 不写日志；落盘的只有 `guard-state.json` 里本轮的 `egressIP`（文件权限 0600）。
 
 **代价**：在 `observe` 档，如果 Clash 把 Claude 自己切到了一个不在允许列表的节点，已经在跑的 Claude 拦不住（选 A 时新启动也拦不住）。要堵住这个口子，就切 `enforce`，前提是第 2 步已经做好。
 
@@ -50,7 +50,7 @@
 
 ## 4. Slice 4 实现说明（guardd，Jason 2026-10-28）
 
-状态：已实现、未提交、未安装，App 还没接。
+状态：已提交（`7e5c871`），已作为 LaunchAgent 安装（2026-10-28），App 已改为读 `guard-state.json`（`93286d3`）。
 
 **进程与文件**
 
@@ -106,12 +106,12 @@
 **这一片没做的**
 
 - **拦截**：只留一个接缝 `Guardd.onVerdictChange`（写好文件、verdict 变化时调用），现在是空实现。甲（杀进程）和 killswitch 的取舍待 Haitao 定；killswitch 是否取代乙也待 Haitao 拍板，见 `docs/killswitch-integration.md`。
-- **常驻**：Slice 5 的 LaunchAgent 模板和安装 / 卸载脚本已在仓库里（见 `docs/slice5-install.md`），还没装，等 Haitao 批。
-- **App 接线**：读取逻辑已在 GuardCore（见下面「App 怎么读」），`AppState.swift` 的改动由 S1m0nE 做。
+- **常驻**：Slice 5 的 LaunchAgent 模板和安装 / 卸载脚本已在仓库里，2026-10-28 已安装（见 `docs/slice5-install.md`）。
+- **App 接线**：已完成（`93286d3`），App 用 GuardCore 的 `GuardStateReader` 读文件；改为订阅 `GuardStateWatcher`、去掉 5 秒重读由 S1m0nE 做（见下面「不轮询」一节）。
 
 **App 怎么读（给 S1m0nE）**
 
-纯函数在 `Sources/GuardCore/GuardStateReader.swift`，App target 依赖 `GuardCore` 即可（`Package.swift` 里 App 现在还没依赖它，接线时加 `dependencies: ["GuardCore"]`）。
+纯函数在 `Sources/GuardCore/GuardStateReader.swift`，App target 依赖 `GuardCore`（`93286d3` 已在 `Package.swift` 里加上）。
 
 ```swift
 import GuardCore
