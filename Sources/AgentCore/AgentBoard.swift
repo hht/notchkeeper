@@ -13,7 +13,7 @@ public enum AgentActivity: Comparable, Sendable {
     case finished, working, longTurn, question, approval
 }
 
-/// 回答：各会话的回合走到哪了、刚刚发生了哪件该提醒的事。
+/// 回答：看着哪些会话、各自的回合走到哪了、刚刚发生了哪件该提醒的事。
 /// 纯状态机：喂进解析好的 `Session` 和当前时间；不读文件、不查进程、不起定时器，也不知道盾盾和卡片。
 public struct AgentBoard: Sendable {
     /// pid → 最近一次看到的会话，和它这一回合的开始时刻（不在回合里时为 nil）
@@ -65,6 +65,11 @@ public struct AgentBoard: Sendable {
         }
         let finished = finishedUntil.map { now < $0 ? [AgentActivity.finished] : [] } ?? []
         return (sessions + finished).max()
+    }
+
+    /// 看着的会话：按进程启动先后排（同一秒按 pid），状态变了行不挪位置
+    public var sessions: [Session] {
+        tracked.values.map(\.session).sorted { ($0.processStart, $0.pid) < ($1.processStart, $1.pid) }
     }
 
     /// 不来新文件时 `activity` 下一次因为时间而变的时刻（严格晚于 `now`）：变干了很久、完成到期。没有就 nil

@@ -88,6 +88,10 @@ public struct RGB: Hashable, Sendable {
     public static let amber = RGB(0xFFB020)
     public static let red = RGB(0xFF453A)
     public static let grey = RGB(0x8E8E93)
+    /// agent 状态的颜色：右耳的点和面板的状态胶囊共用（docs/mascot.md §2「右耳指示」、docs/ui.md「面板布局」）
+    public static let working = RGB(0x3B9EFF)
+    public static let question = RGB(0x3CC8DC)
+    public static let approval = RGB(0xB5E04A)
 }
 
 /// 收起时右耳显示什么（docs/mascot.md §2「右耳指示」）。右耳只有一个位置：sign 盖过灰环，灰环盖过点
@@ -102,16 +106,14 @@ public enum EarIndicator: Equatable, Sendable {
     /// sign 造型的装饰原样挂到右耳
     case sign(Look)
 
-    public static let dotsColor = RGB(0x3B9EFF)
-
     /// probeFailed：守卫 unknown、原因是探针没结果。这种 unknown 不改造型，只在右耳表达
     public static func `for`(_ look: Look, probeFailed: Bool) -> EarIndicator {
         if look.isSign { return .sign(look) }
         if probeFailed { return .ring }
         switch look {
         case .thinking, .working, .longTurn: return .dots
-        case .question: return .dot(RGB(0x3CC8DC))
-        case .approval: return .dot(RGB(0xB5E04A))
+        case .question: return .dot(.question)
+        case .approval: return .dot(.approval)
         default: return .none
         }
     }

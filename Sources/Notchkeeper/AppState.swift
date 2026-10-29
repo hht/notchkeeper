@@ -16,8 +16,8 @@ final class AppState: ObservableObject {
     /// 由 display 和 dismissedViolationSince 算出来，界面只看它
     @Published private(set) var presentation = GuardPresentation(GuardStateReader.display(data: nil, now: Date()),
                                                                  dismissedViolationSince: nil)
-    @Published private(set) var sessions: [AgentSession] = []
-    @Published private(set) var processes = ProcessCounts()
+    /// 面板列的会话（AgentCore 判定的、活着的终端 claude）
+    @Published private(set) var sessions: [Session] = []
     /// Claude Code 各会话合起来此刻是什么（AgentCore 判定）；没有要画的是 nil
     @Published private(set) var agentActivity: AgentActivity?
 
@@ -31,9 +31,7 @@ final class AppState: ObservableObject {
     var onPresentation: ((GuardPresentation) -> Void)?
     /// 订阅 guard-state 显示流的长任务；`stopWatchingGuard()` / deinit 取消，流随之结束、监听关掉
     private var guardTask: Task<Void, Never>?
-    private var sessionTimer: Timer?
     private var agentWatcher: AgentWatcher?
-    private var scanning = false
 
     init() {}
 
@@ -45,10 +43,6 @@ final class AppState: ObservableObject {
         }
         watcher.start()
         agentWatcher = watcher
-        scanSessions()
-        sessionTimer = Timer.scheduledTimer(withTimeInterval: 4, repeats: true) { _ in
-            Task { @MainActor in AppState.shared.scanSessions() }
-        }
     }
 
     /// 每来一个显示就 apply 一次。参数是流，测试可以喂假的；再调一次会先取消旧的订阅
@@ -82,6 +76,7 @@ final class AppState: ObservableObject {
     /// 卡片和声音第 4 步接上；现在只记日志，实机冒烟靠它
     private func applyAgent(_ update: AgentWatcher.Update) {
         if update.activity != agentActivity { agentActivity = update.activity }
+        if update.sessions != sessions { sessions = update.sessions }
         for event in update.events {
             switch event {
             case .turnEnded(let project): Log.write("agent：回合结束（\(project)）")
@@ -95,23 +90,6 @@ final class AppState: ObservableObject {
         guard presentation.holdsViolation else { return }
         dismissedViolationSince = .some(display.violatedSince)
         apply(display)
-    }
-
-    /// 后台线程只读扫描会话文件；结果只含项目名 / agent / 状态 / 时间
-    func scanSessions() {
-        guard !scanning else { return }
-        scanning = true
-        Task.detached(priority: .utility) {
-            let s = SessionScanner.scan()
-            let p = ProcessCounts.current()
-            await MainActor.run { AppState.shared.applyScan(s, p) }
-        }
-    }
-
-    private func applyScan(_ s: [AgentSession], _ p: ProcessCounts) {
-        scanning = false
-        if s != sessions { sessions = s }
-        if p != processes { processes = p }
     }
 
     /// 允许列表用 GuardCore 的 IPv4 校验，和 guardd 解析 config.json 的规则一致

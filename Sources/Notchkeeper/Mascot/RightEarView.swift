@@ -94,7 +94,7 @@ final class EarLayerView: MascotLayerView {
             return nil
         case .dots:
             // 直径 3，圆心在中心 x − 8、− 3、+ 2
-            parts = [-8.0, -3, 2].map { circle(CGPoint(x: center.x + $0, y: center.y), diameter: 3, .fill, EarIndicator.dotsColor,
+            parts = [-8.0, -3, 2].map { circle(CGPoint(x: center.x + $0, y: center.y), diameter: 3, .fill, RGB.working,
                                                opacity: Choreography.earDotRest) }
         case .dot(let color):
             parts = [circle(center, diameter: 7, .fill, color)]

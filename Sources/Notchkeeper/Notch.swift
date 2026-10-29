@@ -1,3 +1,4 @@
+import AgentCore
 import AppKit
 import SwiftUI
 import MascotCore
@@ -382,7 +383,7 @@ final class NotchController {
         hoverIntent?.cancel(); hoverIntent = nil
         leaveWork?.cancel(); leaveWork = nil
         let opening = p == .open && model.mode == .closed
-        if opening { state.scanSessions(); orderFront() }
+        if opening { orderFront() }
         withAnimation(opening ? NotchSpring.notchOpen : NotchSpring.notchClose) {
             overrides.pin = p
             model.hovering = false
@@ -519,7 +520,6 @@ final class NotchController {
         leaveWork?.cancel(); leaveWork = nil
         guard model.hovering != on else { return }
         if on {
-            state.scanSessions()
             orderFront()
             withAnimation(NotchSpring.notchOpen) { model.hovering = true }
             updateMouseCapture()
@@ -696,11 +696,6 @@ struct NotchDashboard: View {
                         .foregroundStyle(p.ipColor)
                 }
                 Spacer(minLength: 8)
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text("进程").font(.system(size: 9, weight: .medium)).foregroundStyle(.white.opacity(0.35))
-                    Text("claude \(state.processes.claude)")
-                        .font(.system(size: 10, design: .monospaced)).foregroundStyle(.white.opacity(0.55))
-                }
             }
             .frame(height: 40)
 
@@ -709,13 +704,13 @@ struct NotchDashboard: View {
             if state.sessions.isEmpty {
                 HStack(spacing: 6) {
                     Image(systemName: "moon.zzz").font(.system(size: 11))
-                    Text("近 30 分钟没有活跃的编程会话").font(.system(size: 12))
+                    Text("没有看到正在运行的 Claude Code").font(.system(size: 12))
                 }
                 .foregroundStyle(.white.opacity(0.45))
                 .frame(maxWidth: .infinity, minHeight: 36)
             } else {
                 VStack(spacing: 0) {
-                    ForEach(state.sessions.prefix(NotchLayout.maxRows)) { s in
+                    ForEach(state.sessions.prefix(NotchLayout.maxRows), id: \.pid) { s in
                         SessionRow(session: s).frame(height: NotchLayout.rowHeight)
                     }
                 }
@@ -750,67 +745,81 @@ struct NotchGearButton: View {
 }
 
 struct SessionRow: View {
-    let session: AgentSession
+    let session: Session
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { ctx in
+        TimelineView(.periodic(from: .now, by: 1)) { _ in
             HStack(spacing: 10) {
-                Image(systemName: session.agent.symbol)
+                // 是哪个 agent 只靠行首图标表示，不另写一行字（用户 10-29）；图标用通用图形，不用品牌标志
+                Image(systemName: "apple.terminal")
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(session.agent.tint)
+                    .foregroundStyle(Color(white: 0.62))
                     .frame(width: 22, height: 22)
-                    .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(session.agent.tint.opacity(0.18)))
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(session.project).font(.system(size: 12.5, weight: .semibold)).lineLimit(1)
-                        .foregroundStyle(Color.white)
-                    Text(session.agent.displayName).font(.system(size: 10))
-                        .foregroundStyle(Color.white.opacity(0.45))
-                }
+                    .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color(white: 0.62).opacity(0.18)))
+                    .help("Claude Code")
+                    .accessibilityLabel("Claude Code")
+                Text(session.project).font(.system(size: 12.5, weight: .semibold)).lineLimit(1)
+                    .foregroundStyle(Color.white)
                 Spacer(minLength: 6)
-                StatePill(running: session.state == .running)
-                Text(elapsed(ctx.date))
+                StatePill(state: session.state)
+                // 状态变化距今，系统相对时间格式（docs/ui.md「面板布局」）
+                // TimelineView 每秒重算一次 body，按当时的现在算
+                Text(session.stateSince.formatted(.relative(presentation: .numeric, unitsStyle: .abbreviated)))
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundStyle(Color.white.opacity(0.6))
                     .frame(minWidth: 58, alignment: .trailing)
             }
         }
     }
-
-    private func elapsed(_ now: Date) -> String {
-        if session.state == .running {
-            return Self.duration(now.timeIntervalSince(session.turnStart ?? session.lastActivity))
-        }
-        return Self.duration(now.timeIntervalSince(session.lastActivity)) + "前"
-    }
-
-    static func duration(_ t: TimeInterval) -> String {
-        let s = max(0, Int(t))
-        if s < 60 { return "\(s)秒" }
-        if s < 3600 { return "\(s / 60)分\(String(format: "%02d", s % 60))秒" }
-        return "\(s / 3600)时\(String(format: "%02d", (s % 3600) / 60))分"
-    }
 }
 
+/// 会话状态胶囊。颜色和右耳指示的点同一份（`RGB.working` 等）；
+/// 绿色留给出口正常（CLAUDE.md「状态 = 颜色 + 图标 + 文案」），这里不用
 struct StatePill: View {
-    let running: Bool
+    let state: AgentState
     @State private var pulse = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var working: Bool { state == .working }
+    /// 减弱动态效果时不脉动（CLAUDE.md「界面准则·动效」）；写在修饰符里，设置中途改了也马上生效
+    private var pulsing: Bool { working && pulse && !reduceMotion }
+
+    private var tint: Color {
+        switch state {
+        case .working: return Color(cgColor: RGB.working.cg)
+        case .needsYou(.question): return Color(cgColor: RGB.question.cg)
+        case .needsYou(.approval): return Color(cgColor: RGB.approval.cg)
+        case .stopped: return Color(cgColor: RGB.grey.cg)
+        }
+    }
+
+    private var title: LocalizedStringKey {
+        switch state {
+        case .working: return "工作中"
+        case .needsYou(.question): return "等你回答"
+        case .needsYou(.approval): return "等你批准"
+        case .stopped: return "已停止"
+        }
+    }
 
     var body: some View {
         HStack(spacing: 4) {
             Circle()
-                .fill(running ? Color.green : Color.gray)
+                .fill(tint)
                 .frame(width: 6, height: 6)
-                .scaleEffect(running && pulse ? 1.35 : 1)
-                .opacity(running && pulse ? 0.55 : 1)
-            Text(running ? "运行中" : "空闲").font(.system(size: 10, weight: .medium))
+                .scaleEffect(pulsing ? 1.35 : 1)
+                .opacity(pulsing ? 0.55 : 1)
+            Text(title).font(.system(size: 10, weight: .medium))
         }
-        .foregroundStyle(running ? Color.green : Color.white.opacity(0.5))
+        .foregroundStyle(state == .stopped ? Color.white.opacity(0.5) : tint)
         .padding(.horizontal, 7).padding(.vertical, 3)
-        .background(Capsule().fill((running ? Color.green : Color.gray).opacity(0.14)))
-        .onAppear {
-            guard running else { return }
-            withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) { pulse = true }
-        }
+        .background(Capsule().fill(tint.opacity(0.14)))
+        .onAppear { if working { startPulse() } }
+        .onChange(of: working) { _, now in if now { startPulse() } else { pulse = false } }
+    }
+
+    private func startPulse() {
+        withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) { pulse = true }
     }
 }
 

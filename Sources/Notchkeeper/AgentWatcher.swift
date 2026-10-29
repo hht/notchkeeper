@@ -17,6 +17,7 @@ import Foundation
 final class AgentWatcher: @unchecked Sendable {
     struct Update: Sendable {
         var activity: AgentActivity?
+        var sessions: [Session]
         var events: [AgentEvent]
     }
 
@@ -31,10 +32,11 @@ final class AgentWatcher: @unchecked Sendable {
     private var exitSources: [Int32: DispatchSourceProcess] = [:]
     private var timer: DispatchSourceTimer?
     private var lastActivity: AgentActivity?
+    private var lastSessions: [Session] = []
     /// 解不开的文件名：只在新出现时记一次日志（准则 5：计数、跳过，不覆盖原文件）
     private var unreadable: Set<String> = []
 
-    /// `onUpdate` 在内部队列上调用，只在动态变了或有事件时调用
+    /// `onUpdate` 在内部队列上调用，只在动态、会话列表变了或有事件时调用
     init(onUpdate: @escaping @Sendable (Update) -> Void) {
         self.onUpdate = onUpdate
     }
@@ -157,8 +159,10 @@ final class AgentWatcher: @unchecked Sendable {
         if let next = board.nextChange(after: now) {
             timer?.schedule(wallDeadline: .now() + next.timeIntervalSince(now), leeway: .milliseconds(10))
         }
-        guard activity != lastActivity || !events.isEmpty else { return }
+        let sessions = board.sessions
+        guard activity != lastActivity || sessions != lastSessions || !events.isEmpty else { return }
         lastActivity = activity
-        onUpdate(Update(activity: activity, events: events))
+        lastSessions = sessions
+        onUpdate(Update(activity: activity, sessions: sessions, events: events))
     }
 }

@@ -169,3 +169,25 @@ private func feed(_ board: inout AgentBoard, _ sessions: Session...) -> [AgentEv
         #expect(board.nextChange(after: t0.addingTimeInterval(6.2)) == nil)
     }
 }
+
+/// 面板的会话列表：只有活着的、要看的会话；按进程启动先后排，状态变了行不挪位置
+@Suite struct SessionList {
+    @Test func listsTrackedSessionsByProcessStart() {
+        var board = AgentBoard()
+        _ = feed(&board, session(.working, pid: 7, started: -10), session(.stopped, pid: 3, started: -5),
+                 session(.needsYou(.approval), pid: 5, started: -20))
+        #expect(board.sessions.map(\.pid) == [5, 7, 3])
+        _ = board.update(session(.stopped, at: 9, pid: 5, started: -20), at: t0.addingTimeInterval(9))
+        #expect(board.sessions.map(\.pid) == [5, 7, 3])
+        #expect(board.sessions.first?.state == .stopped)
+        board.remove(pid: 7)
+        #expect(board.sessions.map(\.pid) == [5, 3])
+    }
+
+    /// procStart 只精确到秒：同一秒起的按 pid，顺序才稳定
+    @Test func sameSecondOrdersByPid() {
+        var board = AgentBoard()
+        _ = feed(&board, session(.working, pid: 9, started: -5), session(.working, pid: 2, started: -5))
+        #expect(board.sessions.map(\.pid) == [2, 9])
+    }
+}
