@@ -1,5 +1,5 @@
 #!/bin/bash
-# 从命令行触发刘海卡片（本机分布式通知，供后续 agent hook 使用）
+# 从命令行触发刘海卡片（本机分布式通知），在实机上验卡片 UI
 # 用法: scripts/demo.sh done|alert ["标题"] ["详情"]
 KIND="${1:-done}"; TITLE="${2:-}"; DETAIL="${3:-}"
 JS=$(cat <<'JSEOF'

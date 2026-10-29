@@ -2,11 +2,11 @@ import Foundation
 import Testing
 @testable import GuardCore
 
-// 测试只用 TEST-NET-3（203.0.113.0/24，RFC 5737）地址
-private let allowedA = IPv4("203.0.113.10")!
-private let allowedB = IPv4("203.0.113.11")!
-private let outsideX = IPv4("203.0.113.9")!
-private let outsideY = IPv4("203.0.113.200")!
+// 测试只用 TEST-NET-2（198.51.100.0/24，RFC 5737）地址
+private let allowedA = IPv4("198.51.100.10")!
+private let allowedB = IPv4("198.51.100.11")!
+private let outsideX = IPv4("198.51.100.9")!
+private let outsideY = IPv4("198.51.100.200")!
 private let allowlist: Set<IPv4> = [allowedA, allowedB]
 private let up = NetworkPath(physicalInterfaceSatisfied: true, hasDefaultRoute: true)
 private let down = NetworkPath(physicalInterfaceSatisfied: false, hasDefaultRoute: false)
@@ -32,14 +32,14 @@ private func state(_ o: Observation, path: NetworkPath? = up) -> GuardState {
     @Test func healthyRoundWritesTheObservedIP() {
         let s = state(obs(ips: [allowedA, allowedA]))
         #expect(s.verdict == .healthy)
-        #expect(s.egressIP == "203.0.113.10")
+        #expect(s.egressIP == "198.51.100.10")
     }
 
     /// 出口不符时显示的是不在允许列表的那个，不是碰巧对上的那个
     @Test func mismatchPrefersTheIPOutsideTheAllowlist() {
         let s = state(obs(ips: [allowedA, outsideX, allowedB]))
         #expect(s.verdict == .egressMismatch)
-        #expect(s.egressIP == "203.0.113.9")
+        #expect(s.egressIP == "198.51.100.9")
     }
 
     /// 回显服务说法不一时：取出现次数最多的；一样多取数值最小的。和探针返回的先后顺序无关
@@ -71,7 +71,7 @@ private func state(_ o: Observation, path: NetworkPath? = up) -> GuardState {
     /// 绝不沿用上一轮的 IP：上一轮拿到了，这一轮探针失败，就写 nil
     @Test func neverCarriesOverThePreviousRoundsIP() {
         var g = EgressGuard()
-        #expect(state(obs(ips: [allowedA]), guard: &g).egressIP == "203.0.113.10")
+        #expect(state(obs(ips: [allowedA]), guard: &g).egressIP == "198.51.100.10")
         #expect(state(obs(ips: []), guard: &g, at: t0.addingTimeInterval(5)).egressIP == nil)
     }
 
@@ -79,9 +79,9 @@ private func state(_ o: Observation, path: NetworkPath? = up) -> GuardState {
     @Test func stickyViolatedReportsThisRoundsIP() {
         var g = EgressGuard()
         let first = state(obs(iface: "en0", ips: [outsideX]), guard: &g)
-        #expect(first.verdict == .violated && first.egressIP == "203.0.113.9")
+        #expect(first.verdict == .violated && first.egressIP == "198.51.100.9")
         let sticky = state(obs(ips: [allowedA, outsideY]), guard: &g, at: t0.addingTimeInterval(5))
-        #expect(sticky.verdict == .violated && sticky.egressIP == "203.0.113.200")
+        #expect(sticky.verdict == .violated && sticky.egressIP == "198.51.100.200")
         let blind = state(obs(ips: []), guard: &g, at: t0.addingTimeInterval(10))
         #expect(blind.verdict == .violated && blind.egressIP == nil)
     }
@@ -90,14 +90,6 @@ private func state(_ o: Observation, path: NetworkPath? = up) -> GuardState {
         for s in [state(obs(ips: [outsideX])), state(obs(ips: []))] {
             #expect(try GuardState.decode(s.encoded()) == s)
         }
-    }
-
-    /// 可选字段、不升格式版本：旧 guardd 写的文件没有这个键照样能解，解成 nil
-    @Test func oldFileWithoutTheFieldDecodesAsNil() throws {
-        let json = #"{"schemaVersion":1,"verdict":"healthy","checkedAt":"2027-01-15T08:00:00Z","egressFailures":{}}"#
-        let s = try GuardState.decode(Data(json.utf8))
-        #expect(s.egressIP == nil)
-        #expect(s.schemaVersion == 1)
     }
 
     /// 只有 `egressIP` 这一个字段可以出现 IP；其余任何字段都不得出现点分四段
@@ -110,7 +102,7 @@ private func state(_ o: Observation, path: NetworkPath? = up) -> GuardState {
         #expect((ip == nil) == ips.isEmpty)
         let rest = try #require(String(data: JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]), encoding: .utf8))
         #expect(rest.firstMatch(of: /\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/) == nil)
-        #expect(!rest.contains("203.0.113"))
+        #expect(!rest.contains("198.51.100"))
     }
 }
 
@@ -130,8 +122,8 @@ private func state(_ o: Observation, path: NetworkPath? = up) -> GuardState {
     @Test func freshFileShowsTheIP() throws {
         let d = read(try file([allowedA]))
         #expect(d.reason == .fresh && d.verdict == .healthy)
-        #expect(d.egressIP == "203.0.113.10")
-        #expect(read(try file([outsideX], iface: "en0")).egressIP == "203.0.113.9")
+        #expect(d.egressIP == "198.51.100.10")
+        #expect(read(try file([outsideX], iface: "en0")).egressIP == "198.51.100.9")
     }
 
     @Test func freshFileWithoutIPShowsNil() throws {
@@ -151,7 +143,7 @@ private func state(_ o: Observation, path: NetworkPath? = up) -> GuardState {
         #expect(d.egressIP == nil)
     }
 
-    @Test func newerSchemaMissingAndUnreadableHaveNoIP() throws {
+    @Test func otherSchemaMissingAndUnreadableHaveNoIP() throws {
         #expect(read(try file([allowedA], schema: 2)).egressIP == nil)
         #expect(read(nil).egressIP == nil)
         #expect(read(Data("{not json".utf8)).egressIP == nil)

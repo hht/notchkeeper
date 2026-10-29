@@ -32,10 +32,10 @@ import GuardCore
     /// 重启只接续粘性和 violatedSince，不接续 IP：重启后第一轮探针失败，文件里的 egressIP 是 nil，不是上一份的
     @Test func restartDoesNotResumeTheEgressIP() throws {
         let url = try scratch()
-        let o = Observation(clashRunning: true, routeInterface: "en0", egressIPs: [IPv4("203.0.113.9")!])
+        let o = Observation(clashRunning: true, routeInterface: "en0", egressIPs: [IPv4("198.51.100.9")!])
         try StateFile.write(GuardState(verdict: .violated, observation: o, allowlist: [allowed], egressFailures: [:], networkPath: nil,
                                        violatedSince: t0, checkedAt: t0).encoded(), to: url)
-        #expect(GuardState.resumable(from: try Data(contentsOf: url))?.egressIP == "203.0.113.9") // 上一份确实带了 IP
+        #expect(try GuardState.decode(Data(contentsOf: url)).egressIP == "198.51.100.9") // 上一份确实带了 IP
         var g = Guardd.resumedGuard(stateURL: url)
         let probesFail = Observation(clashRunning: true, routeInterface: "utun4", egressIPs: [])
         let t1 = t0.addingTimeInterval(60)
@@ -62,6 +62,24 @@ import GuardCore
     @Test func unreadablePreviousFileStartsFreshAndIsLogged() throws {
         let url = try scratch()
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: false)
+        var logged: [String] = []
+        #expect(Guardd.resumedGuard(stateURL: url, log: { logged.append($0) }).verdict == .unknown)
+        #expect(logged.count == 1)
+    }
+
+    /// 解不开或格式版本不同：同样从 unknown 开始并记一行，不能当成「没有上一份」悄悄吞掉
+    @Test(arguments: [Data("{not json".utf8), nil])
+    func undecodablePreviousFileStartsFreshAndIsLogged(_ data: Data?) throws {
+        let url = try scratch()
+        if let data {
+            try data.write(to: url)
+        } else {
+            var s = try GuardState.decode(GuardState(verdict: .violated, observation: Observation(clashRunning: true, routeInterface: "en0", egressIPs: []),
+                                                     allowlist: [allowed], egressFailures: [:], networkPath: nil,
+                                                     violatedSince: t0, checkedAt: t0).encoded())
+            s.schemaVersion = 2
+            try JSONEncoder().encode(s).write(to: url)
+        }
         var logged: [String] = []
         #expect(Guardd.resumedGuard(stateURL: url, log: { logged.append($0) }).verdict == .unknown)
         #expect(logged.count == 1)

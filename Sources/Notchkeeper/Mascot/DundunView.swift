@@ -2,11 +2,11 @@ import AppKit
 import SwiftUI
 import DundunCore
 
-/// 盾盾嵌进 SwiftUI 的地方。外面只通过 Mascot.swift 的 `MascotRenderable` 用它。
+/// 盾盾嵌进 SwiftUI 的地方。
 /// 布局占 size × size，正好是身体圆的外框；画布按 docs/dundun.md §1 的比例画在 overlay 里，装饰在右上方出框。
 /// size ≤ 24 用 20pt 画法（左耳），更大用 40pt 画法按比例缩放（面板、卡片、设置页）。
 /// 这里只决定造型（晕、开心、犯困盖不盖过调用方给的状态）；怎么画、怎么动见 `DundunLayerView`。
-struct DundunView: MascotRenderable {
+struct DundunView: View {
     let state: DundunState
     let size: CGFloat
     let emote: MascotEmote
@@ -101,9 +101,9 @@ extension DundunState {
         switch self {
         case .idle, .guardUnknown: return .idle
         case .sleeping: return .sleeping
-        case .thinking, .ratelimit: return .thinking
-        case .working, .searching: return .working
-        case .question, .approval: return .question
+        case .thinking: return .thinking
+        case .working: return .working
+        case .question: return .question
         case .finished: return .finished
         case .error: return .error
         case .interrupted: return .interrupted
@@ -126,4 +126,13 @@ extension EnvironmentValues {
         get { self[DundunLiteralKey.self] }
         set { self[DundunLiteralKey.self] = newValue }
     }
+}
+
+/// 出现时附带的表情
+enum MascotEmote {
+    case none
+    /// 出现时开心一下（完成卡、恢复卡）
+    case cheer
+    /// 一直开心（设置页「关于」）
+    case beaming
 }

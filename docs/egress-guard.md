@@ -81,10 +81,10 @@ App 订阅 `GuardStateWatcher(directory:).displays()`（GuardWatch），自己�
 
 | 情况 | `reason` | 显示的 verdict | `lastVerdict` | `egressIP` |
 |---|---|---|---|---|
-| 文件不存在 / 解不开 / 版本更新 | `.missing` / `.unreadable` / `.newerSchema` | unknown | nil | nil |
+| 文件不存在 / 解不开或格式版本不同 | `.missing` / `.unreadable` | unknown | nil | nil |
 | `checkedAt` 超过 15 秒没更新 | `.stale` | unknown | 文件里的 verdict | nil（不显示旧 IP） |
 | `checkedAt` 在未来超过 5 秒（改过系统时间） | `.clockSkew` | unknown | 文件里的 verdict | nil |
-| 新鲜 | `.fresh` | 文件里的 verdict（旧 guardd 没写 unknownReason 的按 probeFailed） | 同 verdict | 文件里的值（不是合法 IPv4 时为 nil） |
+| 新鲜 | `.fresh` | 文件里的 verdict（unknown 缺 unknownReason 的按 probeFailed） | 同 verdict | 文件里的值（不是合法 IPv4 时为 nil） |
 
 刚好 15 秒算新鲜，超过才算过期。
 

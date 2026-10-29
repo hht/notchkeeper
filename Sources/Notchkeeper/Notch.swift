@@ -16,7 +16,7 @@ struct NotchCard: Identifiable, Equatable {
         NotchCard(kind: .alert, title: GuardPresentation.violatedTitle, detail: detail,
                   tint: Color(cgColor: DundunConst.red), persistent: true)
     }
-    static func taskDone(title: String = "✅ 任务完成", detail: String = "演示：编程助手已完成任务") -> NotchCard {
+    static func taskDone(title: String, detail: String) -> NotchCard {
         NotchCard(kind: .done, title: title, detail: detail, tint: .green, persistent: false)
     }
     static var recovered: NotchCard {
@@ -105,18 +105,18 @@ enum NotchLayout {
     static let rowHeight: CGFloat = 34
     static let maxRows = 5
 
-    /// 收起时刘海两侧各一只耳朵（expanded-spec.md「收起态」）：左耳放盾盾，右耳放状态指示
+    /// 收起时刘海两侧各一只耳朵：左耳放盾盾，右耳放状态指示（docs/dundun.md §1）
     static let earWidth: CGFloat = 44
     /// 收起时形状顶角往外翻的宽度（NotchShape 的 topRadius）
     static let closedFlare: CGFloat = 4
-    /// 左耳盾盾画布 28×28，左缘在身体外边（形状左边 + 外翻）往里 6pt，离刘海也是 6pt（ear-dundun-spec.md）
+    /// 左耳盾盾画布 28×28，左缘在身体外边（形状左边 + 外翻）往里 6pt，离刘海也是 6pt（docs/dundun.md §1）
     static let earCanvas: CGFloat = 28
     static let earCanvasInset: CGFloat = 6
     /// 画布里身体中心的纵坐标；身体中心对齐 notchSize.height / 2，所以 32pt 刘海时画布上缘在 -0.5
     static let earBodyCenterY: CGFloat = 16.5
-    /// 左耳盾盾的身体直径（dundun-final-spec.md §1.1：20pt 画布里的 r=10 正圆）
+    /// 左耳盾盾的身体直径（docs/dundun.md §1：20pt 版）
     static let earMascotSize: CGFloat = 20
-    /// 右耳 7pt 圆点的圆心离形状右边 17.5（dundun-final-spec.md §2.4）
+    /// 右耳 7pt 圆点的圆心离形状右边 17.5（docs/dundun.md §1）
     static let earDotInset: CGFloat = 17.5
     /// 三颗点（右缘离形状右边 14）整组中心比圆点圆心再往左 3
     static let earDotsShift: CGFloat = 3
@@ -125,15 +125,12 @@ enum NotchLayout {
     struct Ears: Equatable {
         var canvas: CGRect
         var bodyCenter: CGPoint
-        var dot: CGPoint
-        var dots: CGPoint
     }
 
     static func ears(notch: CGSize, flare: CGFloat = closedFlare) -> Ears {
-        let w = notch.width + 2 * earWidth, mid = notch.height / 2
+        let mid = notch.height / 2
         let canvas = CGRect(x: flare + earCanvasInset, y: mid - earBodyCenterY, width: earCanvas, height: earCanvas)
-        return Ears(canvas: canvas, bodyCenter: CGPoint(x: canvas.minX + earCanvas / 2, y: mid),
-                    dot: CGPoint(x: w - earDotInset, y: mid), dots: CGPoint(x: w - earDotInset - earDotsShift, y: mid))
+        return Ears(canvas: canvas, bodyCenter: CGPoint(x: canvas.minX + earCanvas / 2, y: mid))
     }
 
     /// 没有刘海的屏幕（高度 0）不长耳朵，保持原来从顶端中间长出来的样子
@@ -172,9 +169,6 @@ final class NotchController {
     private let window: NSPanel
     private let model = NotchModel()
     private let state = AppState.shared
-    private let config: @MainActor () -> NKConfig
-    private let playSound: (String) -> Void
-    private let onScreen: Bool
     private var countdownWork: DispatchWorkItem?
     /// 出口红卡（正在显示，或被临时卡片暂时盖住）
     private var pendingAlert: NotchCard?
@@ -197,13 +191,7 @@ final class NotchController {
     /// 红卡没等到 healthy 就收起（用户点 ×，或非常驻红卡到时）：记作用户关掉了这一次违规
     var onAlertDismissed: () -> Void = {}
 
-    /// - onScreen: false 时窗口不上屏、不装鼠标监听、不出声（`--selftest` 驱动真实控制器用）
-    init(config: (@MainActor () -> NKConfig)? = nil,
-         playSound: @escaping (String) -> Void = { NSSound(named: $0)?.play() },
-         onScreen: Bool = true) {
-        self.config = config ?? { ConfigStore.shared.config }
-        self.playSound = playSound
-        self.onScreen = onScreen
+    init() {
         window = NSPanel(contentRect: NSRect(origin: .zero, size: Self.windowSize),
                          styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         window.isOpaque = false
@@ -234,7 +222,7 @@ final class NotchController {
                                             owner: tracker, userInfo: nil))
         position()
         orderFront()
-        if onScreen { installMouseMonitors() }
+        installMouseMonitors()
 
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
                                                object: nil, queue: .main) { [weak self] _ in
@@ -248,17 +236,13 @@ final class NotchController {
 
     private func position() {
         guard let s = targetScreen() else { return }
-        var notch: CGSize?
+        // 没有刘海的屏幕：从屏幕顶端中间“长”出来
+        var notch = CGSize(width: 180, height: 0)
         if s.safeAreaInsets.top > 0, let l = s.auxiliaryTopLeftArea, let r = s.auxiliaryTopRightArea {
             notch = CGSize(width: s.frame.width - l.width - r.width, height: s.safeAreaInsets.top)
         }
-        place(screen: s.frame, notch: notch)
-    }
-
-    /// 按屏幕和刘海尺寸摆窗口（自检直接喂尺寸）；notch 为 nil 表示没有刘海
-    func place(screen f: NSRect, notch: CGSize?) {
-        // 没有刘海的屏幕：从屏幕顶端中间“长”出来
-        model.notchSize = notch ?? CGSize(width: 180, height: 0)
+        model.notchSize = notch
+        let f = s.frame
         screenFrame = f
         window.setFrame(NSRect(x: f.midX - Self.windowSize.width / 2, y: f.maxY - Self.windowSize.height,
                                width: Self.windowSize.width, height: Self.windowSize.height), display: true)
@@ -266,23 +250,22 @@ final class NotchController {
 
     // MARK: 卡片
 
-    private func orderFront() { if onScreen { window.orderFrontRegardless() } }
+    private func orderFront() { window.orderFrontRegardless() }
 
     /// 现在看得见的卡片（收起动画里的不算）
     var visibleCard: NotchCard? { model.expanded ? model.card : nil }
-    var countdown: CardCountdown? { model.countdown }
 
     /// - sound: false 时不响（守卫不响应时保留的红卡不再响 Basso）
     func show(_ input: NotchCard, sound: Bool = true) {
         // 恢复卡不叠第二张
         if input.kind == .recovered, visibleCard?.kind == .recovered { return }
-        let cfg = config()
+        let cfg = ConfigStore.shared.config
         var card = input
         if card.kind == .alert {
             card.persistent = cfg.alertPersistent
             pendingAlert = card
         }
-        if sound, cfg.soundEnabled { playSound(card.kind == .alert ? "Basso" : "Glass") }
+        if sound, cfg.soundEnabled { NSSound(named: card.kind == .alert ? "Basso" : "Glass")?.play() }
         present(card)
     }
 
@@ -298,10 +281,10 @@ final class NotchController {
         }
         updateMouseCapture()
         if !card.persistent {
-            let total = card.kind == .recovered ? NotchCard.recoveredSeconds : config().cardAutoDismissSeconds
+            let total = card.kind == .recovered ? NotchCard.recoveredSeconds : ConfigStore.shared.config.cardAutoDismissSeconds
             model.countdown = CardCountdown(total: total, now: Date())
             scheduleCountdown()
-            if onScreen { setCardHover(model.mode == .card && shapeRect.contains(NSEvent.mouseLocation)) }
+            setCardHover(model.mode == .card && shapeRect.contains(NSEvent.mouseLocation))
         }
     }
 
@@ -364,7 +347,7 @@ final class NotchController {
             }
             return
         }
-        guard let alert = new.alert, config().autoAlert else { return }
+        guard let alert = new.alert, ConfigStore.shared.config.autoAlert else { return }
         violationAlerted = true
         if var shown = pendingAlert {
             // 红卡已经在：只换副标题，不重弹、不重响
@@ -535,7 +518,6 @@ final class NotchController {
         }
     }
 
-    /// 自检也用：模拟悬停展开 / 移开
     func setHovering(_ on: Bool) {
         leaveWork?.cancel(); leaveWork = nil
         guard model.hovering != on else { return }
@@ -663,7 +645,7 @@ struct NotchRoot: View {
         removal: .opacity.animation(.easeIn(duration: 0.1)))
 }
 
-/// 收起时的两只耳朵（expanded-spec.md「收起态」、ear-dundun-spec.md、dundun-final-spec.md）。纯黑、无描边无阴影，
+/// 收起时的两只耳朵（docs/dundun.md §1、§2）。纯黑、无描边无阴影，
 /// 底色就是 NotchRoot 的黑形状。坐标见 `NotchLayout.ears`：左耳身体圆心 x = 外翻 + 6 + 14、y = H/2；
 /// 右耳圆点圆心 x = W − 17.5。点击和悬停由 NotchController 的热区处理。
 struct NotchEars: View {
@@ -684,7 +666,7 @@ struct NotchEars: View {
         let e = NotchLayout.ears(notch: notch, flare: flare)
         let w = notch.width + 2 * NotchLayout.earWidth
         ZStack(alignment: .topLeading) {
-            Mascot(state: mascot, size: NotchLayout.earMascotSize)
+            DundunView(state: mascot, size: NotchLayout.earMascotSize)
                 .environment(\.dundunLiteral, forced)
                 .position(e.bodyCenter)
             DundunEarView(indicator: .for(look, guardUnknown: mascot == .guardUnknown, errorUnread: earState.errorUnread), height: notch.height)
@@ -707,9 +689,9 @@ struct NotchDashboard: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
                 let p = state.presentation
-                Mascot(state: overrides.mascot(real: p.mascotState), size: 40)
+                DundunView(state: overrides.mascot(real: p.mascotState), size: 40)
                     .environment(\.dundunLiteral, overrides.dundun != nil)
-                    // 展开过刘海就算看过错误，右耳红点灭（dundun-final-spec.md §2.4）
+                    // 展开过刘海就算看过错误，右耳红点灭
                     .onAppear { DundunEarState.shared.markRead() }
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
@@ -776,7 +758,6 @@ struct NotchGearButton: View {
 
 struct SessionRow: View {
     let session: AgentSession
-    var dark = true
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { ctx in
@@ -788,15 +769,15 @@ struct SessionRow: View {
                     .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(session.agent.tint.opacity(0.18)))
                 VStack(alignment: .leading, spacing: 0) {
                     Text(session.project).font(.system(size: 12.5, weight: .semibold)).lineLimit(1)
-                        .foregroundStyle(dark ? Color.white : Color.primary)
+                        .foregroundStyle(Color.white)
                     Text(session.agent.displayName).font(.system(size: 10))
-                        .foregroundStyle(dark ? Color.white.opacity(0.45) : Color.secondary)
+                        .foregroundStyle(Color.white.opacity(0.45))
                 }
                 Spacer(minLength: 6)
-                StatePill(running: session.state == .running, dark: dark)
+                StatePill(running: session.state == .running)
                 Text(elapsed(ctx.date))
                     .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(dark ? Color.white.opacity(0.6) : Color.secondary)
+                    .foregroundStyle(Color.white.opacity(0.6))
                     .frame(minWidth: 58, alignment: .trailing)
             }
         }
@@ -819,7 +800,6 @@ struct SessionRow: View {
 
 struct StatePill: View {
     let running: Bool
-    var dark = true
     @State private var pulse = false
 
     var body: some View {
@@ -831,7 +811,7 @@ struct StatePill: View {
                 .opacity(running && pulse ? 0.55 : 1)
             Text(running ? "运行中" : "空闲").font(.system(size: 10, weight: .medium))
         }
-        .foregroundStyle(running ? Color.green : (dark ? Color.white.opacity(0.5) : Color.secondary))
+        .foregroundStyle(running ? Color.green : Color.white.opacity(0.5))
         .padding(.horizontal, 7).padding(.vertical, 3)
         .background(Capsule().fill((running ? Color.green : Color.gray).opacity(0.14)))
         .onAppear {
@@ -850,7 +830,7 @@ struct NotchCardView: View {
     var body: some View {
         VStack(spacing: 8) {
             HStack(spacing: 12) {
-                Mascot(state: card.mascotState, size: 38, emote: card.mascotEmote)
+                DundunView(state: card.mascotState, size: 38, emote: card.mascotEmote)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(card.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(.white)
                     Text(card.detail).font(.system(size: 12)).foregroundStyle(.white.opacity(0.65)).lineLimit(1)

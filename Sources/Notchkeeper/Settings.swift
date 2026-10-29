@@ -2,25 +2,23 @@ import AppKit
 import SwiftUI
 import DundunCore
 
-// 设置窗口：照 prototype/settings-spec.md，按 macOS 系统设置的布局，只用原生控件。
+// 设置窗口：按 macOS 系统设置的布局，只用原生控件。
 // 每个开关直接绑定 ConfigStore，改了立刻写盘，不在视图里缓存配置值。
 
 enum SettingsPane: String, CaseIterable, Identifiable {
-    case general, notch, exitGuard, block, notifications, agents, dundun, stateTest, about
+    case general, notch, exitGuard, notifications, dundun, stateTest, about
     var id: Self { self }
 
     /// 侧边栏分组，组与组之间空一行
-    static let groups: [[SettingsPane]] = [[.general, .notch], [.exitGuard, .block],
-                                           [.notifications, .agents, .dundun], [.stateTest], [.about]]
+    static let groups: [[SettingsPane]] = [[.general, .notch], [.exitGuard],
+                                           [.notifications, .dundun], [.stateTest], [.about]]
 
     var title: String {
         switch self {
         case .general: return "通用"
         case .notch: return "刘海与外观"
         case .exitGuard: return "出口守卫"
-        case .block: return "拦截与防火墙"
         case .notifications: return "通知"
-        case .agents: return "Agent"
         case .dundun: return "盾盾"
         case .stateTest: return "状态测试"
         case .about: return "关于"
@@ -32,9 +30,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .general: return "gearshape.fill"
         case .notch: return "rectangle.topthird.inset.filled"
         case .exitGuard: return "shield.lefthalf.filled"
-        case .block: return "hand.raised.fill"
         case .notifications: return "bell.badge.fill"
-        case .agents: return "terminal.fill"
         case .dundun: return "face.smiling.inverse"
         case .stateTest: return "testtube.2"
         case .about: return "info.circle.fill"
@@ -46,9 +42,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .general: return .gray
         case .notch: return .blue
         case .exitGuard: return .green
-        case .block: return .red
         case .notifications: return .red
-        case .agents: return .indigo
         case .dundun: return .orange
         case .stateTest: return .purple
         case .about: return .gray
@@ -96,12 +90,10 @@ struct SettingsView: View {
     @ViewBuilder
     private var detail: some View {
         switch model.pane {
-        case .general: GeneralPane(store: store)
+        case .general: GeneralPane()
         case .notch: NotchPane(store: store)
         case .exitGuard: ExitGuardPane(model: model, state: state, store: store)
-        case .block: BlockPane()
         case .notifications: NotificationsPane(store: store)
-        case .agents: AgentsPane(store: store)
         case .dundun: DundunPane(store: store)
         case .stateTest: StateTestPane(overrides: notch.overrides, state: state, notch: notch)
         case .about: AboutPane(store: store)
@@ -128,7 +120,7 @@ private struct StatusCard: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Mascot(state: presentation.mascotState, size: 32)
+            DundunView(state: presentation.mascotState, size: 32)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Notchkeeper").font(.system(size: 13, weight: .semibold))
                 HStack(spacing: 5) {
@@ -145,20 +137,20 @@ private struct StatusCard: View {
 // MARK: - 通用
 
 private struct GeneralPane: View {
-    @ObservedObject var store: ConfigStore
+    /// SMAppService 的状态不会通知 SwiftUI：存一份，改完开关和每次出现时重读
+    @State private var loginStatus = LoginItem.status
     @State private var loginError: String?
     @State private var confirmQuit = false
 
     var body: some View {
         Form {
             Section("启动") {
-                // 登录项开关读的是系统状态（SMAppService），不是本地副本
-                Toggle(isOn: Binding(get: { LoginItem.isEnabled || LoginItem.status == .requiresApproval },
+                Toggle(isOn: Binding(get: { loginStatus == .enabled || loginStatus == .requiresApproval },
                                      set: setLogin)) {
                     Text("登录时打开")
-                    Text(loginError ?? LoginItem.statusText)
+                    Text(loginError ?? LoginItem.text(loginStatus))
                 }
-                if LoginItem.status == .requiresApproval {
+                if loginStatus == .requiresApproval {
                     LabeledContent("在系统设置中批准") {
                         Button("打开…") { LoginItem.openSettings() }.controlSize(.small)
                     }
@@ -173,6 +165,7 @@ private struct GeneralPane: View {
                 Text("退出后刘海和卡片提示会停止，后台守卫照常运行；要停守卫请用卸载脚本。")
             }
         }
+        .onAppear { loginStatus = LoginItem.status } // 可能刚在系统设置里批准过
         .confirmationDialog("退出 Notchkeeper？", isPresented: $confirmQuit) {
             Button("退出", role: .destructive) { AppDelegate.quit(reason: "设置里点了退出") }
         } message: {
@@ -182,7 +175,7 @@ private struct GeneralPane: View {
 
     private func setLogin(_ on: Bool) {
         loginError = LoginItem.set(on)
-        store.config.launchAtLogin = LoginItem.isEnabled
+        loginStatus = LoginItem.status
     }
 }
 
@@ -256,7 +249,7 @@ private struct ExitGuardPane: View {
                     }
                 }
                 HStack {
-                    TextField("新增", text: $model.allowDraft, prompt: Text("例如 203.0.113.10"))
+                    TextField("新增", text: $model.allowDraft, prompt: Text("例如 198.51.100.10"))
                         .onSubmit(add)
                         .onChange(of: model.allowDraft) { invalid = false }
                     Button("添加", action: add).disabled(model.allowDraft.isEmpty)
@@ -282,36 +275,6 @@ private struct ExitGuardPane: View {
     }
 }
 
-// MARK: - 拦截与防火墙（未启用，全部不可操作）
-
-private struct BlockPane: View {
-    var body: some View {
-        Form {
-            Section("拦截") {
-                Toggle(isOn: .constant(false)) {
-                    Text("出口异常时结束 Claude")
-                    Text("等待启用")
-                }
-                .disabled(true)
-            }
-            Section {
-                LabeledContent {
-                    Button("安装…") {}.controlSize(.small)
-                } label: {
-                    Text("防火墙保护")
-                    Text("未安装")
-                }
-            } footer: {
-                Text("安装后，没走 utun 隧道的流量会被系统防火墙直接拦下。")
-            }
-            Section("拦截记录") {
-                Text("暂无拦截记录").foregroundStyle(.secondary)
-            }
-        }
-        .disabled(true)
-    }
-}
-
 // MARK: - 通知
 
 private struct NotificationsPane: View {
@@ -327,55 +290,15 @@ private struct NotificationsPane: View {
                         Text("\(Int(store.config.cardAutoDismissSeconds)) 秒").monospacedDigit()
                     }
                 }
-                Toggle("对应应用在最前面时不弹卡", isOn: $store.config.suppressWhenHostFrontmost)
             } header: {
                 Text("卡片")
-            } footer: {
-                Text("出错卡多显示 4 秒。")
             }
             Section("声音") {
                 Toggle(isOn: $store.config.soundEnabled) {
                     Text("提示音")
-                    Text("完成 Glass · 出错 Funk · 出口不合规 Basso")
+                    Text("完成 Glass · 出口不合规 Basso")
                 }
             }
-        }
-    }
-}
-
-// MARK: - Agent
-
-private struct AgentsPane: View {
-    @ObservedObject var store: ConfigStore
-    private static let primary: [AgentKind] = [.claudeCode, .grokBot]
-
-    var body: some View {
-        Form {
-            Section {
-                ForEach(Self.primary) { row($0) }
-                DisclosureGroup("更多 Agent") {
-                    ForEach(AgentKind.allCases.filter { !Self.primary.contains($0) }) { row($0) }
-                }
-            } footer: {
-                Text("子 agent、被 hook 续上的回合、手动中断都不会提醒。")
-            }
-        }
-    }
-
-    /// 没接入的 agent 开关固定关着且灰掉：不出现「看着开着、其实什么都不做」的开关
-    @ViewBuilder
-    private func row(_ a: AgentKind) -> some View {
-        let label = Label {
-            Text(a.displayName)
-            Text(a.passiveSessionSupport ? "已接入 · 监听会话文件" : "未接入")
-        } icon: {
-            SettingsIcon(symbol: a.symbol, color: a.tint)
-        }
-        if a.passiveSessionSupport {
-            Toggle(isOn: Binding(get: { store.config.agentEnabled(a) },
-                                 set: { store.config.agents[a.rawValue] = $0 })) { label }
-        } else {
-            Toggle(isOn: .constant(false)) { label }.disabled(true)
         }
     }
 }
@@ -389,7 +312,7 @@ private struct DundunPane: View {
         Form {
             Section {
                 VStack(spacing: 6) {
-                    Mascot(state: .idle, size: 40)
+                    DundunView(state: .idle, size: 40)
                     Text("盾盾").font(.system(size: 13, weight: .semibold))
                 }
                 .frame(maxWidth: .infinity)
@@ -415,7 +338,7 @@ private struct StateTestPane: View {
         Form {
             Section {
                 VStack(spacing: 6) {
-                    Mascot(state: overrides.mascot(real: state.presentation.mascotState), size: 40)
+                    DundunView(state: overrides.mascot(real: state.presentation.mascotState), size: 40)
                         .environment(\.dundunLiteral, overrides.dundun != nil)
                     Text(overrides.dundun.map { "强制：\($0.title)" } ?? "真实状态：\(state.presentation.title)")
                         .font(.system(size: 13, weight: .semibold))
@@ -491,7 +414,7 @@ private struct AboutPane: View {
         Form {
             Section {
                 VStack(spacing: 6) {
-                    Mascot(state: .idle, size: 64, emote: .beaming)
+                    DundunView(state: .idle, size: 64, emote: .beaming)
                     Text("Notchkeeper").font(.title3.weight(.semibold))
                     Text("版本 \(version)（本机签名）").foregroundStyle(.secondary)
                 }

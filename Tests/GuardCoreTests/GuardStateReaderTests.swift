@@ -31,13 +31,16 @@ private func read(_ data: Data?) -> GuardDisplay { GuardStateReader.display(data
         #expect(read(Data(json.utf8)) == GuardDisplay(verdict: .unknown, checkedAt: nil, reason: .unreadable))
     }
 
-    @Test func newerSchemaIsUnknown() throws {
-        #expect(read(try file(.healthy, schema: 2)) == GuardDisplay(verdict: .unknown, checkedAt: nil, reason: .newerSchema))
+    /// 格式版本不同就不信这份文件，哪怕各字段解得开
+    @Test func otherSchemaIsUnreadable() throws {
+        #expect(read(try file(.healthy, schema: 2)) == GuardDisplay(verdict: .unknown, checkedAt: nil, reason: .unreadable))
     }
 
-    /// 新版本格式可能整个变了，只要 schemaVersion 读得出来就报 newerSchema，而不是 unreadable
-    @Test func newerSchemaWithUnknownShapeIsNewerSchema() {
-        #expect(read(Data(#"{"schemaVersion":7,"verdict":{"x":1}}"#.utf8)).reason == .newerSchema)
+    /// guardd 重启接续也走 `decode`：版本不同要抛错，日志里看得出是哪个版本
+    @Test func decodeRejectsOtherSchemaWithItsVersion() throws {
+        let data = try file(.violated, schema: 2)
+        #expect(throws: GuardState.SchemaMismatch(schemaVersion: 2)) { try GuardState.decode(data) }
+        #expect(GuardState.SchemaMismatch(schemaVersion: 2).localizedDescription.contains("2"))
     }
 
     @Test func staleAfterThreeIntervals() throws {

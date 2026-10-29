@@ -63,8 +63,9 @@ public struct EgressGuard: Sendable {
 
     public init() {}
 
-    /// 重启接续：上一份状态是 violated 时从 violated 开始，`violatedSince` 沿用原值（旧 guardd 没写就用那份的 `checkedAt`）。
+    /// 重启接续：上一份状态是 violated 时从 violated 开始，`violatedSince` 沿用原值（文件缺这个键就用那份的 `checkedAt`）。
     /// 不看新旧：只有一轮 healthy 能解除，停了多久都一样。其他 verdict、`nil`（没有可信的上一份）都从头开始。
+    /// 只取 verdict 和 `violatedSince`；`egressIP` 等观测值不接续，下一轮按自己的观测重写。
     public init(resuming previous: GuardState?) {
         guard let previous, previous.verdict == .violated else { return }
         verdict = .violated

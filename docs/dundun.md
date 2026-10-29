@@ -33,7 +33,7 @@
 | interrupted 被打断 | agent | 同空闲 | blink | 无 | 无 |
 | dizzy 晕 | 点一下面板里的盾盾 | `#FBE3EC` → `#EBB3C7` | dizzy | 无 | 无 |
 | mismatch 警告 | 出口 IP 不在允许列表 | `#FBEFC9` → `#E8CD84` | big | ▲! `#FFB020` | 琥珀点 `#FFB020` |
-| stale 警告 | 守卫没有响应：状态文件不存在、读不了、版本更新、过期或时钟跳变，并且上次不是 violated | `#EFE9DD` → `#CFC2A6` | big | 沙漏 `#B7A27A` | 灰色空心环 `#8E8E93` |
+| stale 警告 | 守卫没有响应：状态文件不存在、读不了（含格式版本不同）、过期或时钟跳变，并且上次不是 violated | `#EFE9DD` → `#CFC2A6` | big | 沙漏 `#B7A27A` | 灰色空心环 `#8E8E93` |
 | danger 危险 | 出口 violated；或者守卫没有响应（过期、时钟跳变），但上次是 violated（和红卡保留的规则一致） | `#FFB8B0` → `#F2645A` | danger | !! `#FF453A` | 红点 `#FF453A` + 柔和脉冲环 |
 
 右耳的点直径 7pt；三蓝点直径 3pt、间距 2、总宽 13。

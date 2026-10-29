@@ -17,14 +17,13 @@ public struct GuardState: Codable, Equatable, Sendable {
     public var egressMatches: Bool?
     /// 出口探针失败按类型计数（`timeout`、`transport`、`badStatus`、`unparseable`），排查 unknown 用。
     public var egressFailures: [String: Int]
-    /// 只有 verdict 是 unknown 时才有（见 `UnknownReason`）。可选字段，不升格式版本：旧文件没有它照样能读，
-    /// 旧 App 读新文件会忽略它。没有这个键的新鲜 unknown（旧 guardd 写的）由 `GuardStateReader` 当作 probeFailed。
+    /// 只有 verdict 是 unknown 时才有（见 `UnknownReason`）。
     public var unknownReason: UnknownReason?
-    /// 只有 verdict 是 violated 时才有：这次违规开始的那一轮（见 `EgressGuard.violatedSince`）。可选字段，不升格式版本。
+    /// 只有 verdict 是 violated 时才有：这次违规开始的那一轮（见 `EgressGuard.violatedSince`）。
     public var violatedSince: Date?
     /// 这一轮观测到的出口 IP（完整点分地址，打不打码是 App 显示层的事），见 `Observation.shownEgressIP`。
     /// 跟这一轮绑定：没拿到出口（断网、探针失败或超时）就是 `nil`，不沿用上一轮；粘住的 violated 期间也照写这一轮的。
-    /// 重启接续不碰它。可选字段，不升格式版本。
+    /// 重启接续不碰它。
     public var egressIP: String?
 
     /// `networkPath` 是这一轮的网络快照，`nil` 表示没拿到；只用来决定 `unknownReason`，本身不落盘。
@@ -42,13 +41,17 @@ public struct GuardState: Codable, Equatable, Sendable {
         self.egressFailures = egressFailures
     }
 
-    public func encoded() throws -> Data { try Self.encoder.encode(self) }
-    public static func decode(_ data: Data) throws -> GuardState { try decoder.decode(GuardState.self, from: data) }
+    public struct SchemaMismatch: LocalizedError, Equatable {
+        public var schemaVersion: Int
+        public var errorDescription: String? { "格式版本是 \(schemaVersion)，这一版只认 \(GuardState.currentSchemaVersion)" }
+    }
 
-    /// guardd 重启时可以接续的上一份状态：解得开、格式版本和现在一样才算，不看新旧。交给 `EgressGuard(resuming:)`，
-    /// 它只取 verdict 和 `violatedSince`；`egressIP` 等观测值不接续，下一轮按自己的观测重写。
-    public static func resumable(from data: Data?) -> GuardState? {
-        guard let data, let s = try? decode(data), s.schemaVersion == currentSchemaVersion else { return nil }
+    public func encoded() throws -> Data { try Self.encoder.encode(self) }
+
+    /// 格式版本和现在不同也算解不开：字段名碰巧对得上，含义也可能变了。
+    public static func decode(_ data: Data) throws -> GuardState {
+        let s = try decoder.decode(GuardState.self, from: data)
+        guard s.schemaVersion == currentSchemaVersion else { throw SchemaMismatch(schemaVersion: s.schemaVersion) }
         return s
     }
 

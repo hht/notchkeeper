@@ -2,7 +2,7 @@ import SwiftUI
 import GuardCore
 
 /// 回答一个问题：读到的这一份守卫状态，加上用户关掉的是哪一次违规，界面该怎么画、要不要红卡。
-/// 纯函数，不读文件、不碰卡片，规则见 docs/egress-guard.md §4「怎么画」和 prototype/network-states.md。
+/// 纯函数，不读文件、不碰卡片，规则见 docs/egress-guard.md「怎么画」一节。
 struct GuardPresentation: Equatable {
     /// 状态点：healthy 绿、mismatch 琥珀实心、unknown 灰色空心环、violated 红
     enum Tone: Equatable { case healthy, mismatch, unknown, violated }
@@ -27,16 +27,13 @@ struct GuardPresentation: Equatable {
     static let violatedDetail = "有流量没走 utun 隧道"
     static let unresponsiveDetail = "守卫没有响应，无法确认出口是否恢复"
 
-    /// 输入只有文件里的 verdict / unknownReason / lastVerdict / violatedSince，加上内存里的 dismissedViolationSince。
-    /// - dismissedViolationSince: nil = 没关掉过；.some(x) = 用户关掉了 violatedSince 为 x 的那次（旧 guardd 不写时 x 为 nil）
-    init(verdict: Verdict, unknownReason: UnknownReason?, lastVerdict: Verdict?, violatedSince: Date?,
-         dismissedViolationSince: Date??) {
-        // GuardStateReader 只在新鲜的 unknown 上给 unknownReason，而 lastVerdict 在文件解得开时才有，
-        // 所以「unknown、没有原因、lastVerdict 有值」恰好是 stale / clockSkew；missing / unreadable / newerSchema 没有 lastVerdict
-        let unresponsive = verdict == .unknown && unknownReason == nil && lastVerdict != nil
-        holdsViolation = verdict == .violated || (unresponsive && lastVerdict == .violated)
+    /// - dismissedViolationSince: nil = 没关掉过；.some(x) = 用户关掉了 violatedSince 为 x 的那次
+    init(_ d: GuardDisplay, dismissedViolationSince: Date??) {
+        let verdict = d.verdict
+        let unresponsive = d.reason == .stale || d.reason == .clockSkew
+        holdsViolation = verdict == .violated || (unresponsive && d.lastVerdict == .violated)
         if holdsViolation {
-            let dismissed = dismissedViolationSince == .some(violatedSince)
+            let dismissed = dismissedViolationSince == .some(d.violatedSince)
             if dismissed {
                 // 用户知道了：违规仍在画红点，守卫不响应画灰环
                 tone = verdict == .violated ? .violated : .unknown
@@ -58,18 +55,13 @@ struct GuardPresentation: Equatable {
             tone = .mismatch; title = "出口 IP 和预期不一致"
         case .unknown, .violated:
             tone = .unknown
-            switch unknownReason {
+            switch d.unknownReason {
             case .offline: title = "网络不通，暂时没法检查出口"
             case .probeFailed: title = "暂时查不到出口"
-            // stale / missing / clockSkew，以及 unreadable / newerSchema（docs §4 同样归到这一行）
+            // stale / missing / clockSkew / unreadable（docs §4 同样归到这一行）
             case nil: title = "守卫没有响应"
             }
         }
-    }
-
-    init(_ d: GuardDisplay, dismissedViolationSince: Date??) {
-        self.init(verdict: d.verdict, unknownReason: d.unknownReason, lastVerdict: d.lastVerdict,
-                  violatedSince: d.violatedSince, dismissedViolationSince: dismissedViolationSince)
     }
 
     var mascotState: DundunState {

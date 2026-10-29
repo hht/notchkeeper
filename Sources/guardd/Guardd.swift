@@ -83,17 +83,17 @@ enum Guardd {
 
     /// 启动时接续上一份状态文件里的粘性：KeepAlive 重启后第一轮若是 unknown / 出口不符，不能把 violated 覆盖掉、悄悄撤掉红卡。
     /// 只从解得开、同格式版本的 violated 接续，不看新旧（规则见 `EgressGuard.init(resuming:)`）。
-    /// 文件在却读不出来时没有证据，照样从 unknown 开始（unknown 不能当 violated），但记一行。
+    /// 文件在却读不出来或解不开时没有证据，照样从 unknown 开始（unknown 不能当 violated），但记一行。
     static func resumedGuard(stateURL: URL, log: (String) -> Void = log) -> EgressGuard {
-        var data: Data?
+        var previous: GuardState?
         do {
-            data = try Data(contentsOf: stateURL)
+            previous = try GuardState.decode(Data(contentsOf: stateURL))
         } catch CocoaError.fileReadNoSuchFile {
             // 没有上一份是常态（第一次运行、卸载时 --purge 过）
         } catch {
             log("读不了上一份状态文件，从 unknown 开始：\(error.localizedDescription)")
         }
-        let g = EgressGuard(resuming: GuardState.resumable(from: data))
+        let g = EgressGuard(resuming: previous)
         if g.verdict == .violated { log("接续上次的 violated：要一轮 healthy 才解除") }
         return g
     }

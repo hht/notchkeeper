@@ -5,32 +5,6 @@ import Combine
 @MainActor
 enum NotchkeeperMain {
     static func main() {
-        let args = CommandLine.arguments
-        // 自检用的抢锁子进程：只碰给定的锁文件，不写别的
-        if let i = args.firstIndex(of: "--instance-probe"), args.count > i + 1 {
-            switch SingleInstance.lock(at: URL(fileURLWithPath: args[i + 1])) {
-            case .acquired:
-                guard args.contains("--hold") else { exit(0) }
-                print("held"); fflush(stdout)
-                var byte: UInt8 = 0
-                _ = read(0, &byte, 1)   // 父进程关管道或退出时返回
-                exit(0)
-            case .heldByOther: exit(3)
-            case .unavailable: exit(2)
-            }
-        }
-        if args.contains("--selftest") {
-            TestHome.enter(arguments: args)
-            exit(SelfTest.run() ? 0 : 1)
-        }
-        if let i = args.firstIndex(of: "--login-item") {
-            let op = args.count > i + 1 ? args[i + 1] : "status"
-            if op == "enable" || op == "disable" {
-                if let err = LoginItem.set(op == "enable") { print("error: \(err)") }
-            }
-            print("login item: \(LoginItem.statusText)")
-            exit(0)
-        }
         // 在创建 NSApplication 之前：第二个实例什么都不画就退出
         guard SingleInstance.claim() else { exit(0) }
         let app = NSApplication.shared
@@ -190,18 +164,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// scripts/demo.sh done|alert ["标题"] ["详情"]
     @objc func handleCardNotification(_ n: Notification) {
-        let card = Self.demoCard(kind: n.object as? String, title: n.userInfo?["title"] as? String,
-                                 detail: n.userInfo?["detail"] as? String)
+        let title = n.userInfo?["title"] as? String, detail = n.userInfo?["detail"] as? String
+        var card: NotchCard
+        if n.object as? String == "alert" {
+            card = .exitAlert()
+            if let title { card.title = title }
+            if let detail { card.detail = detail }
+        } else {
+            card = .taskDone(title: title ?? "✅ 任务完成", detail: detail ?? "任务已完成")
+        }
         notch.show(card)
         Log.write(card.kind == .alert ? "外部触发：异常卡片" : "外部触发：完成卡片")
-    }
-
-    static func demoCard(kind: String?, title: String?, detail: String?) -> NotchCard {
-        guard kind == "alert" else { return .taskDone(title: title ?? "✅ 任务完成", detail: detail ?? "任务已完成") }
-        var c = NotchCard.exitAlert()
-        if let title { c.title = title }
-        if let detail { c.detail = detail }
-        return c
     }
 }
 

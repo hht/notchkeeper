@@ -57,14 +57,6 @@ private let unknownRound = Observation(clashRunning: true, routeInterface: nil, 
         #expect(!String(decoding: try s.encoded(), as: UTF8.self).contains("unknownReason"))
     }
 
-    /// 新增的是可选字段，格式版本不升：旧文件照样读，旧 App 读新文件也只是忽略这个键
-    @Test func oldFileWithoutFieldStillDecodes() throws {
-        #expect(GuardState.currentSchemaVersion == 1)
-        let old = #"{"schemaVersion":1,"verdict":"unknown","checkedAt":"2027-01-15T08:00:00Z","egressFailures":{}}"#
-        let s = try GuardState.decode(Data(old.utf8))
-        #expect(s.verdict == .unknown && s.unknownReason == nil)
-    }
-
     @Test func roundTrips() throws {
         for s in [state(.unknown, path: nothing), state(.unknown, path: up), state(.healthy, path: up)] {
             #expect(try GuardState.decode(s.encoded()) == s)
@@ -85,8 +77,8 @@ private let unknownRound = Observation(clashRunning: true, routeInterface: nil, 
         #expect(read(try file(.unknown, path: up)).reason == .fresh)
     }
 
-    /// 旧 guardd 写的 unknown 没有 unknownReason：按 probeFailed 显示
-    @Test func freshUnknownFromOldGuarddIsProbeFailed() {
+    /// 文件是外部数据：新鲜的 unknown 缺 unknownReason 时按 probeFailed 显示
+    @Test func freshUnknownWithoutReasonIsProbeFailed() {
         let old = #"{"schemaVersion":1,"verdict":"unknown","checkedAt":"2027-01-15T08:00:00Z","egressFailures":{}}"#
         let d = GuardStateReader.display(data: Data(old.utf8), now: ISO8601DateFormatter().date(from: "2027-01-15T08:00:03Z")!)
         #expect(d == GuardDisplay(verdict: .unknown, checkedAt: ISO8601DateFormatter().date(from: "2027-01-15T08:00:00Z"),

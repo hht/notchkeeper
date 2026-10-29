@@ -96,7 +96,7 @@ private struct StubPath: NetworkPathSource {
     /// unknown 的原因变了要重新通知 App（文字要换），所以通知的比较对象带着原因
     /// 日志和 `--once` 的输出永远不带 IP，哪怕状态文件里有 `egressIP`
     @Test func summaryAndVerdictLogNeverContainIPs() {
-        let o = Observation(clashRunning: true, routeInterface: "en0", egressIPs: [IPv4("203.0.113.9")!, allowed])
+        let o = Observation(clashRunning: true, routeInterface: "en0", egressIPs: [IPv4("198.51.100.9")!, allowed])
         for v in [Verdict.healthy, .egressMismatch, .unknown, .violated] {
             let s = GuardState(verdict: v, observation: o, allowlist: [allowed], egressFailures: ["timeout": 1], networkPath: nil,
                                violatedSince: Date(timeIntervalSince1970: 1_800_000_000), checkedAt: Date(timeIntervalSince1970: 1_800_000_000))

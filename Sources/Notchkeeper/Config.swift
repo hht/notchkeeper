@@ -1,11 +1,11 @@
 import AppKit
 import Combine
+import GuardCore
 
 /// 持久化到 ~/Library/Application Support/Notchkeeper/config.json。
 /// 解码时缺失的字段一律用默认值，手动改坏一个字段不会丢掉整份配置。
 struct NKConfig: Codable, Equatable {
     // 通用
-    var launchAtLogin = false
     var soundEnabled = true
     var hoverExpand = true
     /// 盾盾的眼睛和身体跟着鼠标走、鼠标到刘海上时探头（docs/dundun.md §5）
@@ -17,8 +17,6 @@ struct NKConfig: Codable, Equatable {
     var alertPersistent = true
     // 通知
     var cardAutoDismissSeconds = 6.0
-    var suppressWhenHostFrontmost = true
-    var agents: [String: Bool] = Dictionary(uniqueKeysWithValues: AgentKind.allCases.map { ($0.rawValue, true) })
 
     init() {}
 
@@ -28,7 +26,6 @@ struct NKConfig: Codable, Equatable {
         func v<T: Decodable>(_ key: CodingKeys, _ def: T) -> T {
             (try? c.decodeIfPresent(T.self, forKey: key)) ?? def
         }
-        launchAtLogin = v(.launchAtLogin, d.launchAtLogin)
         soundEnabled = v(.soundEnabled, d.soundEnabled)
         hoverExpand = v(.hoverExpand, d.hoverExpand)
         dundunFollowsMouse = v(.dundunFollowsMouse, d.dundunFollowsMouse)
@@ -36,11 +33,7 @@ struct NKConfig: Codable, Equatable {
         autoAlert = v(.autoAlert, d.autoAlert)
         alertPersistent = v(.alertPersistent, d.alertPersistent)
         cardAutoDismissSeconds = min(10, max(2, v(.cardAutoDismissSeconds, d.cardAutoDismissSeconds)))
-        suppressWhenHostFrontmost = v(.suppressWhenHostFrontmost, d.suppressWhenHostFrontmost)
-        agents = d.agents.merging(v(.agents, [String: Bool]())) { _, new in new }
     }
-
-    func agentEnabled(_ a: AgentKind) -> Bool { agents[a.rawValue] ?? true }
 }
 
 @MainActor
@@ -51,8 +44,7 @@ final class ConfigStore: ObservableObject {
         didSet { if config != oldValue && !applyingExternal { scheduleSave() } }
     }
 
-    let directory: URL
-    let url: URL
+    let url = GuardPaths.configFile
     private var applyingExternal = false
     private var lastData: Data?
     private var lastMTime: Date?
@@ -60,20 +52,13 @@ final class ConfigStore: ObservableObject {
     private var pollTimer: Timer?
 
     init() {
-        directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Notchkeeper", isDirectory: true)
-        url = directory.appendingPathComponent("config.json")
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try? FileManager.default.createDirectory(at: GuardPaths.directory, withIntermediateDirectories: true)
 
         if let data = try? Data(contentsOf: url), let c = try? JSONDecoder().decode(NKConfig.self, from: data) {
             config = c
             lastData = data
         } else {
-            var c = NKConfig()
-            // 从 M1 的 UserDefaults 迁移
-            if let list = UserDefaults.standard.stringArray(forKey: "allowlist") { c.allowlist = list }
-            if let a = UserDefaults.standard.object(forKey: "autoAlert") as? Bool { c.autoAlert = a }
-            config = c
+            config = NKConfig()
             saveNow()
         }
         lastMTime = mtime()

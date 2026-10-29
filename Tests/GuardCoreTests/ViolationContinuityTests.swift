@@ -61,7 +61,6 @@ private func read(_ d: Data?) -> GuardDisplay { GuardStateReader.display(data: d
         #expect(read(nil).lastVerdict == nil)
         #expect(read(Data("{not json".utf8)).lastVerdict == nil)
         #expect(read(try file(.violated, schema: 2)).lastVerdict == nil)
-        #expect(read(try file(.violated, schema: 2)).reason == .newerSchema)
     }
 }
 
@@ -98,13 +97,6 @@ private func read(_ d: Data?) -> GuardDisplay { GuardStateReader.display(data: d
         }
     }
 
-    /// 可选字段，格式版本仍是 1：旧文件没有它照样能读
-    @Test func oldFileWithoutFieldStillDecodes() throws {
-        #expect(GuardState.currentSchemaVersion == 1)
-        let old = #"{"schemaVersion":1,"verdict":"violated","checkedAt":"2027-01-15T08:00:00Z","egressFailures":{}}"#
-        #expect(try GuardState.decode(Data(old.utf8)).violatedSince == nil)
-    }
-
     @Test func readerExposesItForFreshAndStaleViolated() throws {
         let since = t0.addingTimeInterval(-600)
         #expect(read(try file(.violated, age: 3, since: since)).violatedSince == since)
@@ -125,7 +117,7 @@ private func read(_ d: Data?) -> GuardDisplay { GuardStateReader.display(data: d
 }
 
 @Suite struct ResumeAfterRestart {
-    private func resumed(_ d: Data?) -> EgressGuard { EgressGuard(resuming: GuardState.resumable(from: d)) }
+    private func resumed(_ d: Data?) -> EgressGuard { EgressGuard(resuming: d.flatMap { try? GuardState.decode($0) }) }
 
     /// 重启后第一轮是 unknown / 出口不符：仍然 violated，violatedSince 保持原值；healthy 才解除
     @Test func violatedFileSeedsStickinessAndKeepsViolatedSince() throws {
@@ -146,13 +138,13 @@ private func read(_ d: Data?) -> GuardDisplay { GuardStateReader.display(data: d
         #expect(g.observe(probesFail, allowlist: allowlist, at: t0) == .violated)
     }
 
-    /// 旧 guardd 写的 violated 没有 violatedSince：用那份文件的 checkedAt 作为起点（固定值，不随每轮变）
-    @Test func oldViolatedFileWithoutSinceUsesItsCheckedAt() throws {
+    /// 文件是外部数据：violated 缺 violatedSince 时用那份文件的 checkedAt 作为起点（固定值，不随每轮变）
+    @Test func violatedFileWithoutSinceUsesItsCheckedAt() throws {
         let g = resumed(try file(.violated, age: 30))
         #expect(g.verdict == .violated && g.violatedSince == now.addingTimeInterval(-30))
     }
 
-    /// 只从 violated 接续：别的 verdict、解不开、缺失、更新的格式版本都从头开始（unknown，没有 violatedSince）
+    /// 只从 violated 接续：别的 verdict、解不开、缺失、格式版本不同都从头开始（unknown，没有 violatedSince）
     @Test func seedsFromNothingElse() throws {
         var inputs: [Data?] = [nil, Data("{not json".utf8), try file(.violated, since: t0, schema: 2)]
         for v in [Verdict.healthy, .egressMismatch, .unknown] { inputs.append(try file(v)) }

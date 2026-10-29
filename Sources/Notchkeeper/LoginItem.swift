@@ -5,9 +5,7 @@ import ServiceManagement
 enum LoginItem {
     static var status: SMAppService.Status { SMAppService.mainApp.status }
 
-    static var isEnabled: Bool { status == .enabled }
-
-    static var statusText: String {
+    static func text(_ status: SMAppService.Status) -> String {
         switch status {
         case .enabled: return "已启用"
         case .requiresApproval: return "需要在「系统设置 › 通用 › 登录项」里允许"
@@ -18,7 +16,6 @@ enum LoginItem {
     }
 
     /// 返回 nil 表示成功，否则是错误描述
-    @discardableResult
     static func set(_ on: Bool) -> String? {
         do {
             if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }

@@ -50,7 +50,7 @@ Haitao 本机自用的 macOS 刘海应用。SwiftPM 构建，SwiftUI + AppKit，
   - **开、关都要管理员密码。** App 不常驻特权代码；特权部分只有安装好的脚本和 LaunchDaemon。安装和任何规则改动，都先给用户看 diff 并备份，由用户自己执行。
   - **不杀进程**，不针对任何 App。
   - 细节见 `docs/firewall.md`。
-- **只提醒顶层回合结束。** 子 agent 过滤的五个信号（`subagents/`、`isSidechain`、`session_meta.source.subagent`、`stop_hook_active`、中断）只由 `AgentCore` / `AgentWatch` 负责，有固定测试。零 hook：不改任何 agent 的配置。
+- **只提醒顶层回合结束。** 判定 agent 状态将由第 3 步新建的 `AgentCore` 负责，并配固定测试（目前仓里还没有这个 target）；来源改为 `~/.claude/sessions/<pid>.json`，规则待第 1 步写进 `docs/agent-integration.md`（现状见 `HANDOFF.md`「agent 状态新来源」）。零 hook：不改任何 agent 的配置。
 - **只读元数据，不读对话内容。** 会话文件只取判定需要的字段；日志和界面不出现消息正文、工具参数和输出。
 - **除防火墙外不碰网络与 shell 环境。** 不改 `~/.zshrc`，不改系统网络设置。「打开 Clash」只是打开 App。出口探测只请求第三方服务（如 ipinfo.io），不碰 Claude / Anthropic 的域名。guardd 是用户级 LaunchAgent，不要 sudo。
 - **密钥不打印，日志不记 IP。** 界面上完整显示出口 IP（Haitao 2026-10-28）。测试与文档里的 IP 用 `198.51.100.x`。
@@ -72,7 +72,7 @@ Haitao 本机自用的 macOS 刘海应用。SwiftPM 构建，SwiftUI + AppKit，
 |---|---|
 | 开工前、换会话 | `HANDOFF.md`（已定决策、进度、待办）、`README.md`（运行、安装、模块） |
 | 守卫信号、判定、`guard-state.json`、怎么画 | `docs/egress-guard.md` |
-| 会话怎么读、什么时候算回合结束 | `docs/agent-integration.md`，以及 `AgentCore` 的类型注释 |
+| 会话怎么读、什么时候算回合结束 | `HANDOFF.md`「agent 状态新来源」（`docs/agent-integration.md` 第 1 步重写） |
 | 防火墙规则、开关、恢复 | `docs/firewall.md` |
 | 盾盾的造型数据、动效、性能验收 | `docs/dundun.md` |
 | 起名字 | `docs/ubiquitous-language.md`（写第一个新领域概念时建立） |

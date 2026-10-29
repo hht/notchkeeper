@@ -23,12 +23,6 @@ let package = Package(
         // 出口守卫后台进程：轮询三路探针、写 guard-state.json（App 用 GuardWatch 监听这个文件）
         .executableTarget(name: "guardd", dependencies: ["GuardCore", "GuardProbes"]),
         .testTarget(name: "guarddTests", dependencies: ["guardd"]),
-        // Claude Code 会话的回合状态：纯逻辑，只解码元数据，不做 I/O
-        .target(name: "AgentCore"),
-        .testTarget(name: "AgentCoreTests", dependencies: ["AgentCore"]),
-        // 找主会话文件、只读尾部 64KB，交给 AgentCore 判定；App 进程内 2 秒轮询
-        .target(name: "AgentWatch", dependencies: ["AgentCore"]),
-        .testTarget(name: "AgentWatchTests", dependencies: ["AgentWatch"]),
         // 盾盾此刻是什么造型、做什么动作：造型数据、动作编排（[Track]）、空闲调度、跟随鼠标。纯值类型，只依赖 CoreGraphics
         .target(name: "DundunCore"),
         .testTarget(name: "DundunCoreTests", dependencies: ["DundunCore"]),

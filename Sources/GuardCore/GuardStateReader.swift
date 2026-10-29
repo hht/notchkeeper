@@ -9,10 +9,8 @@ public struct GuardDisplay: Equatable, Sendable {
         case stale
         /// 文件不存在：guardd 从没跑过，或被卸载
         case missing
-        /// 读出来了但解不开
+        /// 读出来了但解不开，或格式版本和 App 不同
         case unreadable
-        /// guardd 比 App 新，格式看不懂
-        case newerSchema
         /// `checkedAt` 在未来超过 1 个间隔：系统时间被改过
         case clockSkew
     }
@@ -24,7 +22,7 @@ public struct GuardDisplay: Equatable, Sendable {
     /// App 侧原因（stale、missing、clockSkew 等）看 `reason`，不看这里。
     public var unknownReason: UnknownReason? = nil
     /// 文件里最后写的 verdict：解得开就有（新鲜时等于 `verdict`，过期 / 时钟跳变时是 guardd 停下前的判定），
-    /// 文件不存在、解不开、格式更新时 `nil`。App 用它在 guardd 不响应时保留红卡（`reason` 是 `.stale` 或 `.clockSkew` 且它是 violated）。
+    /// 文件不存在、解不开时 `nil`。App 用它在 guardd 不响应时保留红卡（`reason` 是 `.stale` 或 `.clockSkew` 且它是 violated）。
     public var lastVerdict: Verdict? = nil
     /// 文件里这次违规的开始时间：只在 `lastVerdict == .violated` 时有（新鲜、过期、时钟跳变都带）。App 用它记用户关掉的是哪一次违规。
     public var violatedSince: Date? = nil
@@ -44,11 +42,6 @@ public enum GuardStateReader {
 
     public static func display(data: Data?, now: Date, interval: Duration = PollSchedule.interval) -> GuardDisplay {
         guard let data else { return GuardDisplay(verdict: .unknown, checkedAt: nil, reason: .missing) }
-        // 先只看版本号：新格式可能整体变了，解不开也要报 newerSchema
-        if let header = try? JSONDecoder().decode(Header.self, from: data),
-           header.schemaVersion > GuardState.currentSchemaVersion {
-            return GuardDisplay(verdict: .unknown, checkedAt: nil, reason: .newerSchema)
-        }
         guard let state = try? GuardState.decode(data) else {
             return GuardDisplay(verdict: .unknown, checkedAt: nil, reason: .unreadable)
         }
@@ -63,7 +56,7 @@ public enum GuardStateReader {
             return GuardDisplay(verdict: .unknown, checkedAt: state.checkedAt, reason: .clockSkew,
                                 lastVerdict: state.verdict, violatedSince: since)
         }
-        // 旧 guardd 写的 unknown 没有原因，按 probeFailed 显示；别的 verdict 带了原因也丢掉
+        // 文件是外部数据：unknown 缺原因按 probeFailed，别的 verdict 带了原因也丢掉
         let unknownReason = state.verdict == .unknown ? state.unknownReason ?? .probeFailed : nil
         // 文件是外部数据：不是合法 IPv4 就当没有
         let egressIP = state.egressIP.flatMap(IPv4.init)?.description
@@ -75,14 +68,9 @@ public enum GuardStateReader {
     static func staleDeadline(checkedAt: Date, interval: Duration) -> Date {
         checkedAt.addingTimeInterval(staleAfterIntervals * interval.timeInterval)
     }
-
-    private struct Header: Decodable {
-        var schemaVersion: Int
-    }
 }
 
 /// 回答：guardd 和 App 共用的文件在哪。两边都用这里，路径只定义一次。
-/// 和 App 的 `ConfigStore`（Sources/Notchkeeper/Config.swift）一样用 `applicationSupportDirectory` 求。
 /// 只求路径，不碰文件。
 public enum GuardPaths {
     public static let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]

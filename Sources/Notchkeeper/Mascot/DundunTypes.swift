@@ -22,18 +22,18 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 //
-// Modified for Notchkeeper. Character used for personal, private use only — see AGENTS.md:49.
+// Modified for Notchkeeper.
 
 import CoreGraphics
 
 // MARK: - States (Coucou IslandTypes.swift)
 
-/// 盾盾此刻的状态（dundun-final-spec.md §0 的 12 个造型，见 `DundunState.look`）。
+/// 盾盾此刻的状态（画成哪个造型见 `DundunState.look`，造型表见 docs/dundun.md §2）。
 /// 守卫的四个来自 guardd；空闲 / 睡着 / 晕由盾盾自己定；其余由「状态测试」或之后接上的 agent 事件给。
-enum DundunState: String, CaseIterable {
+enum DundunState {
     case idle, sleeping, working, finished, error, dizzy
     case guardUnknown, guardMismatch, guardViolated
-    case thinking, searching, approval, question, ratelimit
+    case thinking, question
     case interrupted, guardStale
 
     var isGuard: Bool { self == .guardUnknown || self == .guardMismatch || self == .guardViolated || self == .guardStale }
@@ -43,13 +43,6 @@ enum DundunState: String, CaseIterable {
         if base.isGuard { return base }
         if dizzy { return .dizzy }
         return base == .idle && drowsy ? .sleeping : base
-    }
-
-    /// 从 prev 换到 next 要不要开心一下：只有黄盾（mismatch）回到非守卫状态。红盾恢复的开心跟着恢复卡走
-    /// （卡里的盾盾出场就开心，见 `MascotEmote.cheer`），这样「红 → 灰 → 正常」也开心，而且和屏幕上的卡一致；
-    /// unknown 只是暂时查不到出口，回到正常不庆祝（Emily 2026-10-28）。
-    static func celebrates(from prev: DundunState, to next: DundunState) -> Bool {
-        prev == .guardMismatch && !next.isGuard
     }
 }
 

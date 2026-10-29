@@ -18,7 +18,7 @@ enum NotchPin: String, CaseIterable, Identifiable {
     }
 }
 
-/// 可以强制显示的 12 个状态（expanded-spec.md 的状态表），各自对应现有的 DundunState
+/// 可以强制显示的 12 个状态，各自对应现有的 DundunState
 enum DundunTestState: String, CaseIterable, Identifiable {
     case idle, sleeping, thinking, working, waiting, done, error, interrupted, dizzy
     case warningMismatch = "warning-mismatch", warningStale = "warning-stale", danger

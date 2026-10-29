@@ -1,5 +1,31 @@
-import Foundation
 import Darwin
+import SwiftUI
+
+/// 会话列表里能被动读到的两种 agent；图标只用通用图形，不用品牌标志。
+enum AgentKind {
+    case claudeCode, codex
+
+    var displayName: String {
+        switch self {
+        case .claudeCode: return "Claude Code"
+        case .codex: return "Codex"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .claudeCode: return "apple.terminal"
+        case .codex: return "chevron.left.forwardslash.chevron.right"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .claudeCode: return Color(white: 0.62)
+        case .codex: return Color(red: 0.36, green: 0.55, blue: 0.98)
+        }
+    }
+}
 
 /// 被动、只读地发现最近活跃的编程会话。
 /// - 只读文件，从不写入、移动或加锁。
@@ -36,11 +62,7 @@ struct ProcessCounts: Equatable {
 }
 
 enum SessionScanner {
-    /// 默认 30 分钟；仅用于自检时可用环境变量 NK_SESSION_WINDOW_MIN 放宽（正常启动不会设置）。
-    static let recentWindow: TimeInterval = {
-        if let v = ProcessInfo.processInfo.environment["NK_SESSION_WINDOW_MIN"], let m = Double(v), m > 0 { return m * 60 }
-        return 30 * 60
-    }()
+    static let recentWindow: TimeInterval = 30 * 60
     static let maxSessions = 8
 
     static func scan(now: Date = Date()) -> [AgentSession] {

@@ -13,7 +13,7 @@ Haitao 本机自用的刘海应用（SwiftPM，macOS 14+），没有菜单栏图
 ## 还没做
 
 - **防火墙**：设计见 `docs/firewall.md`。顺序是先写恢复脚本并实测通过，再写拦截规则。
-- **Agent 完成卡**：`AgentCore` / `AgentWatch` 已经写好并有测试，App 还没接上。目前只能用 `scripts/demo.sh done` 手动触发。
+- **Agent 完成卡**：改读 `~/.claude/sessions/<pid>.json`（见 `HANDOFF.md`「agent 状态新来源」）。目前只能用 `scripts/demo.sh done` 手动触发。
 
 ## 运行
 
@@ -72,7 +72,6 @@ swift run guardd --once                       # 调试：只跑一轮，打印�
 | `GuardProbes` | 路由、Clash 进程、出口 IP、网络路径这几路观测。只做 I/O，不做判定 |
 | `GuardWatch` | App 什么时候重读 `guard-state.json`（监听所在目录） |
 | `guardd` | 后台进程：每轮跑探针、判定、写状态文件 |
-| `AgentCore` / `AgentWatch` | Claude Code 的顶层回合进行到哪了。只读会话文件尾部 |
 | `DundunCore` | 盾盾此刻是什么造型、做什么动作。纯逻辑 |
 
 ## 测试
@@ -81,7 +80,6 @@ swift run guardd --once                       # 调试：只跑一轮，打印�
 swift build                 # 必须零警告
 swift test                  # 必须全绿
 NOTCHKEEPER_LIVE_PROBES=1 swift test --filter LiveProbes   # 真机只读冒烟，不打印 IP
-NOTCHKEEPER_LIVE_AGENTS=1 swift test --filter LiveAgents   # 真机只读，只打印各状态的个数
 ```
 
 ## 文档
@@ -89,6 +87,5 @@ NOTCHKEEPER_LIVE_AGENTS=1 swift test --filter LiveAgents   # 真机只读，只�
 - `CLAUDE.md`：本仓规则
 - `HANDOFF.md`：已定决策、进度、待办
 - `docs/egress-guard.md`：守卫的信号、判定、状态文件、怎么画
-- `docs/agent-integration.md`：Claude Code 会话怎么读、什么时候算回合结束
 - `docs/firewall.md`：防火墙（未实现）
 - `docs/dundun.md`：盾盾的造型数据与动效

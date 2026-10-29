@@ -12,8 +12,8 @@ final class AppState: ObservableObject {
     /// 最近一次读到的 guard-state.json（guardd 写，App 只读）
     @Published private(set) var display = GuardStateReader.display(data: nil, now: Date())
     /// 由 display 和 dismissedViolationSince 算出来，界面只看它
-    @Published private(set) var presentation = GuardPresentation(verdict: .unknown, unknownReason: nil, lastVerdict: nil,
-                                                                 violatedSince: nil, dismissedViolationSince: nil)
+    @Published private(set) var presentation = GuardPresentation(GuardStateReader.display(data: nil, now: Date()),
+                                                                 dismissedViolationSince: nil)
     @Published private(set) var sessions: [AgentSession] = []
     @Published private(set) var processes = ProcessCounts()
 
