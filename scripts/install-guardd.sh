@@ -3,7 +3,7 @@
 # 不要 root、不用 sudo、不弹管理员密码框；以 root 运行直接拒绝。--dry-run 只打印每一步和将写入的 plist 原文，什么都不做。
 # 不碰：Clash、网络设置、DNS、路由、pf（不调 pfctl、不加 anchor）、~/.zshrc、config.json、任何 LaunchDaemon。
 # 可以重复跑：已加载就先 bootout，再换二进制和 plist；被覆盖的旧文件都先带时间戳备份。
-# 撤销：scripts/uninstall-guardd.sh。说明见 docs/slice5-install.md。
+# 撤销：scripts/uninstall-guardd.sh。说明见 README「出口守卫 guardd」。
 set -euo pipefail
 
 usage() { echo "用法: $0 [--dry-run]" >&2; exit 64; }

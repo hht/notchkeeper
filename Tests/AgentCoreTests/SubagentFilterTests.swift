@@ -46,7 +46,7 @@ private let ended = L.assistant(10, stop: "end_turn")
     }
 }
 
-/// AGENTS.md「子 agent 完成绝不提醒」的五个信号，固定在一处。每个场景都是：上一次扫描主会话在 working，
+/// CLAUDE.md「只提醒顶层回合结束」的五个信号，固定在一处。每个场景都是：上一次扫描主会话在 working，
 /// 这次读到对应的行，`SessionEvent.diff` 不能产生任何事件。
 @Suite struct NoNotificationSignals {
     private func events(_ lines: [String]) -> [SessionEvent] {

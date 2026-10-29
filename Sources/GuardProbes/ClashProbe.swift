@@ -1,7 +1,7 @@
 import Darwin
 
 /// 回答：Clash 内核进程在不在。
-/// 结果只决定 healthy 还是 unknown，不会触发拦截（规则见 `EgressGuard`）。
+/// 结果只决定 healthy 还是 unknown，不会判 violated（规则见 `EgressGuard`）。
 /// 按可执行文件名整名匹配，不按子串 grep：GUI（`clash-verge`）和特权服务（`clash-verge-service`）
 /// 在、内核没起来时流量并不经过 Clash。
 public enum ClashProbe {

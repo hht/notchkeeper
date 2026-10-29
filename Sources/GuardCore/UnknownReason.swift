@@ -1,6 +1,6 @@
 /// 回答：一轮判成 unknown 时，是因为本机根本没网（灰），还是网通着但探针没拿到结果。
 /// 只给 unknown 用：healthy、egressMismatch、violated 永远没有原因。UI 的颜色不看它（所有 unknown 同一个灰色空心环），
-/// 只用它选文字，见 docs/egress-guard.md 第 4 节。
+/// 只用它选文字，见 docs/egress-guard.md「怎么画」一节。
 /// 新增取值要升 `GuardState.currentSchemaVersion`：旧 App 解不开不认识的值会整份文件报 unreadable。
 public enum UnknownReason: String, Codable, Sendable, Equatable {
     /// 没有满足的非 utun 物理网卡，或没有默认路由
@@ -18,7 +18,7 @@ public enum UnknownReason: String, Codable, Sendable, Equatable {
 }
 
 /// 回答：本机此刻有没有一条不经过 TUN 的物理网络。来自 Network.framework 的路径快照（GuardProbes），只读。
-/// 只存两个布尔值，不存网卡名、地址（AGENTS.md「日志不记 IP」）。
+/// 只存两个布尔值，不存网卡名、地址（CLAUDE.md「日志不记 IP」）。
 public struct NetworkPath: Sendable, Equatable {
     /// 有状态为 satisfied 的非 utun 物理网卡（Wi-Fi、有线、蜂窝）
     public var physicalInterfaceSatisfied: Bool

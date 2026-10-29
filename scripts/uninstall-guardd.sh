@@ -2,7 +2,7 @@
 # 撤销 scripts/install-guardd.sh：launchctl bootout → 删 plist 和二进制。
 # 默认保留 guardd.log 和 guard-state.json；--purge 才一起删。永远不碰 App 的 config.json 和 notchkeeper.log。
 # 安装时留下的备份（backup/ 目录）永远保留、不自动还原：里面只会是本脚本上一版装的 plist / guardd，
-# 还原它等于重新装回旧版。要还原请手动 cp 回去再跑 launchctl bootstrap（见 docs/slice5-install.md §3）。
+# 还原它等于重新装回旧版。要还原请手动 cp 回去再跑 launchctl bootstrap（见 README「出口守卫 guardd」）。
 # 不要 root、不用 sudo；以 root 运行直接拒绝。--dry-run 只打印每一步。
 # 不碰：Clash、网络设置、DNS、路由、pf、~/.zshrc、任何 LaunchDaemon。
 set -euo pipefail

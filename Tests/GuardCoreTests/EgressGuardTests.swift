@@ -38,7 +38,7 @@ private func run(_ seq: [Observation]) -> [Verdict] {
         #expect(run([obs(iface: "en0")]) == [.violated])
     }
 
-    /// 方案 A：出口 IP 不在允许列表只提示，永远不触发拦截（回显服务可能和 Claude 不在同一节点）
+    /// 出口 IP 不在允许列表只提示，永远不判 violated（回显服务可能和别的 App 不在同一节点）
     @Test func badEgressOnlyWarnsNeverViolates() {
         #expect(run([obs(ips: [leaked]), obs(ips: [leaked]), obs(ips: [leaked])])
             == [.egressMismatch, .egressMismatch, .egressMismatch])

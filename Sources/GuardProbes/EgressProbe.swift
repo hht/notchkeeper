@@ -4,10 +4,10 @@ import GuardCore
 /// 回答：从外面看，本机现在的出口 IPv4 是什么。
 /// 同时问几个通用的 IP 回显服务，每个答案在边界解析成 `IPv4`；失败、非 200、解析不了的答案不猜也不补，
 /// 只按类型计数，留给排查 unknown 用（计数里不带 IP）。
-/// 只用第三方回显服务，不访问任何 Claude / Anthropic 域名（AGENTS.md 硬规则）。
+/// 只用第三方回显服务，不访问任何 Claude / Anthropic 域名（CLAUDE.md 硬规则）。
 ///
-/// 局限：回显服务和 Claude 可能被 Clash 分到不同节点，这时报的不是 Claude 的出口 IP。
-/// 所以出口 IP 能不能单独触发拦截另有档位控制，见 docs/egress-guard.md。
+/// 局限：回显服务和别的 App 可能被 Clash 分到不同节点，这时报的不是那些 App 的出口 IP。
+/// 所以出口 IP 不符只判 egressMismatch（琥珀色），见 docs/egress-guard.md。
 public struct EgressProbe: Sendable {
     public typealias Fetch = @Sendable (URL) async throws -> (Data, Int)
 

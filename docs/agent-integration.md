@@ -74,10 +74,10 @@ Claude Code 2.1.x 把每个会话写成一个 JSONL 文件：
 - `interrupted` 永不提醒（用户自己按的 Esc）。
 - 第一次看到的会话不提醒：App 启动时不重放历史。
 - 子 agent 在源头就被丢掉，永远产生不了事件。
-- **不合并**：三个会话同时完成就是三个事件。合并、节流是 UI 的事（参考 `prototype/agent-cards.md`）。
+- **不合并**：三个会话同时完成就是三个事件。合并、节流是 UI 的事（`NotchCore` 的 `CardQueue`）。
 - 用时 = 结束记录时间 − 回合起点。尾部窗口滑过了起点时，取前后两次看到的起点里更早的那个。
 
-## 6. 给 S1m0nE 的接口
+## 6. 给 App 的接口
 
 ```swift
 import AgentCore
@@ -112,13 +112,13 @@ public enum SessionEvent: Sendable, Equatable {
 - App 进程内直接跑，不经过 guardd。
 - 扫描在后台线程，扫描之间不重叠，回调在主线程。
 - `onUpdate` 每次都给出全部主会话（新的在前）。事件多数时候是空数组。
-- **命名冲突**：`Sources/Notchkeeper/Sessions.swift` 现在也有 `AgentSession` / `AgentKind`。App 里模块内的同名类型会遮住导入的类型，接入时需要用新的替换旧的，或者写 `AgentCore.AgentSession`。另外旧 `AgentKind` 有 `allCases`（`Config.swift` 在用），新的没有 `CaseIterable`。
+- **App 里的旧模型**：`Sources/Notchkeeper/Sessions.swift`、`AgentEvents.swift` 里有同名的 `AgentSession` / `AgentKind`，规则和这里不同。App 重写时删掉它们，只用本文的接口。
 
 ## 7. Grok Bot App
 
 `roster.last-roster` 只提供 `unreadCount` / `awaitingUserResponse`，没有回合开始、结束、出错的信号。所以 Grok Bot 最多只能做「有新回复 / 等你回复」，做不了「完成 · 用时」「出错」。
 
-**待 Haitao 决定，未实现**：要不要做这一档弱提示。
+**未定，未实现**：要不要做这一档弱提示。
 
 ## 8. 「点卡片跳到终端」目前不可靠
 

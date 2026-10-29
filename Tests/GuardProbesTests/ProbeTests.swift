@@ -93,7 +93,7 @@ private func probe(_ responses: [String: Result<(String, Int), Canned>]) -> Egre
 }
 
 /// 真机冒烟：默认跳过。`NOTCHKEEPER_LIVE_PROBES=1 swift test --filter LiveProbes` 打印三路真实结果，
-/// 只读本机路由表和进程表、问三个 IP 回显服务，不改任何设置。不打印 IP（AGENTS.md：日志不记 IP）。
+/// 只读本机路由表和进程表、问三个 IP 回显服务，不改任何设置。不打印 IP（CLAUDE.md：日志不记 IP）。
 @Suite(.enabled(if: ProcessInfo.processInfo.environment["NOTCHKEEPER_LIVE_PROBES"] == "1"))
 struct LiveProbes {
     @Test func printsRealObservation() async {

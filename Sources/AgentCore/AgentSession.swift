@@ -70,7 +70,7 @@ public struct AgentSession: Sendable, Equatable, Identifiable {
     }
 }
 
-/// 回答：这条记录 / 这个文件是不是子 agent 的。子 agent 完成绝不提醒（AGENTS.md 硬规则）。
+/// 回答：这条记录 / 这个文件是不是子 agent 的。子 agent 完成绝不提醒（CLAUDE.md 硬规则）。
 ///
 /// 不提醒的五个信号，固定测试在 Tests/AgentCoreTests/SubagentFilterTests.swift 的 `NoNotificationSignals`：
 /// 1. 路径里有 `subagents/` 目录：`isSubagentFile`，找文件时丢掉

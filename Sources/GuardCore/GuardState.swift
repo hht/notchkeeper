@@ -3,7 +3,7 @@ import Foundation
 /// 回答：guardd 最近一轮判定的结果是什么，以什么格式交给 App。
 /// 这是 `guard-state.json` 的唯一格式定义；不知道文件放在哪、怎么写、谁来读。
 /// 存判定和每一路信号的布尔摘要；IP 只出现在 `egressIP` 这一个字段（面板显示用，文件 0600，不是日志），不存网卡名。
-/// 日志和 `--once` 输出照旧不带 IP（AGENTS.md「日志不记 IP」）。
+/// 日志和 `--once` 输出照旧不带 IP（CLAUDE.md「日志不记 IP」）。
 public struct GuardState: Codable, Equatable, Sendable {
     public static let currentSchemaVersion = 1
     public static let fileName = "guard-state.json"
@@ -66,7 +66,7 @@ public struct GuardState: Codable, Equatable, Sendable {
 }
 
 /// 回答：下一轮检测什么时候开始。
-/// 上一轮没结束绝不开下一轮（路由子进程同步、HTTP 最长 6 秒，而间隔是 5 秒，见 docs/egress-guard.md 第 3 节）；
+/// 上一轮没结束绝不开下一轮（路由子进程同步、HTTP 最长 6 秒，而间隔是 5 秒，见 docs/egress-guard.md「guardd」一节）；
 /// 慢了也不补跑，紧接着开一轮即可。
 public enum PollSchedule {
     public static let interval: Duration = .seconds(5)
