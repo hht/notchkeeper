@@ -19,7 +19,7 @@
 | 10-29 | 删掉 `--selftest`，纯逻辑测试全部改用 `swift test`；验收只看 `swift build` 零警告和 `swift test` 全绿 |
 | 10-29 | 每批改动派只读的 reviewer 子 agent 审查（`.claude/agents/reviewer.md`），至多两轮；commit 仍要用户明示同意 |
 | 10-29 | 汇报、提交说明、文档、注释一律用中文 |
-| 10-29 | 盾盾的循环动作帧率限在 30–60fps（`preferredFrameRateRange`），一次性动作不限 |
+| 10-29 | 盾盾动画不设帧率上限，越高越好：不给 `preferredFrameRateRange`。取舍：Apple 建议能低就低以省电，120Hz 下常驻循环的合成功耗记在 WindowServer 上，`top -pid` 量不到；用户选画面优先 |
 | 10-29 | 跟随鼠标做成设置开关：设置页「盾盾」→「跟随鼠标」，`config.json` 的 `dundunFollowsMouse`，默认开 |
 | 10-29 | 盾盾改为「二维图形模拟三维」：身体是球，眼睛贴在球面上，所有动作（包括跟随鼠标）都用头的朝向（左右 yaw、上下 pitch、侧歪 roll）表达；要有左右 360° 转圈和上下 360° 翻圈；动作再多一些。数字由 agent 定（见「阶段 2b 接手要点」）。放在下一个切片做 |
 

@@ -114,9 +114,6 @@ class MascotLayerView: NSView {
             a.fillMode = .backwards
             if t.repeats { a.repeatCount = .infinity }
             a.autoreverses = t.autoreverses
-            if let r = t.frameRateRange {
-                a.preferredFrameRateRange = CAFrameRateRange(minimum: Float(r.lowerBound), maximum: Float(r.upperBound), preferred: Float(r.upperBound))
-            }
             serial += 1
             let key = "\(loop ? "loop" : "once").\(serial)"
             target.add(a, forKey: key)

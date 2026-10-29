@@ -48,13 +48,6 @@ private func everything(reduceMotion: Bool) -> [Track] {
             #expect(t.values.first == t.values.last || (t.values.first == 0 && isFullTurn(t)), "\(t)")
         }
     }
-
-    /// docs/dundun.md §5「渲染」：循环动作 30–60fps，一次性动作不限
-    @Test func loopsCapFrameRate() {
-        for t in everything(reduceMotion: false) {
-            #expect(t.frameRateRange == (t.repeats ? 30...60 : nil), "\(t)")
-        }
-    }
 }
 
 private func isFullTurn(_ t: Track) -> Bool {

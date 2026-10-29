@@ -244,10 +244,6 @@ public struct Track: Equatable, Sendable {
     public var repeats = false
     public var autoreverses = false
 
-    /// 循环动作限在 30–60fps，一次性动作不限（docs/dundun.md §5「渲染」）
-    /// @see https://developer.apple.com/documentation/quartzcore/caanimation/preferredframeraterange
-    public var frameRateRange: ClosedRange<Double>? { repeats ? 30...60 : nil }
-
     /// 减弱动态效果时还能留下的：不动的属性，以及眨眼
     var isStill: Bool { !property.isMovement || part == .lids }
 
