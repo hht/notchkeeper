@@ -15,7 +15,8 @@ struct PressableStyle: ButtonStyle {
     }
 }
 
-enum Motion {
+/// 刘海展开、收起、翻页的 SwiftUI 弹簧
+enum NotchSpring {
     static let page = Animation.spring(response: 0.42, dampingFraction: 0.84)
     static let notchOpen = Animation.spring(response: 0.5, dampingFraction: 0.7)
     static let notchClose = Animation.spring(response: 0.38, dampingFraction: 0.88)

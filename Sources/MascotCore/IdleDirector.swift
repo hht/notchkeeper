@@ -5,7 +5,7 @@ public struct IdleDirector: Sendable {
     private var nextBlink: Double
     private var nextMotion: Double
     private var rng: SplitMix64
-    private var last: IdleMotion?
+    private var last: Motion?
 
     /// docs/mascot.md §5：眨眼间隔 2.5–6s，15% 连眨两次；小动作每 8–20s 一个
     static let blinkGap = 2.5...6.0
@@ -49,11 +49,11 @@ public struct IdleDirector: Sendable {
     }
 
     /// 按权重抽，不和上一个重复
-    private mutating func pick() -> IdleMotion {
-        let pool = IdleMotion.allCases.filter { $0 != last }
-        var r = Double.random(in: 0..<pool.reduce(0) { $0 + $1.weight }, using: &rng)
+    private mutating func pick() -> Motion {
+        let pool = Motion.allCases.filter { $0 != last && $0.idleWeight > 0 }
+        var r = Double.random(in: 0..<pool.reduce(0) { $0 + $1.idleWeight }, using: &rng)
         for m in pool {
-            r -= m.weight
+            r -= m.idleWeight
             if r < 0 { return m }
         }
         return pool[pool.count - 1]
@@ -62,31 +62,16 @@ public struct IdleDirector: Sendable {
 
 public enum Cue: Equatable, Sendable {
     case blink(double: Bool)
-    case idle(IdleMotion)
+    case idle(Motion)
 }
 
-/// docs/mascot.md §5 的空闲小动作
-public enum IdleMotion: CaseIterable, Sendable {
-    /// 东张西望
-    case lookAround
-    /// 歪头好奇
-    case curiousTilt
-    /// 侧身探看
-    case peekSide
-    /// 原地小跳
-    case hop
-    /// 抖一抖
-    case shake
-    /// 偶尔转一圈
-    case spin
-
-    /// 权重，合计 100：转一圈约 5%
-    var weight: Double {
+extension Motion {
+    /// 空闲小动作的权重（docs/mascot.md §5）：左右转圈、上下翻圈各 5%，其余 8 个等分剩下的 90%；完成跳转不在里面
+    var idleWeight: Double {
         switch self {
-        case .lookAround: return 30
-        case .curiousTilt: return 20
-        case .peekSide, .hop, .shake: return 15
-        case .spin: return 5
+        case .spinAround, .flip: return 5
+        case .finishJump: return 0
+        default: return 90.0 / 8
         }
     }
 }

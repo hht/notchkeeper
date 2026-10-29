@@ -22,8 +22,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 //
-// Modified for Notchkeeper. 本文件有一部分是从带这份声明的旧 Mascot/DundunView.swift 原样搬来的（犯困、熄屏锁屏 / 右耳未读），
-// 按 CLAUDE.md 的过渡期规则保留，阶段 3 重写这些代码时一起删掉。
+// Modified for Notchkeeper. 本文件有一部分是从带这份声明的旧 Mascot/DundunView.swift 原样搬来的（犯困、熄屏锁屏），
+// 按 CLAUDE.md 的过渡期规则保留，第 4 步重写这些代码时一起删掉。
 
 import AppKit
 import QuartzCore
@@ -33,8 +33,8 @@ import MascotCore
 /// 不知道盾盾怎么画、动作长什么样；什么时候做什么由 `IdleDirector` 定，这里只按它给的时刻醒来、把提示发给看得见的盾盾。
 /// 一只都看不见、或者熄屏锁屏时，时钟和犯困计时器都停掉（docs/mascot.md §5「渲染」）。
 @MainActor
-final class DundunDirector: ObservableObject {
-    static let shared = DundunDirector()
+final class MascotDirector: ObservableObject {
+    static let shared = MascotDirector()
 
     @Published private(set) var drowsy = false
     /// 熄屏或锁屏。没有视图读它，所以不发布：每只盾盾由 `set(asleep:locked:)` 逐个通知
@@ -42,9 +42,6 @@ final class DundunDirector: ObservableObject {
 
     static let nearDistance: CGFloat = 150
     static let drowsyAfter: TimeInterval = 120
-
-    /// 所有循环动作的起点（媒体时间）：不同的盾盾同一时刻处在同一相位
-    let epoch = CACurrentMediaTime()
 
     private var notchRect: () -> NSRect = { .zero }
     private var lastNear = Date()
@@ -64,8 +61,8 @@ final class DundunDirector: ObservableObject {
         weak var view: MascotLayerView?
     }
 
-    private var all: [DundunLayerView] { views.compactMap { $0.view as? DundunLayerView } }
-    private var live: [DundunLayerView] { all.filter(\.active) }
+    private var all: [MascotFigureView] { views.compactMap { $0.view as? MascotFigureView } }
+    private var live: [MascotFigureView] { all.filter(\.active) }
 
     /// App 启动时调用一次，传入刘海在屏幕上的位置
     func start(notchRect: @escaping () -> NSRect) {
@@ -74,20 +71,20 @@ final class DundunDirector: ObservableObject {
         // @see https://developer.apple.com/documentation/appkit/nsworkspace/screensdidwakenotification
         let ws = NSWorkspace.shared.notificationCenter
         ws.addObserver(forName: NSWorkspace.screensDidSleepNotification, object: nil, queue: .main) { _ in
-            MainActor.assumeIsolated { DundunDirector.shared.set(asleep: true) }
+            MainActor.assumeIsolated { MascotDirector.shared.set(asleep: true) }
         }
         ws.addObserver(forName: NSWorkspace.screensDidWakeNotification, object: nil, queue: .main) { _ in
-            MainActor.assumeIsolated { DundunDirector.shared.set(asleep: false) }
+            MainActor.assumeIsolated { MascotDirector.shared.set(asleep: false) }
         }
         // 锁屏没有公开的 API 通知；这两个名字是系统发出的分布式通知，Apple 文档里没有列出。
         // 万一哪个系统版本不再发，也只是少了锁屏这一路：熄屏和窗口遮挡照样会让盾盾停下。
         // @see https://developer.apple.com/documentation/foundation/distributednotificationcenter
         let dn = DistributedNotificationCenter.default()
         dn.addObserver(forName: Notification.Name("com.apple.screenIsLocked"), object: nil, queue: .main) { _ in
-            MainActor.assumeIsolated { DundunDirector.shared.set(locked: true) }
+            MainActor.assumeIsolated { MascotDirector.shared.set(locked: true) }
         }
         dn.addObserver(forName: Notification.Name("com.apple.screenIsUnlocked"), object: nil, queue: .main) { _ in
-            MainActor.assumeIsolated { DundunDirector.shared.set(locked: false) }
+            MainActor.assumeIsolated { MascotDirector.shared.set(locked: false) }
         }
     }
 
@@ -134,7 +131,7 @@ final class DundunDirector: ObservableObject {
             drowsyTimer = nil
             if on {
                 let t = Timer(timeInterval: 2, repeats: true) { _ in
-                    MainActor.assumeIsolated { DundunDirector.shared.checkDrowsy(mouse: NSEvent.mouseLocation, now: Date()) }
+                    MainActor.assumeIsolated { MascotDirector.shared.checkDrowsy(mouse: NSEvent.mouseLocation, now: Date()) }
                 }
                 t.tolerance = 0.5
                 RunLoop.main.add(t, forMode: .common)
@@ -151,7 +148,7 @@ final class DundunDirector: ObservableObject {
     private func schedule() {
         let wake = min(idle.nextWake, restAt ?? .infinity)
         let t = Timer(fire: Date(timeIntervalSinceNow: max(0, wake - CACurrentMediaTime())), interval: 0, repeats: false) { _ in
-            MainActor.assumeIsolated { DundunDirector.shared.tick() }
+            MainActor.assumeIsolated { MascotDirector.shared.tick() }
         }
         // 眨眼、小动作差几十毫秒看不出来，让系统合并唤醒
         // @see https://developer.apple.com/documentation/foundation/timer/tolerance
@@ -195,7 +192,7 @@ final class DundunDirector: ObservableObject {
     }
 
     /// NotchController 的全局鼠标监听转过来（屏幕坐标）。盾盾看鼠标、鼠标在刘海上时探头；
-    /// 有盾盾在看鼠标时不做小动作，鼠标停下 4s 后回正。鼠标在 400pt 以外动不算在看
+    /// 有盾盾在看鼠标时不做小动作，鼠标停下 4s 后回正（docs/mascot.md §5「跟随鼠标」）
     func mouseMoved(to p: NSPoint) {
         guard followsMouse else { return }
         let views = live

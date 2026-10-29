@@ -12,7 +12,7 @@ private func run(seed: UInt64, from start: Double = 0, to end: Double) -> [(at: 
     return out
 }
 
-private func motions(_ log: [(at: Double, cue: Cue)]) -> [(at: Double, motion: IdleMotion)] {
+private func motions(_ log: [(at: Double, cue: Cue)]) -> [(at: Double, motion: Motion)] {
     log.compactMap { e in if case .idle(let m) = e.cue { return (e.at, m) } else { return nil } }
 }
 
@@ -50,12 +50,16 @@ private func blinks(_ log: [(at: Double, cue: Cue)]) -> [(at: Double, double: Bo
         #expect(abs(rate - 0.15) < 0.02, "连眨比例 \(rate)")
     }
 
-    /// 转一圈是「偶尔」：约 5%
-    @Test func spinIsRare() {
+    /// docs/mascot.md §5：左右转圈、上下翻圈各约 5%，其余等概率；完成跳转不是空闲小动作
+    @Test func spinsAreRare() {
         let m = (UInt64(1)...20).flatMap { motions(run(seed: $0, to: 3600)) }
-        let rate = Double(m.filter { $0.motion == .spin }.count) / Double(m.count)
-        #expect(rate > 0.02 && rate < 0.08, "转一圈比例 \(rate)")
-        #expect(Set(m.map(\.motion)) == Set(IdleMotion.allCases))
+        for rare in [Motion.spinAround, .flip] {
+            let rate = Double(m.filter { $0.motion == rare }.count) / Double(m.count)
+            #expect(rate > 0.02 && rate < 0.08, "\(rare) 比例 \(rate)")
+        }
+        let nod = Double(m.filter { $0.motion == .nod }.count) / Double(m.count)
+        #expect(abs(nod - 0.1125) < 0.03, "点头比例 \(nod)")
+        #expect(Set(m.map(\.motion)) == Set(Motion.allCases).subtracting([.finishJump]))
     }
 
     /// 鼠标在动时不做小动作；停下以后至少再等一个完整间隔

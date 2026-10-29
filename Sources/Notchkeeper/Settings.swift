@@ -6,12 +6,12 @@ import MascotCore
 // 每个开关直接绑定 ConfigStore，改了立刻写盘，不在视图里缓存配置值。
 
 enum SettingsPane: String, CaseIterable, Identifiable {
-    case general, notch, exitGuard, notifications, dundun, stateTest, about
+    case general, notch, exitGuard, notifications, mascot, stateTest, about
     var id: Self { self }
 
     /// 侧边栏分组，组与组之间空一行
     static let groups: [[SettingsPane]] = [[.general, .notch], [.exitGuard],
-                                           [.notifications, .dundun], [.stateTest], [.about]]
+                                           [.notifications, .mascot], [.stateTest], [.about]]
 
     var title: String {
         switch self {
@@ -19,7 +19,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .notch: return "刘海与外观"
         case .exitGuard: return "出口守卫"
         case .notifications: return "通知"
-        case .dundun: return "盾盾"
+        case .mascot: return "盾盾"
         case .stateTest: return "状态测试"
         case .about: return "关于"
         }
@@ -31,7 +31,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .notch: return "rectangle.topthird.inset.filled"
         case .exitGuard: return "shield.lefthalf.filled"
         case .notifications: return "bell.badge.fill"
-        case .dundun: return "face.smiling.inverse"
+        case .mascot: return "face.smiling.inverse"
         case .stateTest: return "testtube.2"
         case .about: return "info.circle.fill"
         }
@@ -43,7 +43,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .notch: return .blue
         case .exitGuard: return .green
         case .notifications: return .red
-        case .dundun: return .orange
+        case .mascot: return .orange
         case .stateTest: return .purple
         case .about: return .gray
         }
@@ -97,7 +97,7 @@ struct SettingsView: View {
         case .notch: NotchPane(store: store)
         case .exitGuard: ExitGuardPane(model: model, state: state, store: store)
         case .notifications: NotificationsPane(store: store)
-        case .dundun: DundunPane(store: store)
+        case .mascot: MascotPane(store: store)
         case .stateTest: StateTestPane(overrides: notch.overrides, state: state, notch: notch)
         case .about: AboutPane(store: store)
         }
@@ -142,7 +142,7 @@ private struct StatusCard: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            DundunView(state: presentation.mascotState, size: 32)
+            MascotView(look: presentation.look, size: 32)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Notchkeeper").font(.system(size: 13, weight: .semibold))
                 HStack(spacing: 5) {
@@ -334,14 +334,14 @@ private struct NotificationsPane: View {
 
 // MARK: - 盾盾
 
-private struct DundunPane: View {
+private struct MascotPane: View {
     @ObservedObject var store: ConfigStore
 
     var body: some View {
         Form {
             Section {
                 VStack(spacing: 6) {
-                    DundunView(state: .idle, size: 40)
+                    MascotView(look: .idle, size: 40)
                     Text("盾盾").font(.system(size: 13, weight: .semibold))
                 }
                 .frame(maxWidth: .infinity)
@@ -368,19 +368,19 @@ private struct StateTestPane: View {
         Form {
             Section {
                 VStack(spacing: 6) {
-                    DundunView(state: overrides.mascot(real: state.presentation.mascotState), size: 40)
-                        .environment(\.dundunLiteral, overrides.dundun != nil)
-                    Text(overrides.dundun.map { "强制：\($0.title)" } ?? "真实状态：\(state.presentation.title)")
+                    MascotView(look: overrides.mascot(real: state.presentation.look), size: 40)
+                        .environment(\.mascotLiteral, overrides.look != nil)
+                    Text(overrides.look.map { "强制：\($0.title)" } ?? "真实状态：\(state.presentation.title)")
                         .font(.system(size: 13, weight: .semibold))
                 }
                 .frame(maxWidth: .infinity)
             }
             Section {
-                Picker("盾盾", selection: Binding(get: { overrides.dundun }, set: { notch.force($0) })) {
-                    Text("真实状态").tag(DundunTestState?.none)
+                Picker("盾盾", selection: Binding(get: { overrides.look }, set: { notch.force($0) })) {
+                    Text("真实状态").tag(Look?.none)
                     Divider()
-                    ForEach(DundunTestState.allCases) { s in
-                        Text(s.title).tag(DundunTestState?.some(s))
+                    ForEach(Look.allCases, id: \.self) { l in
+                        Text(l.title).tag(Look?.some(l))
                     }
                 }
                 Picker("刘海", selection: Binding(get: { overrides.pin }, set: { notch.setPin($0) })) {
@@ -392,7 +392,7 @@ private struct StateTestPane: View {
             } footer: {
                 Text("只改盾盾和刘海的样子，不改出口判定，也不弹红卡、不响；真的红卡照常弹出。不写任何文件，重开 App 就恢复。")
             }
-            DundunCueSection()
+            MotionSection()
             Section {
                 HStack {
                     Spacer()
@@ -405,14 +405,14 @@ private struct StateTestPane: View {
 }
 
 /// 「播放动作」：看得见的盾盾（左耳、上面的预览）各播一次，不管当前造型。只在内存里
-private struct DundunCueSection: View {
+private struct MotionSection: View {
     var body: some View {
         Section {
-            HStack {
-                ForEach(IdleMotion.allCases, id: \.self) { m in
-                    Button(m.title) { DundunDirector.shared.play(.idle(m)) }
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 88), alignment: .leading)], alignment: .leading) {
+                ForEach(Motion.allCases, id: \.self) { m in
+                    Button(m.title) { MascotDirector.shared.play(.idle(m)) }
                 }
-                Button("眨眼") { DundunDirector.shared.play(.blink(double: false)) }
+                Button("眨眼") { MascotDirector.shared.play(.blink(double: false)) }
             }
         } header: {
             Text("播放动作")
@@ -422,15 +422,20 @@ private struct DundunCueSection: View {
     }
 }
 
-private extension IdleMotion {
+private extension Motion {
     var title: String {
         switch self {
-        case .lookAround: return "张望"
-        case .curiousTilt: return "歪头"
-        case .peekSide: return "侧身探看"
-        case .hop: return "小跳"
-        case .shake: return "抖一抖"
-        case .spin: return "转一圈"
+        case .spinAround: return "左右转圈"
+        case .flip: return "上下翻圈"
+        case .lookAround: return "东张西望"
+        case .nod: return "点头"
+        case .tilt: return "歪头"
+        case .shake: return "摇头"
+        case .lookUp: return "抬头看天"
+        case .lookDown: return "低头看脚"
+        case .sideways: return "侧身 90°"
+        case .curious: return "好奇歪看"
+        case .finishJump: return "完成跳转"
         }
     }
 }
@@ -444,7 +449,7 @@ private struct AboutPane: View {
         Form {
             Section {
                 VStack(spacing: 6) {
-                    DundunView(state: .idle, size: 64, emote: .beaming)
+                    MascotView(look: .finished, size: 64)
                     Text("Notchkeeper").font(.title3.weight(.semibold))
                     Text("版本 \(version)（本机签名）").foregroundStyle(.secondary)
                 }

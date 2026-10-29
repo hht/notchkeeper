@@ -1,5 +1,6 @@
 import SwiftUI
 import GuardCore
+import MascotCore
 
 /// 回答一个问题：读到的这一份守卫状态，加上用户关掉的是哪一次违规，界面该怎么画、要不要红卡。
 /// 纯函数，不读文件、不碰卡片，规则见 docs/egress-guard.md「怎么画」一节。
@@ -19,6 +20,10 @@ struct GuardPresentation: Equatable {
     let alert: Alert?
     /// 违规还在（或守卫不响应时最后一次是违规）：用户此刻关掉红卡算关掉这一次
     let holdsViolation: Bool
+    /// 盾盾画成哪个守卫造型；没有守卫的事时是 idle（docs/mascot.md §2）
+    let look: Look
+    /// 探针没结果：不改造型，收起时右耳显示灰环
+    let probeFailed: Bool
 
     /// 读到 healthy 才撤红卡、清掉用户关掉的记录
     var clearsAlert: Bool { tone == .healthy }
@@ -32,7 +37,9 @@ struct GuardPresentation: Equatable {
         let verdict = d.verdict
         let unresponsive = d.reason == .stale || d.reason == .clockSkew
         holdsViolation = verdict == .violated || (unresponsive && d.lastVerdict == .violated)
+        probeFailed = d.reason == .fresh && d.unknownReason == .probeFailed
         if holdsViolation {
+            look = .danger
             let dismissed = dismissedViolationSince == .some(d.violatedSince)
             if dismissed {
                 // 用户知道了：违规仍在画红点，守卫不响应画灰环
@@ -50,42 +57,31 @@ struct GuardPresentation: Equatable {
         alert = nil
         switch verdict {
         case .healthy:
-            tone = .healthy; title = "出口正常"
+            tone = .healthy; title = "出口正常"; look = .idle
         case .egressMismatch:
-            tone = .mismatch; title = "出口 IP 和预期不一致"
+            tone = .mismatch; title = "出口 IP 和预期不一致"; look = .mismatch
         case .unknown, .violated:
             tone = .unknown
             switch d.unknownReason {
-            case .offline: title = "网络不通，暂时没法检查出口"
-            case .probeFailed: title = "暂时查不到出口"
+            case .offline: title = "网络不通，暂时没法检查出口"; look = .offline
+            case .probeFailed: title = "暂时查不到出口"; look = .idle
             // stale / missing / clockSkew / unreadable（docs §4 同样归到这一行）
-            case nil: title = "守卫没有响应"
+            case nil: title = "守卫没有响应"; look = .stale
             }
-        }
-    }
-
-    var mascotState: DundunState {
-        switch tone {
-        case .healthy: return .idle
-        case .mismatch: return .guardMismatch
-        case .unknown: return .guardUnknown
-        case .violated: return .guardViolated
         }
     }
 
     var color: Color {
         switch tone {
         case .healthy: return .green
-        case .mismatch: return Color(cgColor: DundunConst.amber)
-        case .unknown: return Self.unknownGrey
-        case .violated: return Color(cgColor: DundunConst.red)
+        case .mismatch: return Color(cgColor: RGB.amber.cg)
+        case .unknown: return Color(cgColor: RGB.grey.cg)
+        case .violated: return Color(cgColor: RGB.red.cg)
         }
     }
 
     /// 出口 IP 的字色：只有 mismatch 用琥珀（IP 本身就是问题），其余浅灰
     var ipColor: Color { tone == .mismatch ? color : .white.opacity(0.6) }
-
-    static let unknownGrey = Color(red: 0x8E / 255, green: 0x8E / 255, blue: 0x93 / 255)
 }
 
 /// 状态点：unknown 是灰色空心环，其余是实心点

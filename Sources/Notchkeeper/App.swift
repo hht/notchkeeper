@@ -43,11 +43,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .receive(on: RunLoop.main)
             .sink { [weak self] c in
                 self?.notch.setHoverEnabled(c.hoverExpand)
-                DundunDirector.shared.setFollowsMouse(c.mascotFollowsMouse)
+                MascotDirector.shared.setFollowsMouse(c.mascotFollowsMouse)
             }
             .store(in: &cancellables)
 
-        DundunDirector.shared.start(notchRect: { [weak self] in self?.notch.anchorRect ?? .zero })
+        MascotDirector.shared.start(notchRect: { [weak self] in self?.notch.anchorRect ?? .zero })
         state.start()
         watchSIGTERM()
         Log.write("Notchkeeper 启动")

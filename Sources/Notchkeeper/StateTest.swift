@@ -1,4 +1,4 @@
-import Foundation
+import MascotCore
 
 // 设置里的「状态测试」：强制盾盾显示某个状态、把刘海固定展开或收起，方便看效果。
 // 只在内存里：不写 config.json、不写 guard-state.json、不碰 guardd，重开 App 就回到真实状态。
@@ -18,43 +18,26 @@ enum NotchPin: String, CaseIterable, Identifiable {
     }
 }
 
-/// 可以强制显示的 12 个状态，各自对应现有的 DundunState
-enum DundunTestState: String, CaseIterable, Identifiable {
-    case idle, sleeping, thinking, working, waiting, done, error, interrupted, dizzy
-    case warningMismatch = "warning-mismatch", warningStale = "warning-stale", danger
-    var id: Self { self }
-
-    var dundun: DundunState {
-        switch self {
-        case .idle: return .idle
-        case .sleeping: return .sleeping
-        case .thinking: return .thinking
-        case .working: return .working
-        case .waiting: return .question
-        case .done: return .finished
-        case .error: return .error
-        case .interrupted: return .interrupted
-        case .dizzy: return .dizzy
-        case .warningMismatch: return .guardMismatch
-        case .warningStale: return .guardStale
-        case .danger: return .guardViolated
-        }
-    }
-
+extension Look {
+    /// 「状态测试」里的名字（docs/mascot.md §2）
     var title: String {
         switch self {
         case .idle: return "空闲"
         case .sleeping: return "睡着"
-        case .thinking: return "思考中"
-        case .working: return "工作中"
-        case .waiting: return "等你回复"
-        case .done: return "完成"
+        case .thinking: return "思考"
+        case .working: return "工作"
+        case .longTurn: return "干了很久"
+        case .question: return "等你回答"
+        case .approval: return "等你批准"
+        case .finished: return "完成"
         case .error: return "出错"
-        case .interrupted: return "已中断"
-        case .dizzy: return "晕了"
-        case .warningMismatch: return "警告：出口不一致"
-        case .warningStale: return "警告：守卫没有响应"
-        case .danger: return "危险：出口不合规"
+        case .interrupted: return "被打断"
+        case .dizzy: return "晕"
+        case .offline: return "断网"
+        case .mismatch: return "出口不符"
+        case .stale: return "守卫没响应"
+        case .danger: return "危险"
+        case .shielded: return "防火墙守住"
         }
     }
 }

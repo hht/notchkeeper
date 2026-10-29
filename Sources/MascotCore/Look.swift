@@ -1,105 +1,118 @@
 import CoreGraphics
 
-/// 盾盾此刻是哪个造型、这个造型长什么样（颜色、眼形、静止姿态、右耳）。
-/// 不知道造型从哪来（守卫、agent、鼠标），那是 App 的事；也不知道怎么动，见 `Choreography`。
+/// 盾盾此刻是哪个造型、这个造型长什么样（颜色、头的朝向、睁不睁眼、装饰算哪一类、右耳）。
+/// 不知道造型从哪来（守卫、agent、鼠标），那是 App 的事；眼形见 `Eyes`，装饰见 `decoration(_:)`，怎么动见 `Choreography`。
 /// 数据全部出自 docs/mascot.md §2。
 public enum Look: String, CaseIterable, Sendable {
-    case idle, sleeping, thinking, working, question, finished, error, interrupted, dizzy, mismatch, stale, danger
+    case idle, sleeping, thinking, working, longTurn, question, approval, finished, error, interrupted, dizzy
+    case offline, mismatch, stale, danger, shielded
 
     /// 身体的竖直渐变，上 → 下
     public var gradient: (top: RGB, bottom: RGB) {
         switch self {
         case .idle, .sleeping, .interrupted: return (RGB(0xF2EEE6), RGB(0xCFCAC0))
         case .thinking: return (RGB(0xE9E2FB), RGB(0xBFB2EE))
-        case .working: return (RGB(0xDCEBFF), RGB(0x9CC6F5))
+        case .working, .longTurn: return (RGB(0xDCEBFF), RGB(0x9CC6F5))
         case .question: return (RGB(0xD8F4F7), RGB(0x8FD9E2))
+        case .approval: return (RGB(0xF0F7D4), RGB(0xC6DE7E))
         case .finished: return (RGB(0xE3F6EE), RGB(0xAEDCC7))
         case .error: return (RGB(0xFBE6D6), RGB(0xEDB892))
         case .dizzy: return (RGB(0xFBE3EC), RGB(0xEBB3C7))
+        case .offline: return (RGB(0xE6E8EC), RGB(0xB4BAC4))
         case .mismatch: return (RGB(0xFBEFC9), RGB(0xE8CD84))
         case .stale: return (RGB(0xEFE9DD), RGB(0xCFC2A6))
         case .danger: return (RGB(0xFFB8B0), RGB(0xF2645A))
+        case .shielded: return (RGB(0xFFC9C2), RGB(0xE8857B))
         }
     }
 
-    public var eyes: EyeShape {
+    /// 停在这个造型时头的朝向
+    public var pose: HeadPose {
         switch self {
-        case .idle: return .round
-        case .sleeping: return .sleep
-        case .thinking: return .think
-        case .working: return .focus
-        case .question: return .spark
-        case .finished: return .happy
-        case .error: return .err
-        case .interrupted: return .blink
-        case .dizzy: return .dizzy
-        case .mismatch, .stale: return .big
-        case .danger: return .danger
+        case .sleeping: return HeadPose(degrees: 0, -14, 0)
+        case .thinking: return HeadPose(degrees: 10, 10, 4)
+        case .working, .longTurn: return HeadPose(degrees: 0, -10, 0)
+        case .question: return HeadPose(degrees: 0, 0, -10)
+        case .approval: return HeadPose(degrees: 0, 8, 0)
+        case .finished: return HeadPose(degrees: 0, 10, 0)
+        case .error: return HeadPose(degrees: 0, -8, 0)
+        case .stale: return HeadPose(degrees: 0, -6, 0)
+        case .shielded: return HeadPose(degrees: 0, 4, 0)
+        case .idle, .interrupted, .dizzy, .offline, .mismatch, .danger: return .level
         }
     }
 
-    /// 只有睁着的眼会眨（圆眼、大眼、专注的半圆、星星眼）；笑眼、螺旋眼、闭眼这些本身就是表情，眨了反而怪
-    public var blinks: Bool { eyes == .round || eyes == .big || eyes == .focus || eyes == .spark }
-
-    /// 停在这个造型时的姿态（docs/mascot.md §5：思考歪头 6°、等你回答 −8°、出错一缩、stale 不透明度 0.85）
-    public var pose: Pose {
+    /// 睁着眼：会眨眼、看鼠标、探头。闭眼、笑眼、> <、螺旋本身就是表情
+    public var opensEyes: Bool {
         switch self {
-        case .thinking: return Pose(tilt: 6 * .pi / 180)
-        case .question: return Pose(tilt: -8 * .pi / 180)
-        case .error: return Pose(scale: 0.94, dy: 1)
-        case .stale: return Pose(opacity: 0.85)
-        default: return Pose()
+        case .idle, .thinking, .working, .longTurn, .question, .approval, .offline, .mismatch, .stale, .shielded: return true
+        case .sleeping, .finished, .error, .interrupted, .dizzy, .danger: return false
+        }
+    }
+
+    /// 装饰是告示（sign）：收起时挪到右耳当图标，左耳只留脸。其余有装饰的是心情装饰（mood），留在盾盾身上
+    public var isSign: Bool {
+        switch self {
+        case .error, .offline, .mismatch, .stale, .danger, .shielded: return true
+        default: return false
         }
     }
 }
 
-/// 静止姿态：动画都叠加在它上面。tilt 单位弧度，+ = 顺时针（向右歪）；dy 单位画布单位，+ = 向下
-public struct Pose: Equatable, Sendable {
-    public var tilt: Double = 0
-    public var scale: Double = 1
-    public var dy: Double = 0
-    public var opacity: Double = 1
+/// 头的朝向，弧度。yaw + = 脸朝右，pitch + = 抬头，roll + = 顺时针（docs/mascot.md §1）
+public struct HeadPose: Equatable, Sendable {
+    public var yaw: Double
+    public var pitch: Double
+    public var roll: Double
+
+    public static let level = HeadPose(degrees: 0, 0, 0)
+
+    init(degrees yaw: Double, _ pitch: Double, _ roll: Double) {
+        let d = Double.pi / 180
+        self.yaw = yaw * d
+        self.pitch = pitch * d
+        self.roll = roll * d
+    }
 }
 
-public struct RGB: Equatable, Sendable {
+public struct RGB: Hashable, Sendable {
     public let hex: UInt32
     public init(_ hex: UInt32) { self.hex = hex }
     public var r: Double { Double((hex >> 16) & 0xFF) / 255 }
     public var g: Double { Double((hex >> 8) & 0xFF) / 255 }
     public var b: Double { Double(hex & 0xFF) / 255 }
 
-    /// 眼睛、▲ 里的 !、气泡里的 ?
+    /// 眼睛、▲ 里的 !、气泡里的 ?、锁孔
     public static let ink = RGB(0x16171A)
+    /// 守卫的琥珀、红、灰（状态点、卡片、右耳灰环）
+    public static let amber = RGB(0xFFB020)
+    public static let red = RGB(0xFF453A)
+    public static let grey = RGB(0x8E8E93)
 }
 
-/// 右耳指示（docs/mascot.md §2 表的最后一列）。点直径 7pt；三蓝点直径 3pt、间距 2；空心环 7pt、1pt 描边
+/// 收起时右耳显示什么（docs/mascot.md §2「右耳指示」）。右耳只有一个位置：sign 盖过灰环，灰环盖过点
 public enum EarIndicator: Equatable, Sendable {
-    case none, dots, question, error, mismatch, unknown, danger
+    case none
+    /// 三蓝点 `#3B9EFF`，直径 3pt，依次亮
+    case dots
+    /// 一个 7pt 的点
+    case dot(RGB)
+    /// 灰色空心环，7pt、1pt 描边：探针没结果
+    case ring
+    /// sign 造型的装饰原样挂到右耳
+    case sign(Look)
 
-    public var color: RGB {
-        switch self {
-        case .none, .dots: return RGB(0x3B9EFF)
-        case .question: return RGB(0x3CC8DC)
-        case .error: return RGB(0xFF8A3D)
-        case .mismatch: return RGB(0xFFB020)
-        case .unknown: return RGB(0x8E8E93)
-        case .danger: return RGB(0xFF453A)
-        }
-    }
+    public static let dotsColor = RGB(0x3B9EFF)
 
-    /// guardUnknown：守卫 unknown 但没有专门造型的两种原因（断网、探针没结果），盾盾照常画，只有右耳是灰环。
-    /// errorUnread：出过错还没看，回到空闲后橙点继续亮（App 计时，最多 30 分钟）
-    public static func `for`(_ look: Look, guardUnknown: Bool, errorUnread: Bool) -> EarIndicator {
+    /// probeFailed：守卫 unknown、原因是探针没结果。这种 unknown 不改造型，只在右耳表达
+    public static func `for`(_ look: Look, probeFailed: Bool) -> EarIndicator {
+        if look.isSign { return .sign(look) }
+        if probeFailed { return .ring }
         switch look {
-        case .danger: return .danger
-        case .mismatch: return .mismatch
-        case .stale: return .unknown
-        case _ where guardUnknown: return .unknown
-        case .thinking, .working: return .dots
-        case .question: return .question
-        case .error: return .error
-        case .idle: return errorUnread ? .error : .none
-        case .sleeping, .finished, .interrupted, .dizzy: return .none
+        case .thinking, .working, .longTurn: return .dots
+        case .question: return .dot(RGB(0x3CC8DC))
+        case .approval: return .dot(RGB(0xB5E04A))
+        default: return .none
         }
     }
 }
