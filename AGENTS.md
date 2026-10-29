@@ -26,14 +26,13 @@ Haitao 本机自用的 macOS 菜单栏 / 刘海应用（SwiftUI + AppKit，Swift
    - 兜底和默认值只给真会发生的情况；内部不变量坏了就 `preconditionFailure`。
    - 解析不了的外部数据计数并降级处理，不能崩。
 6. **从根源解决。** 改在产生问题的地方：先复现，再拿出根因证据，再改。禁止症状补丁：特例 if、`DispatchQueue.main.asyncAfter` 等延时掩盖、吞错误、改文案遮问题。找不到根因就停下报告。
-7. **照一手资料。** 依赖外部行为的代码，先按实际用的版本读官方文档、源码或实测，代码里用 `// @see` 指向出处，实测经过写进提交说明。外部行为包括 macOS API、各 agent 的会话格式和 hook 协议、Vibe Island bridge。设计照搬一个成熟实现的完整做法，只写平台逼出来的偏差。说不出照的是谁，就停下报告。
+7. **照一手资料。** 依赖外部行为的代码，先按实际用的版本读官方文档、源码或实测，代码里用 `// @see` 指向出处，实测经过写进提交说明。外部行为包括 macOS API、各 agent 的会话格式和 hook 协议。设计照搬一个成熟实现的完整做法，只写平台逼出来的偏差。说不出照的是谁，就停下报告。
 8. **照社区惯例。** 照 Swift API Design Guidelines 和 Apple 平台的通行做法，禁止自创平行惯例。
 
 **决策序：** 正确性 > 可验证性 > 极简 > 性能 > 复用 > 速度。
 
 ## 本仓硬规则
 
-- **不弄坏 Vibe Island。** 不改、不删 `~/.vibe-island/` 下任何东西，不动它已装的 hook。往它发卡片只用 `~/.vibe-island/bin/vibe-island-bridge --source claude-guard`，加超时，忽略 stdout。
 - **每个 agent 最多 1 个「回合结束」hook，优先零 hook 的被动文件监听。** 改任何 agent 的配置之前：
   - 先给用户看 diff 并备份。
   - 条目带可识别的标记，方便卸载。
@@ -41,11 +40,12 @@ Haitao 本机自用的 macOS 菜单栏 / 刘海应用（SwiftUI + AppKit，Swift
   - hook 程序永远 exit 0、不往 stdout 写东西，不能阻塞或改变 agent 的行为。
 - **子 agent 完成绝不提醒。** 只有顶层回合结束才弹卡。过滤规则（`subagents/`、`isSidechain`、`session_meta.source.subagent`、`stop_hook_active`、中断）集中在一处，并有固定测试。
 - **只读被动监听，不读对话内容。** 会话文件只取判定需要的字段，Grok Bot app 的持久化目录只看文件元数据（静默超时），日志和界面都不出现消息正文。
-- **拦截只在明确异常时触发。** 明确异常指拿到不在允许列表的出口 IP，或默认路由不走 utun。unknown 时只拒绝新启动、显示琥珀色，不杀进程。进程按 bundle id 或真实可执行路径识别，不按名字 grep。
+- **拦截只在明确异常时触发。** 明确异常指拿到不在允许列表的出口 IP，或去往公网（局域网以外）的路由不走 utun（Haitao 2026-10-28 确认：除局域网外全部流量必须走代理）。unknown 时只拒绝新启动、显示琥珀色，不杀进程。进程按 bundle id 或真实可执行路径识别，不按名字 grep。
   - 已经判 violated 后，只有一轮完整的 healthy 才能解除；断网或探针超时不会把 violated 降成 unknown，以免放过已经拦下的 Claude（Haitao 2026-10-28 确认）。
 - **不碰网络与 shell 环境。** 不改 `~/.zshrc` 等 shell 配置，不读写 Clash 配置（「打开 Clash」只能是打开 App），不用 pf 和 Network Extension，不改系统网络设置。出口探测只请求第三方服务（如 ipinfo.io），不碰 Claude / Anthropic 的域名。
-- **不打印密钥，日志不记 IP。** 界面上的 IP 末段打码。
+- **不打印密钥，日志不记 IP。** 界面上完整显示出口 IP（Haitao 2026-10-28 确认）。
 - **不用别家品牌形象。** 不用 Grok、Codex、Coucou、Mochi 等的名字、形象和音效。吉祥物原创，只通过 `Mascot.swift` 的 `MascotRenderable` 接入。
+  - 例外（Haitao 2026-10-28 确认）：吉祥物可在 Coucou（MIT）角色基础上小改并保留其全部状态，仅供 Haitao 本人使用；仓库必须保持私有，不得公开或分发，相关素材只放 `MascotRenderable` 及其资源目录。
 - **UI 达到或超过 Coucou 的水准。** 弹簧动效、毛玻璃、页面过渡，尊重系统的「减弱动态效果」。透明区域不能挡菜单栏点击。
 
 ## 文档
@@ -73,9 +73,9 @@ Haitao 本机自用的 macOS 菜单栏 / 刘海应用（SwiftUI + AppKit，Swift
 - 默认不打扰：空闲时收进刘海，悬停才展开；完成卡 6～8 秒自动收回；红卡一直留到恢复。
 - 状态 = 颜色 + 图标 + 文案，不能只靠颜色：绿是正常，琥珀是 unknown，红是 violated。
 - 只有看得见的形状才接收点击，透明区域一律穿透，不能挡住菜单栏。
-- 出口 IP 在界面上末段打码（如 `216.36.90.•••`）；文案以中文为主，一句话说清楚，按钮写动作本身（"重新检测"）。
-- 吉祥物只放在 `Mascot.swift` 的 `MascotRenderable`，必须是原创形象。
-- 改了 UI 要附截图：亮色、暗色、刘海机型、无刘海外接屏。
+- 出口 IP 在界面上完整显示（如 `198.51.100.7`）；文案以中文为主，一句话说清楚，按钮写动作本身（"重新检测"）。
+- 吉祥物只放在 `Mascot.swift` 的 `MascotRenderable`；默认原创，Coucou 例外见上方硬规则。
+- 改了 UI 要附截图：暗色 + 刘海机型（Haitao 只用暗色，亮色暂不做）；有外接屏时补一张无刘海外接屏。
 
 ## 风格与命名
 
@@ -111,7 +111,7 @@ Haitao 本机自用的 macOS 菜单栏 / 刘海应用（SwiftUI + AppKit，Swift
 
 - 先说结论，用白话，再给建议的下一步。
 - 每个结论带依据（`文件:行`、官方文档链接或实测）；推断标「推断 / 未证实」。前提错了直接指出。
-- 动到 agent 配置、杀进程逻辑、Vibe Island 交互的改动，按全局 Contract 的「高影响」档收工。
+- 动到 agent 配置、杀进程逻辑的改动，按全局 Contract 的「高影响」档收工。
 
 ## Agent skills
 
