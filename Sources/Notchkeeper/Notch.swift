@@ -510,6 +510,7 @@ final class NotchController {
     private func mouseMoved() {
         updateMouseCapture()
         let p = NSEvent.mouseLocation
+        DundunDirector.shared.mouseMoved(to: p)
         setCardHover(model.mode == .card && shapeRect.contains(p))
         // 点击展开的岛不受「悬停展开」开关影响，离开时照样收起
         if model.hovering {
@@ -672,9 +673,10 @@ struct NotchEars: View {
     let flare: CGFloat
 
     @ObservedObject private var director = DundunDirector.shared
+    @ObservedObject private var earState = DundunEarState.shared
 
     /// 右耳跟着左耳实际画的造型走（犯困时左耳睡着，右耳就不亮）
-    private var look: DundunLook {
+    private var look: Look {
         (forced ? mascot : DundunState.shown(base: mascot, dizzy: false, drowsy: director.drowsy)).look
     }
 
@@ -684,9 +686,9 @@ struct NotchEars: View {
         ZStack(alignment: .topLeading) {
             Mascot(state: mascot, size: NotchLayout.earMascotSize)
                 .environment(\.dundunLiteral, forced)
-                .environment(\.dundunTriggerTarget, "左耳 20pt")
                 .position(e.bodyCenter)
-            DundunEarView(look: look, height: notch.height)
+            DundunEarView(indicator: .for(look, guardUnknown: mascot == .guardUnknown, errorUnread: earState.errorUnread), height: notch.height)
+                .frame(width: NotchLayout.earWidth, height: notch.height)
                 .position(x: w - NotchLayout.earWidth / 2, y: notch.height / 2)
         }
         .frame(width: w, height: notch.height, alignment: .topLeading)

@@ -5,7 +5,7 @@ import Combine
 @MainActor
 enum NotchkeeperMain {
     static func main() {
-        var args = CommandLine.arguments
+        let args = CommandLine.arguments
         // 自检用的抢锁子进程：只碰给定的锁文件，不写别的
         if let i = args.firstIndex(of: "--instance-probe"), args.count > i + 1 {
             switch SingleInstance.lock(at: URL(fileURLWithPath: args[i + 1])) {
@@ -19,30 +19,10 @@ enum NotchkeeperMain {
             case .unavailable: exit(2)
             }
         }
-        #if DEBUG
-        // 换 HOME 之前先把输出目录解析成绝对路径，否则 ~ 会指到临时 HOME
-        if let i = args.firstIndex(of: "--mascot-demo") {
-            let dir = URL(fileURLWithPath: ((args.count > i + 1 ? args[i + 1] : "mascot-demo") as NSString).expandingTildeInPath).path
-            if args.count > i + 1 { args[i + 1] = dir } else { args.append(dir) }
-        }
-        #endif
-        if args.contains("--selftest") || args.contains("--mascot-demo") || args.contains("--cpu-bench") {
-            TestHome.enter(arguments: args)
-        }
         if args.contains("--selftest") {
+            TestHome.enter(arguments: args)
             exit(SelfTest.run() ? 0 : 1)
         }
-        #if DEBUG
-        if let i = args.firstIndex(of: "--mascot-demo") {
-            exit(MascotDemo.run(outDir: URL(fileURLWithPath: args[i + 1])) ? 0 : 1)
-        }
-        // 在单实例锁之前退出：不和正在运行的 Notchkeeper 抢锁
-        if let i = args.firstIndex(of: "--cpu-bench") {
-            let scenario = args.count > i + 1 ? args[i + 1] : "idle"
-            let seconds = args.count > i + 2 ? Double(args[i + 2]) ?? 60 : 60
-            exit(CpuBench.run(scenario: scenario, seconds: seconds) ? 0 : 1)
-        }
-        #endif
         if let i = args.firstIndex(of: "--login-item") {
             let op = args.count > i + 1 ? args[i + 1] : "status"
             if op == "enable" || op == "disable" {
@@ -89,6 +69,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .receive(on: RunLoop.main)
             .sink { [weak self] c in
                 self?.notch.setHoverEnabled(c.hoverExpand)
+                DundunDirector.shared.setFollowsMouse(c.dundunFollowsMouse)
             }
             .store(in: &cancellables)
 

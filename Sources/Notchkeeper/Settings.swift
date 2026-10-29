@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import DundunCore
 
 // 设置窗口：照 prototype/settings-spec.md，按 macOS 系统设置的布局，只用原生控件。
 // 每个开关直接绑定 ConfigStore，改了立刻写盘，不在视图里缓存配置值。
@@ -393,6 +394,12 @@ private struct DundunPane: View {
                 }
                 .frame(maxWidth: .infinity)
             }
+            Section {
+                Toggle(isOn: $store.config.dundunFollowsMouse) {
+                    Text("跟随鼠标")
+                    Text("眼睛看着鼠标、身体往那边歪；鼠标到刘海上时探头。关掉后眼睛一直看正前方")
+                }
+            }
         }
     }
 }
@@ -410,7 +417,6 @@ private struct StateTestPane: View {
                 VStack(spacing: 6) {
                     Mascot(state: overrides.mascot(real: state.presentation.mascotState), size: 40)
                         .environment(\.dundunLiteral, overrides.dundun != nil)
-                        .environment(\.dundunTriggerTarget, "预览 40pt")
                     Text(overrides.dundun.map { "强制：\($0.title)" } ?? "真实状态：\(state.presentation.title)")
                         .font(.system(size: 13, weight: .semibold))
                 }
@@ -433,7 +439,7 @@ private struct StateTestPane: View {
             } footer: {
                 Text("只改盾盾和刘海的样子，不改出口判定，也不弹红卡、不响；真的红卡照常弹出。不写任何文件，重开 App 就恢复。")
             }
-            DundunTriggerSection()
+            DundunCueSection()
             Section {
                 HStack {
                     Spacer()
@@ -445,39 +451,34 @@ private struct StateTestPane: View {
     }
 }
 
-/// 「触发小动作」：左耳和上面的预览各播一次，只在内存里。播不了的按钮灰掉，下面写原因
-private struct DundunTriggerSection: View {
-    @ObservedObject private var triggers = DundunTriggers.shared
-
+/// 「播放动作」：看得见的盾盾（左耳、上面的预览）各播一次，不管当前造型。只在内存里
+private struct DundunCueSection: View {
     var body: some View {
-        let _ = triggers.revision
-        let targets = triggers.targets.compactMap { t in t.driver.map { (t.label, $0) } }
         Section {
             HStack {
-                ForEach(DundunTriggers.Action.allCases) { a in
-                    Button(a.title) { triggers.fire(a) }
-                        .disabled(targets.allSatisfy { triggers.reason(a, for: $0.1) != nil })
-                        .help(reasons(a, targets).joined(separator: "\n"))
+                ForEach(IdleMotion.allCases, id: \.self) { m in
+                    Button(m.title) { DundunDirector.shared.play(.idle(m)) }
                 }
-            }
-            ForEach(DundunTriggers.Action.allCases) { a in
-                let r = reasons(a, targets)
-                if !r.isEmpty {
-                    Text("\(a.title)：\(r.joined(separator: "；"))")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
+                Button("眨眼") { DundunDirector.shared.play(.blink(double: false)) }
             }
         } header: {
-            Text("触发小动作")
+            Text("播放动作")
         } footer: {
-            Text("左耳（20pt）和上面的预览（40pt）各播一次。只在空闲时能播；不写任何文件。")
+            Text("看得见的盾盾各播一次；开了「减弱动态效果」时只有眨眼。不写任何文件。")
         }
     }
+}
 
-    /// 播不了的目标和原因；空 = 都能播
-    private func reasons(_ a: DundunTriggers.Action, _ targets: [(String, DundunDriver)]) -> [String] {
-        if targets.isEmpty { return ["左耳和预览都不在屏幕上"] }
-        return targets.compactMap { label, d in triggers.reason(a, for: d).map { "\(label)：\($0)" } }
+private extension IdleMotion {
+    var title: String {
+        switch self {
+        case .lookAround: return "张望"
+        case .curiousTilt: return "歪头"
+        case .peekSide: return "侧身探看"
+        case .hop: return "小跳"
+        case .shake: return "抖一抖"
+        case .spin: return "转一圈"
+        }
     }
 }
 

@@ -273,7 +273,6 @@ enum SelfTest {
         check("盾盾：黄盾回到正常 → 开心", DundunState.celebrates(from: .guardMismatch, to: .idle))
         check("盾盾：灰盾回到正常 → 不庆祝", !DundunState.celebrates(from: .guardUnknown, to: .idle))
         check("盾盾：红盾变灰盾 → 不庆祝", !DundunState.celebrates(from: .guardViolated, to: .guardUnknown))
-        dundunTests(check)
         check("盾盾：鼠标在刘海里距离为 0", DundunDirector.distance(from: NSPoint(x: 5, y: 5), to: NSRect(x: 0, y: 0, width: 10, height: 10)) == 0)
         check("盾盾：鼠标在刘海右下 (3,4) 处距离为 5", DundunDirector.distance(from: NSPoint(x: 13, y: -4), to: NSRect(x: 0, y: 0, width: 10, height: 10)) == 5)
         return ok

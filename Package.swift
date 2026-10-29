@@ -29,7 +29,7 @@ let package = Package(
         // 找主会话文件、只读尾部 64KB，交给 AgentCore 判定；App 进程内 2 秒轮询
         .target(name: "AgentWatch", dependencies: ["AgentCore"]),
         .testTarget(name: "AgentWatchTests", dependencies: ["AgentWatch"]),
-        // 盾盾的帧表、调度器和状态切换过渡：纯值类型，显式时间，不 import SwiftUI / AppKit
+        // 盾盾此刻是什么造型、做什么动作：造型数据、动作编排（[Track]）、空闲调度、跟随鼠标。纯值类型，只依赖 CoreGraphics
         .target(name: "DundunCore"),
         .testTarget(name: "DundunCoreTests", dependencies: ["DundunCore"]),
     ]

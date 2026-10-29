@@ -1,6 +1,6 @@
 # HANDOFF
 
-最后更新：2026-10-29。换会话或开工前先读本文，再读 `CLAUDE.md`。
+最后更新：2026-10-29（阶段 2a 提交后）。换会话或开工前先读本文，再读 `CLAUDE.md`。
 
 ## 已定决策
 
@@ -19,6 +19,9 @@
 | 10-29 | 删掉 `--selftest`，纯逻辑测试全部改用 `swift test`；验收只看 `swift build` 零警告和 `swift test` 全绿 |
 | 10-29 | 每批改动派只读的 reviewer 子 agent 审查（`.claude/agents/reviewer.md`），至多两轮；commit 仍要用户明示同意 |
 | 10-29 | 汇报、提交说明、文档、注释一律用中文 |
+| 10-29 | 盾盾的循环动作帧率限在 30–60fps（`preferredFrameRateRange`），一次性动作不限 |
+| 10-29 | 跟随鼠标做成设置开关：设置页「盾盾」→「跟随鼠标」，`config.json` 的 `dundunFollowsMouse`，默认开 |
+| 10-29 | 盾盾改为「二维图形模拟三维」：身体是球，眼睛贴在球面上，所有动作（包括跟随鼠标）都用头的朝向（左右 yaw、上下 pitch、侧歪 roll）表达；要有左右 360° 转圈和上下 360° 翻圈；动作再多一些。数字由 agent 定（见「阶段 2b 接手要点」）。放在下一个切片做 |
 
 ## 阶段与进度
 
@@ -26,47 +29,66 @@
 |---|---|---|
 | 0 | 文档重置：CLAUDE.md、README、本文件、`docs/dundun.md`、`docs/firewall.md`；删除旧文档和 `prototype/` | 已完成 |
 | 1 | 后端：删除没人用的拦截接缝（`onVerdictChange`、`Verdict.intercepts`）；guardd 读上一份状态时不再用 `try?` 吞错误 | 已完成 |
-| 2 | 盾盾新动画（见下方「接手要点」） | 下一步 |
+| 2a | 盾盾改用 Core Animation：DundunCore 重写成纯值（造型、形状、编排、空闲调度、注视），App 侧图层树、全 App 唯一时钟、右耳；删掉旧的逐帧画法、帧预算、跑分、演示、自检；跟随鼠标开关 | 已完成；完整 App 的 CPU 验收还没过，原因是旧会话扫描，阶段 3 删掉后重测（见下方实测表） |
+| 2b | 盾盾伪 3D：球面模型 + 朝向，转圈、翻圈，更多动作（见下方「接手要点」） | 下一步 |
 | 3 | App 外壳重写：<br>• 新增 `NotchCore`：GuardPresentation、CardQueue、HoverMachine、MascotResolver、配置解码（同时修 P0）<br>• 刘海视图只订阅 `presentation`，不订阅含 `checkedAt` 的 `display`：Watcher 每轮都发是为了设置页的「上次检查」，不是 bug，但不该让整棵视图每 5 秒重算<br>• 接上 AgentWatch 的完成卡<br>• 精简设置页<br>• 删除 `AgentEvents.swift`、`Sessions.swift`、SelfTest<br>• `demo.sh` 的通知只在 DEBUG 构建里监听 | 待做 |
 | 4 | 防火墙：资料已查（`docs/firewall.md` 第 6 节）。顺序：root 实测 → 恢复脚本并实测 → 试运行和自动回滚 → 规则、LaunchDaemon、安装脚本、App 开关 | 待做 |
 
-## 阶段 2 接手要点：盾盾新动画
+## 阶段 2b 接手要点：盾盾伪 3D
 
-**依据**：`docs/dundun.md`。造型数据见第 1–4 节，动效表和性能验收见第 5 节。设计取舍记录在本机的 `~/.claude/plans/drifting-stirring-cloud.md`，有就读，没有不影响接手。
+**用户的要求（10-29）**：用二维图形模拟三维模型。2a 的动画是平面的：眼睛直接平移、「歪头」只是整张脸平面旋转，看着别扭。所有动作都要按三维来算。
 
-**先测旧版的基线。** 删旧代码之前，在刘海机型上测：
+**模型**：
+- 身体是一个球，屏幕上是它的正投影，圆的轮廓永远不变。光从上方来，所以渐变不跟着转。
+- 眼睛贴在球面上，各有固定经纬度：左右眼各偏离正中约 20°，即画布里 ±3.5 单位 / 半径 10。
+- 状态就是头的朝向（yaw、pitch、roll）。眼睛按朝向投影：
+  - 位置沿球面滑动；
+  - 沿径向压缩到 cos(偏离角)；
+  - 转到背面就看不见。
+- 右上装饰不上球，留在角落。
+- 跳、压扁、呼吸仍然作用在整个身体上。
 
-- 用 `./scripts/run.sh` 启动当前版本；
-- 用 `top -l 70 -s 1 -pid <pid>` 测两种场景：收起空闲 60 秒、鼠标持续移动 60 秒；
-- 数字记下来，提交时和新版对照。
+**数字（agent 定）**：
+- 跟随鼠标：头最多转 yaw ±25°、pitch ±20°，弹簧沿用 response 0.3、damping 0.85。
+- 左右转圈、上下翻圈：各 0.9s，正弦缓动。
+- 完成时空中转一圈改成 yaw 360°。
 
-旧版一删就没法再测了。
+**动作改写和新增**：
+- 东张西望：左右转头。
+- 点头：pitch。
+- 歪头：roll。
+- 新增：左右 360° 转圈、上下 360° 翻圈。
+- 再加几个：抬头看天、低头看脚、摇头、侧身转 90° 再转回来。
 
-**结构**：
+最终清单写进 `docs/dundun.md` §5。
 
-- **`DundunCore`**：整体重写，只依赖 CoreGraphics，纯值。
-  - `Look`、`Palette`、`EyeShape`：眼形直接是 CGPath 数据，不再解析 SVG。
-  - `Choreography`：给一个造型和一个动作，输出 `[Track]`。每个 Track 包含 keyPath、keyTimes、values、缓动、时长、重复次数、帧率范围。
-  - `IdleDirector`：决定空闲时什么时候眨眼、做哪个小动作。随机数和时间都从参数注入。
-  - `Gaze`：鼠标位移进来，眼睛偏移和身体倾角出去，带死区和上限。
-- **App 侧**：
-  - `DundunLayerView` 是一个 layer-backed 的 NSView，用 `NSViewRepresentable` 嵌进 SwiftUI。身体用 `CAGradientLayer` 加圆形遮罩，眼睛和装饰用 `CAShapeLayer`。
-  - 写一个小的 `apply([Track])`，把 Track 翻译成 `CAKeyframeAnimation` / `CASpringAnimation`。
-- **全 App 只有一个时钟**：左耳和面板里的盾盾同步动作。删掉每只盾盾各自的 Task 和 10Hz 鼠标 Timer；鼠标位置复用 `NotchController` 已有的全局 mouseMoved 监听。
-- **看不见就停**：沿用 `Sources/Notchkeeper/Mascot/DundunView.swift` 现有的逻辑——`ScreenAnchorView` 读窗口遮挡状态，`DundunDirector` 处理熄屏和锁屏。停的时候设 `layer.speed = 0`，同时暂停时钟。
-- **接口不变**：App 继续通过 `Mascot.swift` 的 `MascotRenderable` 和 `DundunState` 使用盾盾，阶段 3 之前 App 照样能编译。
-- **要删的旧代码**：
-  - `DundunPlayer`（帧预算）、`DundunTransition`、`DundunRender`、`DundunFrames`、`DundunEar` 的阶梯脉冲；
-  - `Mascot/DundunArt.swift`、`CpuBench.swift`、`MascotDemo.swift`、`DundunSelfTest.swift`；
-  - `Tests/DundunCoreTests/*`，按新接口重写。
+**顺序**：
+1. 先做用完即删的原型（`prototype` skill），只放一只盾盾和几个按钮，给用户看手感。
+2. 用户认可后，先改 `docs/dundun.md` §5：以朝向为核心，写明球面模型和角度。经用户确认。
+3. TDD 改 `Choreography`、`Gaze` 和图层。
 
-  MIT 声明随移植代码一起删掉。设置页「关于」里的 Coucou 致谢留到阶段 3。
-- **要先查清**：`CAAnimation.preferredFrameRateRange` 在 macOS 上能不能用。能用就把循环动作限在 30–60fps，查不到就不设。
-- **和 ui-ux-pro-max 的偏差**：它的 SwiftUI 建议是用 `.animation`，不用 CABasicAnimation。常驻小部件按 WWDC23「Explore SwiftUI animation」改用 Core Animation，代码注释里写 `@see`。
-- **验收**：
-  - `swift test` 覆盖：减弱动态效果时没有位移类 Track、呼吸参数、`IdleDirector` 注入种子后可复现且不连续重复同一动作、`Gaze` 的死区和上限。
-  - 实机逐个过 12 个造型、所有小动作、跟随鼠标、减弱动态效果，附暗色刘海截图。
-  - 和基线对照：收起空闲 CPU 平均低于 0.5%，鼠标持续移动低于 3%。
+**实现要先实测二选一**：
+- (a) Core Animation 3D 变换：用 `CATransformLayer` 搭层级，眼睛图层放在球的切面上（`anchorPointZ` = −半径），`isDoubleSided = false` 让转到背面的眼睛消失。插值在渲染服务里做，弹簧可以直接作用在 `transform.rotation.y` 上。
+- (b) DundunCore 的纯函数把「朝向 → 每只眼的二维位置、压缩、可见性」算好，采样成关键帧交给 CA。
+
+两种都要在实机上比顺滑度和 CPU。无论选哪种，投影公式都写成 DundunCore 的纯函数并单测，例如转 90° 时眼睛在边缘、宽度约 0，转 180° 时不可见。
+
+**多宠物**：用户问过架构能否「只换图形」接入别的宠物，还没定做不做（答复见本次会话汇报）。2b 设计骨架时把「每个宠物的美术数据」收在一个值里，不把盾盾的名字写进骨架。
+
+**2a 的实现取舍**（文档没写死、我定的）：
+- 看不见时撤掉全部动画（静止值在模型层上），回来时按共同起点 `DundunDirector.epoch` 重新挂循环，不用 `layer.speed = 0`：这样左耳和面板的相位保持一致。
+- 出错的「一缩」保持在姿态里，不回弹。
+- 只有睁着眼的造型看鼠标。
+- 注视取整的格子 0.25 单位、0.5°：鼠标每换一次目标就是一次事务提交。
+
+**2a 实测**（本机 Mac17,9，内建 120Hz 屏，release，`top -l 70 -s 1`）：
+
+| 场景 | 旧版 `7374a88` | 2a 完整 App | 2a 关掉旧会话扫描 |
+|---|---|---|---|
+| 收起空闲 60s | 1.23% | 0.77% | 0.385%（无人操作的 33s 约 0.03%） |
+| 鼠标持续移动 60s | 3.67% | 约 3.4% | 2.34%（跟随鼠标关掉时 1.99%） |
+
+完整 App 没达标，原因是旧的会话扫描 `SessionScanner`（`AppState.swift:36` 每 4s 一次）。它每次读会话文件尾部再逐行 split，会话文件越大越慢，开销随时间上涨，所以每轮读数都会漂。阶段 3 删掉它之后应该重测。
 
 ## 建议用的 skill
 
@@ -78,11 +100,20 @@
 
 ## 待办与已知问题
 
+- **盾盾实机检查**：12 个造型和各个动作还没逐个截图，用户说自己看。2b 做完后一起补暗色截图。
+- **2a 审查留下的（2b 一起改）**：
+  - 换造型时 `stopLoops()` 直接撤循环：晕的摆锤、工作的浮动会一下子跳回 0。
+  - 0.09s 内连续换两次造型时，「保持旧眼形」保持的是模型值，不是屏幕上的那个。
+  - 看不见时 A→B→A 回到原造型，也会重播进场。
+  - `DundunDirector` 的时钟决策（醒来时刻、恢复、推迟小动作）还没抽成值类型测试。
+  - 新领域词（Track、Cue、Pose、Part、Gaze、EarIndicator）还没进 `docs/ubiquitous-language.md`。
+- **设置页预览可能不跟鼠标**（推断）：Notchkeeper 在前台时，全局鼠标监听收不到本 App 窗口里的事件。阶段 3 处理。
+- **MIT 声明**：`DundunDirector.swift`、`EarView.swift` 里从旧 `DundunView.swift` 搬来的代码保留了 Coucou 的 MIT 声明，阶段 3 重写时一起删掉。
 - **P0**：`config.json` 有语法错误时，启动会用默认值覆盖整份文件，允许列表被清空（`Sources/Notchkeeper/Config.swift:67-77`）。阶段 3 修。
 - **IPv6**：守卫只查 IPv4，IPv6 直连泄漏看不见（推断，待实测 `route -n get -inet6`）。防火墙会同时封 IPv6，阶段 4 一起处理。
 - **完成判定**：AgentCore 只靠 `stop_reason` 判断回合结束，真实会话里可能永远判不出完成（推断）。阶段 3 接线前用 `NOTCHKEEPER_LIVE_AGENTS=1` 实测。
 - **utun 判定过宽**：任何 utun 都算「在隧道上」，开着别的 VPN 时可能看漏（推断）。
 - **出口探测频率**：每 5 秒请求 3 个回显服务，可能被限流（推断）。
-- **旧注释**：后端的已改完。App target 和 DundunCore 里还有指向 `AGENTS.md`、`prototype/`、已删文档的注释，阶段 2、3 重写时一起去掉。
+- **旧注释**：后端和 DundunCore 的已改完。App target 里（`Mascot.swift`、`DundunTypes.swift`、`Notch.swift`、`Settings.swift` 等）还有指向 `AGENTS.md`、`prototype/`、已删文档的注释，阶段 3 重写时一起去掉。
 - **审查**：第 2 轮 reviewer 查出的两条必须修（防火墙状态摘要的新鲜度和存放位置；guardd 里过时的拦截注释）已经改好，但没有再审一轮。
 - **Grok Bot**：只能识别「有新回复 / 等你回复」，做不做还没定。
