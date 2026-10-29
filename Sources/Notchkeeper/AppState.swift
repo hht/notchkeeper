@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import GuardCore
+import GuardWatch
 
 @MainActor
 final class AppState: ObservableObject {
@@ -21,33 +22,36 @@ final class AppState: ObservableObject {
 
     /// 每次读完都调用（不论有没有变化），参数是这次读到的显示
     var onPresentation: ((GuardPresentation) -> Void)?
-    private var guardObserver: NSObjectProtocol?
-    private var guardTimer: Timer?
+    /// 订阅 guard-state 显示流的长任务；`stopWatchingGuard()` / deinit 取消，流随之结束、监听关掉
+    private var guardTask: Task<Void, Never>?
     private var sessionTimer: Timer?
     private var scanning = false
 
     init() {}
 
     func start() {
-        // guardd 只在 verdict / unknownReason 变化时发通知，停了就不再发；
-        // 所以另有 5 秒定时重读，靠它发现 checkedAt 过期和出口 IP 变化（docs/egress-guard.md §4）
-        guardObserver = DistributedNotificationCenter.default().addObserver(
-            forName: Notification.Name(GuardState.changedNotification), object: nil, queue: .main
-        ) { _ in MainActor.assumeIsolated { AppState.shared.reloadGuardState() } }
-        let interval = TimeInterval(PollSchedule.interval.components.seconds)
-        guardTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { _ in
-            Task { @MainActor in AppState.shared.reloadGuardState() }
-        }
-        reloadGuardState()
+        // 不轮询：GuardStateWatcher 监听目录，guardd 写文件后马上读；checkedAt 过期也由它到点重读（docs/egress-guard.md）
+        watchGuard(GuardStateWatcher(directory: GuardPaths.directory).displays())
         scanSessions()
         sessionTimer = Timer.scheduledTimer(withTimeInterval: 4, repeats: true) { _ in
             Task { @MainActor in AppState.shared.scanSessions() }
         }
     }
 
-    func reloadGuardState() {
-        apply(GuardStateReader.display(data: try? Data(contentsOf: GuardPaths.stateFile), now: Date()))
+    /// 每来一个显示就 apply 一次。参数是流，测试可以喂假的；再调一次会先取消旧的订阅
+    func watchGuard(_ displays: AsyncStream<GuardDisplay>) {
+        guardTask?.cancel()
+        guardTask = Task { [weak self] in
+            for await d in displays { self?.apply(d) }
+        }
     }
+
+    func stopWatchingGuard() {
+        guardTask?.cancel()
+        guardTask = nil
+    }
+
+    deinit { guardTask?.cancel() }
 
     func apply(_ d: GuardDisplay) {
         if d.verdict == .healthy { dismissedViolationSince = nil }

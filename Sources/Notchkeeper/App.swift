@@ -91,6 +91,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Log.write("notch screen: \(notch.hasNotch)")
     }
 
+    /// 退出前取消守卫订阅，目录监听和定时器跟着关掉
+    /// @see https://developer.apple.com/documentation/appkit/nsapplicationdelegate/applicationwillterminate(_:)
+    func applicationWillTerminate(_ notification: Notification) {
+        state.stopWatchingGuard()
+    }
+
     /// 再次打开 App（Finder 双击、`open -a`）时没有菜单栏图标可点，直接打开设置
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         openSettings()

@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import GuardCore
+import GuardWatch
 
 // MARK: - 支持的 agent
 
@@ -352,7 +353,7 @@ extension SelfTest {
             var glass: Int { sounds.filter { $0 == "Glass" }.count }
         }
         _ = NSApplication.shared
-        func read(_ rig: Rig, _ r: R) {
+        func shown(_ r: R) -> GuardDisplay {
             now = now.addingTimeInterval(5)
             let data: Data?
             switch r {
@@ -364,8 +365,9 @@ extension SelfTest {
             case .skew(let s): data = file("violated", at: now.addingTimeInterval(60), since: s)
             case .missing: data = nil
             }
-            rig.state.apply(GuardStateReader.display(data: data, now: now))
+            return GuardStateReader.display(data: data, now: now)
         }
+        func read(_ rig: Rig, _ r: R) { rig.state.apply(shown(r)) }
         func run(_ path: [R], rig: Rig? = nil) -> Rig {
             let rig = rig ?? Rig()
             for r in path { read(rig, r) }
@@ -426,6 +428,47 @@ extension SelfTest {
         h.notch.show(AppDelegate.demoCard(kind: "alert", title: nil, detail: nil))
         _ = run([.violated(t0), .healthy], rig: h)
         check("演示红卡挂着时真违规 → healthy：照样撤卡、弹恢复卡", h.card == .recovered && h.basso == 2)
+
+        // 订阅：AppState.watchGuard 消费流，和上面同一个 apply。条件满足就停，最多等 3 秒
+        func settle(_ done: () -> Bool) -> Bool {
+            let end = Date().addingTimeInterval(3)
+            while !done() && Date() < end { RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.01)) }
+            return done()
+        }
+        final class Flag: @unchecked Sendable { var on = false }
+        let (feed, push) = AsyncStream.makeStream(of: GuardDisplay.self)
+        let ended = Flag()
+        push.onTermination = { _ in DispatchQueue.main.async { ended.on = true } }
+        let w = Rig()
+        w.state.watchGuard(feed)
+        push.yield(shown(.violated(t0)))
+        check("订阅（假流）：违规 → 红卡", settle { w.card == .alert } && w.basso == 1)
+        push.yield(shown(.offline))
+        push.yield(shown(.healthy))
+        check("订阅（假流）：违规 → unknown → healthy，红卡撤掉、弹恢复卡", settle { w.card == .recovered } && w.glass == 1)
+        push.yield(shown(.violated(t1)))
+        check("订阅（假流）：新的 violatedSince → 红卡再出现", settle { w.card == .alert } && w.basso == 2)
+        w.notch.dismissCurrent()
+        push.yield(shown(.violated(t1)))
+        push.yield(shown(.violated(t1.addingTimeInterval(60))))
+        check("订阅（假流）：关掉后同一次不再弹，又一次新的 violatedSince 再弹", settle { w.card == .alert } && w.basso == 3)
+        w.state.stopWatchingGuard()
+        check("订阅（假流）：stopWatchingGuard 结束订阅", settle { ended.on })
+
+        // 订阅：真的 GuardStateWatcher 监听隔离 HOME 下的临时目录（guardd 一样用 rename 替换文件）
+        let dir = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("guard-watch-test", isDirectory: true)
+        check("订阅（真监听）：目录在隔离 HOME 下", dir.path.hasPrefix(NSHomeDirectory() + "/") && !TestHome.isUnderRealHome(dir))
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let stateURL = dir.appendingPathComponent(GuardState.fileName)
+        let x = Rig()
+        x.state.watchGuard(GuardStateWatcher(directory: dir).displays())
+        check("订阅（真监听）：没有文件 → unknown、不弹卡", settle { x.state.display.verdict == .unknown } && x.card == nil)
+        try? file("violated", at: Date(), since: t0).write(to: stateURL, options: .atomic)
+        check("订阅（真监听）：写入违规 → 红卡", settle { x.card == .alert } && x.basso == 1)
+        try? file("healthy", at: Date()).write(to: stateURL, options: .atomic)
+        check("订阅（真监听）：写入 healthy → 红卡撤掉、弹恢复卡", settle { x.card == .recovered })
+        x.state.stopWatchingGuard()
+        try? FileManager.default.removeItem(at: dir)
 
         // 恢复卡 4 秒自动收起、悬停暂停（真的计时器，约 8 秒）
         let k = run([.violated(t0), .healthy])

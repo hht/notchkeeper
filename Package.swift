@@ -7,7 +7,7 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "Notchkeeper",
-            dependencies: ["GuardCore"],
+            dependencies: ["GuardCore", "GuardWatch"],
             path: "Sources/Notchkeeper",
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
