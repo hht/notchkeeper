@@ -103,6 +103,7 @@ enum NotchLayout {
     static let cardWidth: CGFloat = 400
     static let dashWidth: CGFloat = 440
     static let rowHeight: CGFloat = 34
+    /// 会话列表最多露出几行，再多就在列表里滚动（用户 10-29：开的会话多了面板不能无限变长）
     static let maxRows = 5
 
     /// 收起时刘海两侧各一只耳朵：左耳放盾盾，右耳放状态指示（docs/mascot.md §1）
@@ -709,11 +710,17 @@ struct NotchDashboard: View {
                 .foregroundStyle(.white.opacity(0.45))
                 .frame(maxWidth: .infinity, minHeight: 36)
             } else {
-                VStack(spacing: 0) {
-                    ForEach(state.sessions.prefix(NotchLayout.maxRows), id: \.pid) { s in
-                        SessionRow(session: s).frame(height: NotchLayout.rowHeight)
+                // 最多露出 maxRows 行，多的在里面滚，面板不再变长
+                ScrollView(.vertical) {
+                    VStack(spacing: 0) {
+                        ForEach(state.sessions, id: \.pid) { s in
+                            SessionRow(session: s).frame(height: NotchLayout.rowHeight)
+                        }
                     }
                 }
+                .scrollBounceBehavior(.basedOnSize)
+                .environment(\.colorScheme, .dark) // 系统亮色、滚动条设成「始终」时，别在黑底上画浅色槽
+                .frame(height: CGFloat(min(state.sessions.count, NotchLayout.maxRows)) * NotchLayout.rowHeight)
             }
         }
         .padding(.horizontal, 20)
