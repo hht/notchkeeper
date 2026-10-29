@@ -61,7 +61,7 @@ stage ─┬─ body（呼吸，锚点在身体底部）
 | sleeping 睡着 | 鼠标 120s 没靠近刘海 | 同空闲 | 0 / −14 / 0（头垂下） | mood：Z 字 | 无 |
 | thinking 思考 | 暂不接线（sessions 文件没有这个信号） | `#E9E2FB` → `#BFB2EE` | 10 / 10 / 4（往斜上方想） | mood：思考云 | 三蓝点 |
 | working 工作 | agent 工作中 | `#DCEBFF` → `#9CC6F5` | 0 / −10 / 0（低头干活） | 无 | 三蓝点 |
-| longTurn 干了很久 | agent 工作中，并且离回合开始超过 10 分钟 | 同工作 | 0 / −10 / 0 | mood：汗珠 | 三蓝点 |
+| longTurn 干了很久 | agent 工作中，并且离回合开始满 10 分钟 | 同工作 | 0 / −10 / 0 | mood：汗珠 | 三蓝点 |
 | question 等你回答 | agent 需要你介入，不是权限类（见 `docs/agent-integration.md`） | `#D8F4F7` → `#8FD9E2` | 0 / 0 / −10（歪头等你） | mood：气泡，40pt 带 ? | 青点 `#3CC8DC` |
 | approval 等你批准 | agent 需要你介入，权限类 | `#F0F7D4` → `#C6DE7E` | 0 / 8 / 0（抬头看着你） | mood：举起的手 | 青柠点 `#B5E04A` |
 | finished 完成 | agent 回合结束；出口恢复（弹恢复卡时，见 `docs/egress-guard.md`）。持续 5.2s 后按优先级回落 | `#E3F6EE` → `#AEDCC7` | 0 / 10 / 0（得意地抬头） | mood：星星 | 无 |

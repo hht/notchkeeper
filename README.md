@@ -73,6 +73,7 @@ swift run guardd --once                       # 调试：只跑一轮，打印�
 | `GuardWatch` | App 什么时候重读 `guard-state.json`（监听所在目录） |
 | `guardd` | 后台进程：每轮跑探针、判定、写状态文件 |
 | `MascotCore` | 盾盾此刻是什么造型、做什么动作。纯逻辑 |
+| `AgentCore` | Claude Code 会话此刻在什么状态、回合什么时候结束。纯逻辑；监听 `~/.claude/sessions` 在 App 的 `AgentWatcher` |
 
 ## 测试
 

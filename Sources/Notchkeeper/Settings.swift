@@ -368,7 +368,7 @@ private struct StateTestPane: View {
         Form {
             Section {
                 VStack(spacing: 6) {
-                    MascotView(look: overrides.mascot(real: state.presentation.look), size: 40)
+                    MascotView(look: overrides.mascot(real: state.look), size: 40)
                         .environment(\.mascotLiteral, overrides.look != nil)
                     Text(overrides.look.map { "强制：\($0.title)" } ?? "真实状态：\(state.presentation.title)")
                         .font(.system(size: 13, weight: .semibold))

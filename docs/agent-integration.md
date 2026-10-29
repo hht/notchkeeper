@@ -14,11 +14,10 @@ Notchkeeper 只关心 Claude Code 的三件事：**工作中、已停止、需�
 
 | 字段 | 用来做什么 |
 |---|---|
-| `pid` | 进程还在不在（`kill(pid, 0)`） |
-| `procStart` | 和 `pid` 一起防 pid 复用 |
-| `sessionId` | 会话的身份 |
-| `kind` | 只看交互式会话（见「待实测」） |
-| `status` | 三个状态 |
+| `pid` | 进程还在不在、进程退出通知 |
+| `procStart` | 和 `pid` 一起认进程，防 pid 复用 |
+| `kind`、`entrypoint` | 只看 `kind: interactive` 并且 `entrypoint: cli` 的会话，也就是终端里开的 `claude`；`claude -p`（`sdk-cli`）、SDK、VS Code、Desktop 等都不算（用户 10-29，依据见「实测」1） |
+| `status` | 三个状态；还没有这个字段的是刚起来的会话，先不看（「实测」5） |
 | `waitingFor` | 需要你介入时，区分等你回答和等你批准 |
 | `statusUpdatedAt` | 这个状态从什么时候开始 |
 | `cwd` | 只取最后一段当项目名 |
@@ -31,19 +30,21 @@ Notchkeeper 只关心 Claude Code 的三件事：**工作中、已停止、需�
 |---|---|---|
 | `busy`、`shell` | 工作中 | working；干了很久（见下）变 longTurn |
 | `idle` | 已停止 | 回合结束时 finished，5.2s 后按优先级回落 |
-| `waiting` | 需要你介入 | `waitingFor` 是 `permission prompt` 或 `sandbox request` → approval；其余（`input needed` 等）→ question |
+| `waiting` | 需要你介入 | 照 Claude Code 自己的归类表（「实测」3）：`permission prompt`、`sandbox request`、`worker request`、`goal proposal` → approval；`input needed`、`dialog open` 和没见过的取值 → question（用户 10-29） |
 
 - **回合**（turn）：从已停止进入工作中起，到再次变成已停止止。中间的 `busy` / `shell` 来回切、经过「需要你介入」再回到工作中，都还在同一个回合里。
 - **回合结束**（turn end）：回合中（工作中或需要你介入）变成已停止。从需要你介入直接变成已停止（例如你在批准时选了停下）也算。
-- **干了很久**：处于工作中，并且离回合开始超过 10 分钟（中间等你的时间也算进去）。
+- **干了很久**：处于工作中，并且离回合开始满 10 分钟（中间等你的时间也算进去）。
 - **中途接手**（App 启动时、或第一次看到某个文件时，它已经在工作中或需要你介入）：照常算一个回合，以文件里的 `statusUpdatedAt` 作为回合开始，结束时照常提醒。已经在需要你介入的，显示介入卡，但不补响 `Ping`（用户 10-29）。
 - 出错、被打断在这个来源里看不出来，都归「已停止」。对应的造型暂不接线（用户 10-29）。
-- 子 agent 在同一个进程里跑，推断不会单独写 sessions 文件，所以只会看到顶层回合（待实测）。
+- 子 agent 在同一个进程里跑，不单独写 sessions 文件（10-29 实测），所以只会看到顶层回合。
+- 只看得到每次读到的快照：两次读之间「工作中 → 已停止 → 工作中」（例如回合结束后马上自动提交排队的消息）会看成同一个回合，不提醒回合结束，干了很久也从旧回合算起（推断，未实测）。
 
 ### 进程没了
 
-- 文件在、进程不在（`kill` 返回 `ESRCH`），或者进程在但 `procStart` 对不上（pid 被复用）：会话已经没了，从列表里去掉，不算「已停止」，不提醒。
-- 判不出来（例如 `kill` 返回别的错误）：这个会话算 unknown，不提醒，不进造型优先级。
+- 用 `proc_pidinfo` 的 `PROC_PIDTBSDINFO` 查进程启动时刻：查不到（进程不在，或判不出来），或者和 `procStart` 对不上（pid 被复用），会话都算没了，从列表里去掉，不算「已停止」，不提醒，不进造型优先级。
+- `kill -9` 后文件留着、目录不变（「实测」4），所以每个会话的 pid 挂一个进程退出通知（`DispatchSource.makeProcessSource(identifier:eventMask: .exit)`，即 kqueue `EVFILT_PROC` / `NOTE_EXIT`），进程一退出就去掉，不轮询（用户 10-29）。
+- `procStart` 在边界解析成时刻（UTC、精确到秒）再比。解析不了的文件照准则 5 计数、跳过，上一次读到的状态留着。
 
 ## 提醒
 
@@ -57,9 +58,19 @@ Notchkeeper 只关心 Claude Code 的三件事：**工作中、已停止、需�
 - 出口 violated 响 `Basso`；防火墙守住时不响（`docs/egress-guard.md`、`docs/firewall.md`）。
 - 用户 10-29 定。
 
-## 待实测（第 3 步开工时先做，结果写回本文）
+## 实测（10-29，Claude Code 2.1.296）
 
-1. `kind` 有哪些取值。`claude -p`、SDK 起的进程会不会也写文件？要不要只看 `interactive`？10-29 本机只见到 3 份文件，`kind` 都是 `interactive`，`entrypoint` 都是 `cli`。
-2. 子 agent 会不会单独写 sessions 文件。
-3. `waitingFor` 的完整取值。
-4. 进程被 `kill -9` 后文件是否留下。
+方法：在 tmux 里起交互式 `claude`、跑 `claude -p`、派子 agent，每 0.1s 只记 `pid`、`kind`、`entrypoint`、`status`、`waitingFor`、`statusUpdatedAt`；再在本机二进制里查写文件的代码（`strings` 搜 `waitingFor`、`procStart`、`CLAUDE_CODE_SESSION_KIND`）。
+
+1. **`kind` 不分 `-p`**：取值是环境变量 `CLAUDE_CODE_SESSION_KIND`（`bg`、`daemon`、`daemon-worker`），没设就是 `interactive`。`claude -p` 实测也写文件，`kind: interactive`、`entrypoint: sdk-cli`，开始就是 `busy`，退出时删文件，不经过 `idle`。区分要看 `entrypoint`，二进制里见到的取值：`cli`、`sdk-cli`、`sdk-ts`、`sdk-py`、`claude-vscode`、`claude-desktop`、`claude-in-teams`、`local-agent`、`remote`、`ssh-remote`、`bench`。
+2. **子 agent 不单独写文件**：派一个子 agent 跑 10s，目录没有任何变化。
+3. **`waitingFor` 六个取值**：`permission prompt`（工具权限，代码里没配的对话框也默认归它）、`sandbox request`（沙箱要联网）、`worker request`、`goal proposal`（Claude 提议会话目标）、`input needed`（AskUserQuestion、MCP 要你输入等）、`dialog open`（其他对话框，例如模型回退、设置变更确认）。Claude Code 自己的归类表：前四个 → permission，`input needed` → question，`dialog open` → 不归类。实测：要批准 Bash → `waiting` + `permission prompt`；AskUserQuestion → `waiting` + `input needed`；在批准框按 Esc → 直接 `idle`。
+4. **`kill -9` 后文件留下**，内容停在死前的状态（实测停在 `waiting`）；Claude Code 自己下次列会话时才删掉。正常退出（SIGTERM、`/exit`）会删掉 `.json` 和 `.key`。所以进程退出时目录**不一定**有变化，要另外知道进程没了。
+5. 其他：
+   - `statusUpdatedAt`、`startedAt`、`updatedAt` 是 epoch 毫秒；新会话起来先写 `idle`。
+   - `procStart` 是 `LC_ALL=C TZ=UTC ps -o lstart= -p <pid>` 的输出，例如 `Thu Oct 29 17:54:44 2026`（UTC，精确到秒，日期个位数时前面补空格）。Claude Code 自己也是用 `kill(pid, 0)` 加比对这个串来判断进程还在不在。
+   - 工作区还没点「信任」时只有 `.key`，没有 `.json`。
+   - 会话刚起来第一次写的文件没有 `status`、`statusUpdatedAt`（和 `updatedAt`），之后原地补上。
+   - 状态变化是**原地重写**同一个文件（inode 不变，目录的 mtime 也不变），只监听目录收不到；所以每份文件也要单独监听。
+   - 代码里 `status` 在「主回合在跑」或「后台任务（delegated work）在跑」时都是 `busy`（推断，未实测）：回合结束的提醒会等后台任务也跑完。
+   - 每份 `.json` 旁边有一份 `<pid>.<64 位十六进制>.key`（权限 600），是对等通信的凭据，不读。

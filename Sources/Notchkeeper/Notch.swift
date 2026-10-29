@@ -630,7 +630,7 @@ struct NotchRoot: View {
                 .transition(Self.contentTransition)
         case .closed:
             if NotchLayout.hasEars(model.notchSize) {
-                NotchEars(look: overrides.mascot(real: state.presentation.look), forced: overrides.look != nil,
+                NotchEars(look: overrides.mascot(real: state.look), forced: overrides.look != nil,
                           probeFailed: state.presentation.probeFailed, notch: model.notchSize, flare: inset)
             }
         }
@@ -684,7 +684,7 @@ struct NotchDashboard: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
                 let p = state.presentation
-                MascotView(look: overrides.mascot(real: p.look), size: 40)
+                MascotView(look: overrides.mascot(real: state.look), size: 40)
                     .environment(\.mascotLiteral, overrides.look != nil)
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {

@@ -7,7 +7,7 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "Notchkeeper",
-            dependencies: ["GuardCore", "GuardWatch", "MascotCore"],
+            dependencies: ["AgentCore", "GuardCore", "GuardWatch", "MascotCore"],
             path: "Sources/Notchkeeper",
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
@@ -28,5 +28,8 @@ let package = Package(
         // 盾盾此刻是什么造型、做什么动作：造型数据、眼形补间、球面位置、动作编排（[Track]）、空闲调度、跟随鼠标。纯值类型，只依赖 CoreGraphics
         .target(name: "MascotCore"),
         .testTarget(name: "MascotCoreTests", dependencies: ["MascotCore"]),
+        // Claude Code 会话此刻在什么状态、回合什么时候结束：解析 ~/.claude/sessions/<pid>.json、跟踪回合（docs/agent-integration.md）。纯值类型，不读目录、不查进程
+        .target(name: "AgentCore"),
+        .testTarget(name: "AgentCoreTests", dependencies: ["AgentCore"]),
     ]
 )

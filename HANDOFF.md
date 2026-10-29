@@ -3,11 +3,12 @@
 最后更新：2026-10-29。本文只放接下来要做的事和还没写进文档的决定；做完的看 `git log`，已定的规则看 `CLAUDE.md` 和 `docs/*`。换会话或开工前先读本文，再读 `CLAUDE.md`。
 
 **新会话从这里开始**：
-1. `git log --oneline -5` 核对：最新是 `c69254f feat(盾盾): 2b …`，工作区应当干净。
-2. **第 3 步（agent 状态新来源）**，规格全在 `docs/agent-integration.md`：
-   - 先做文末「待实测」4 条（`kind` 取值、子 agent 会不会单独写文件、`waitingFor` 全部取值、`kill -9` 后文件是否留下），只读元数据、不读 `name` 和对话内容，结果写回该文档、交用户看。10-29 本机只见到 3 份文件，都是 `kind: interactive`、`entrypoint: cli`、`status: busy`。
-   - 再 TDD 新建核心 target `AgentCore`（纯值：解析 sessions 文件 → 状态、回合、回合结束、干了很久、中途接手、进程没了），外层读目录、`kill(pid, 0)` 放 App。`Package.swift` 加 target 和测试 target。
-   - 接到盾盾：工作中 → working / longTurn，需要你介入 → question / approval（按 `waitingFor`），回合结束 → finished 5.2s。卡片和声音是第 4 步。
+1. `git log --oneline -5` 核对：最新应是第 3 步的提交（`feat(agent): …`）。
+2. **第 4 步（App 外壳重写）**，内容见下表。第 3 步留给它的：
+   - `AgentWatcher` 的事件（回合结束、需要你介入）现在只记日志，卡片和声音（Glass / Ping）在这一步接；介入卡留到会话离开需要你介入才收回，要从 `AgentBoard` 取每个会话的状态（现在只对外给合起来的 `activity`），到时按需加接口。
+   - `AppState.look` 是临时的优先级合成（守卫 > agent > 空闲），晕和完整优先级进 `NotchCore` 的 MascotResolver。
+   - 面板会话列表还在用旧的 `SessionScanner`，换成 AgentCore 的会话后删 `Sessions.swift`。
+   - 设置页「状态测试」的盾盾已经用 `state.look`（可能是 agent 造型），旁边文案还是 `presentation.title`，对不上。
 3. 空闲 CPU 还没在无人操作时测到干净的数，方法见「待办」。
 
 ## 还没写进文档的决定
@@ -20,7 +21,6 @@
 
 | 步 | 内容 | 产出 / 验收 | 状态 |
 |---|---|---|---|
-| 3 | **agent 状态新来源**：先实测 `kind` 取值、子 agent 会不会写文件；新建 `AgentCore` 读 sessions 文件，三个事件 | 测试；实机只读冒烟 | 待做 |
 | 4 | **App 外壳重写**：<br>• `NotchCore`：GuardPresentation、CardQueue、HoverMachine、MascotResolver、配置解码（`Tests/NotchkeeperTests` 里的测试跟着挪）<br>• 面板网格重排（`docs/ui.md`「面板布局」，先出草稿）、展开时盾盾从左耳缓动到面板、删「进程 claude 0」、接上「晕」<br>• 接上完成卡、需要介入卡和声音<br>• 亮色模式、多语言的基础设施，所有新文案走 String Catalog<br>• 精简设置页（加「在系统设置中更改语言…」按钮；设置窗口去掉强制暗色）<br>• 删除 `Sessions.swift`（旧的 `SessionScanner`、`ProcessCounts`、App 版 `AgentSession` / `AgentKind`）<br>• `demo.sh` 的通知只在 DEBUG 构建里监听<br>• 刘海视图只订阅 `presentation` | 测试；亮暗 × 中英截图；CPU 验收 | 待做 |
 | 5 | **防火墙**：root 实测 → 恢复脚本并实测 → 试运行和自动回滚 → 规则、LaunchDaemon、安装脚本、App 开关；shielded 造型接线 | 按全局 Contract「高影响」档收工 | 待做 |
 
@@ -39,6 +39,7 @@
 
 - App 没改完、整包编不过时，想先跑核心测试：把 `Sources/<Core>` 和 `Tests/<Core>Tests` 拷到 `/tmp` 一个只含这两个 target 的临时包里跑 `swift test`。
 - 测试第一次就全绿时，在临时副本里故意改坏几处数字，确认测试会红。
+- 实机驱动 Claude Code 会话：`tmux -L <名字> new-session -d -s x -c <已信任的目录> claude --permission-mode default`，`tmux send-keys` 发提示、`Escape` 拒绝批准；没信任的目录只写 `.key` 不写 `.json`。用完 `kill-server`，`kill -9` 过的会话手动删留下的 `<pid>.json` / `.key`。
 - 实机截图：收起态用 `screencapture -x -R <x>,0,400,44`（刘海在主屏顶部正中）；看一批造型或换造型过程，在 `/tmp` 搭一次性陈列（拷 `Sources/Notchkeeper/Mascot/*.swift` + MascotCore，`screencapture -l <windowID>` 连拍），用完删掉。几只盾盾会同时眨眼，截到一帧全是扁眼是眨眼，不是 bug。
 - App 崩了看 `~/Library/Logs/DiagnosticReports/Notchkeeper-*.ips`（JSON 第二行起，看 triggered 线程的 frames）。
 - 本机 shell 是 zsh：`for f in $files` 不按空格拆，用 `xargs`；BSD `sed` 不认 `\b`，用 `perl -pi -e`。
@@ -46,9 +47,8 @@
 
 ## 建议用的 skill
 
-- `research`：第 3 步开头实测 sessions 文件（`docs/agent-integration.md`「待实测」），结论写回该文档。
-- `tdd`：新建 `AgentCore` 的每个纯值类型都先写测试、亲眼看红。接口用语见 `codebase-design`。
-- `domain-modeling`：第 3 步若出现新词（会话、回合等已在 `docs/ubiquitous-language.md`），先进词表。
+- `tdd`：`NotchCore` 的每个纯值类型都先写测试、亲眼看红。接口用语见 `codebase-design`。
+- `domain-modeling`：新词先进 `docs/ubiquitous-language.md`。
 - `diagnosing-bugs`：重测空闲 CPU 仍不达标时用。
 - `run`：启动 App、截图。
 - `ui-ux-pro-max`：第 4 步面板网格、动效节奏、实机评审。

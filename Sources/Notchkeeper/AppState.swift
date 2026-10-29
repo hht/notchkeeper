@@ -1,5 +1,7 @@
+import AgentCore
 import AppKit
 import Combine
+import MascotCore
 import GuardCore
 import GuardWatch
 
@@ -16,6 +18,11 @@ final class AppState: ObservableObject {
                                                                  dismissedViolationSince: nil)
     @Published private(set) var sessions: [AgentSession] = []
     @Published private(set) var processes = ProcessCounts()
+    /// Claude Code 各会话合起来此刻是什么（AgentCore 判定）；没有要画的是 nil
+    @Published private(set) var agentActivity: AgentActivity?
+
+    /// 盾盾画哪个（docs/mascot.md §2「优先级」）：守卫的事 > agent > 空闲。晕、睡着在外面叠，完整的优先级第 4 步归 NotchCore
+    var look: Look { presentation.look != .idle ? presentation.look : agentActivity.map(Look.init) ?? .idle }
 
     /// 用户关掉的是哪一次违规（按 violatedSince 记）。只在内存：App 重启后红卡再出现一次，宁可多提醒
     private var dismissedViolationSince: Date??
@@ -25,6 +32,7 @@ final class AppState: ObservableObject {
     /// 订阅 guard-state 显示流的长任务；`stopWatchingGuard()` / deinit 取消，流随之结束、监听关掉
     private var guardTask: Task<Void, Never>?
     private var sessionTimer: Timer?
+    private var agentWatcher: AgentWatcher?
     private var scanning = false
 
     init() {}
@@ -32,6 +40,11 @@ final class AppState: ObservableObject {
     func start() {
         // 不轮询：GuardStateWatcher 监听目录，guardd 写文件后马上读；checkedAt 过期也由它到点重读（docs/egress-guard.md）
         watchGuard(GuardStateWatcher(directory: GuardPaths.directory).displays())
+        let watcher = AgentWatcher { update in
+            DispatchQueue.main.async { AppState.shared.applyAgent(update) }
+        }
+        watcher.start()
+        agentWatcher = watcher
         scanSessions()
         sessionTimer = Timer.scheduledTimer(withTimeInterval: 4, repeats: true) { _ in
             Task { @MainActor in AppState.shared.scanSessions() }
@@ -64,6 +77,17 @@ final class AppState: ObservableObject {
             if new.title != old.title { Log.write("出口守卫：\(new.title)") }
         }
         onPresentation?(new)
+    }
+
+    /// 卡片和声音第 4 步接上；现在只记日志，实机冒烟靠它
+    private func applyAgent(_ update: AgentWatcher.Update) {
+        if update.activity != agentActivity { agentActivity = update.activity }
+        for event in update.events {
+            switch event {
+            case .turnEnded(let project): Log.write("agent：回合结束（\(project)）")
+            case .needsYou(let need, let project): Log.write("agent：需要你介入，\(need)（\(project)）")
+            }
+        }
     }
 
     /// 用户关掉了红卡（或非常驻红卡到时收起）。只在违规还挂着时记下，演示红卡关掉不算
@@ -117,15 +141,32 @@ enum Log {
         return f
     }()
 
+    /// 主线程和 `AgentWatcher` 的队列都会写：串行起来，行不串、`formatter` 不被同时用
+    private static let queue = DispatchQueue(label: "com.notchkeeper.log")
+
     static func write(_ msg: String) {
-        // 带 pid：同时有两个实例时分得清是谁写的
-        let line = "\(formatter.string(from: Date())) [pid \(getpid())] \(msg)\n"
-        guard let data = line.data(using: .utf8) else { return }
-        if let h = try? FileHandle(forWritingTo: url) {
-            h.seekToEndOfFile(); h.write(data); try? h.close()
-        } else {
-            try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try? data.write(to: url)
+        queue.sync {
+            // 带 pid：同时有两个实例时分得清是谁写的
+            let line = "\(formatter.string(from: Date())) [pid \(getpid())] \(msg)\n"
+            guard let data = line.data(using: .utf8) else { return }
+            if let h = try? FileHandle(forWritingTo: url) {
+                h.seekToEndOfFile(); h.write(data); try? h.close()
+            } else {
+                try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try? data.write(to: url)
+            }
+        }
+    }
+}
+
+extension Look {
+    init(_ activity: AgentActivity) {
+        switch activity {
+        case .finished: self = .finished
+        case .working: self = .working
+        case .longTurn: self = .longTurn
+        case .question: self = .question
+        case .approval: self = .approval
         }
     }
 }
