@@ -7,7 +7,7 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "Notchkeeper",
-            dependencies: ["GuardCore", "GuardWatch"],
+            dependencies: ["GuardCore", "GuardWatch", "DundunCore"],
             path: "Sources/Notchkeeper",
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
@@ -29,5 +29,8 @@ let package = Package(
         // 找主会话文件、只读尾部 64KB，交给 AgentCore 判定；App 进程内 2 秒轮询
         .target(name: "AgentWatch", dependencies: ["AgentCore"]),
         .testTarget(name: "AgentWatchTests", dependencies: ["AgentWatch"]),
+        // 盾盾的帧表、调度器和状态切换过渡：纯值类型，显式时间，不 import SwiftUI / AppKit
+        .target(name: "DundunCore"),
+        .testTarget(name: "DundunCoreTests", dependencies: ["DundunCore"]),
     ]
 )

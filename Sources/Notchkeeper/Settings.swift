@@ -5,12 +5,12 @@ import SwiftUI
 // 每个开关直接绑定 ConfigStore，改了立刻写盘，不在视图里缓存配置值。
 
 enum SettingsPane: String, CaseIterable, Identifiable {
-    case general, notch, exitGuard, block, notifications, agents, dundun, about
+    case general, notch, exitGuard, block, notifications, agents, dundun, stateTest, about
     var id: Self { self }
 
     /// 侧边栏分组，组与组之间空一行
     static let groups: [[SettingsPane]] = [[.general, .notch], [.exitGuard, .block],
-                                           [.notifications, .agents, .dundun], [.about]]
+                                           [.notifications, .agents, .dundun], [.stateTest], [.about]]
 
     var title: String {
         switch self {
@@ -21,6 +21,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .notifications: return "通知"
         case .agents: return "Agent"
         case .dundun: return "盾盾"
+        case .stateTest: return "状态测试"
         case .about: return "关于"
         }
     }
@@ -34,6 +35,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .notifications: return "bell.badge.fill"
         case .agents: return "terminal.fill"
         case .dundun: return "face.smiling.inverse"
+        case .stateTest: return "testtube.2"
         case .about: return "info.circle.fill"
         }
     }
@@ -47,6 +49,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .notifications: return .red
         case .agents: return .indigo
         case .dundun: return .orange
+        case .stateTest: return .purple
         case .about: return .gray
         }
     }
@@ -63,6 +66,7 @@ struct SettingsView: View {
     @ObservedObject var model: SettingsModel
     @ObservedObject var state: AppState
     @ObservedObject var store: ConfigStore
+    let notch: NotchController
 
     var body: some View {
         NavigationSplitView {
@@ -98,6 +102,7 @@ struct SettingsView: View {
         case .notifications: NotificationsPane(store: store)
         case .agents: AgentsPane(store: store)
         case .dundun: DundunPane(store: store)
+        case .stateTest: StateTestPane(overrides: notch.overrides, state: state, notch: notch)
         case .about: AboutPane(store: store)
         }
     }
@@ -168,7 +173,7 @@ private struct GeneralPane: View {
             }
         }
         .confirmationDialog("退出 Notchkeeper？", isPresented: $confirmQuit) {
-            Button("退出", role: .destructive) { NSApp.terminate(nil) }
+            Button("退出", role: .destructive) { AppDelegate.quit(reason: "设置里点了退出") }
         } message: {
             Text("退出后刘海和卡片提示会停止，后台守卫照常运行；要停守卫请用卸载脚本。")
         }
@@ -383,18 +388,96 @@ private struct DundunPane: View {
         Form {
             Section {
                 VStack(spacing: 6) {
-                    Mascot(state: .idle, size: 54)
+                    Mascot(state: .idle, size: 40)
                     Text("盾盾").font(.system(size: 13, weight: .semibold))
                 }
                 .frame(maxWidth: .infinity)
             }
-            Section("心情") {
-                Toggle(isOn: $store.config.dundunFeelsTheMac) {
-                    Text("感知 Mac 状态")
-                    Text("CPU、温度、内存、电量会影响盾盾的表情。")
+        }
+    }
+}
+
+// MARK: - 状态测试（只在内存里，见 StateTest.swift）
+
+private struct StateTestPane: View {
+    @ObservedObject var overrides: NotchOverrides
+    @ObservedObject var state: AppState
+    let notch: NotchController
+
+    var body: some View {
+        Form {
+            Section {
+                VStack(spacing: 6) {
+                    Mascot(state: overrides.mascot(real: state.presentation.mascotState), size: 40)
+                        .environment(\.dundunLiteral, overrides.dundun != nil)
+                        .environment(\.dundunTriggerTarget, "预览 40pt")
+                    Text(overrides.dundun.map { "强制：\($0.title)" } ?? "真实状态：\(state.presentation.title)")
+                        .font(.system(size: 13, weight: .semibold))
+                }
+                .frame(maxWidth: .infinity)
+            }
+            Section {
+                Picker("盾盾", selection: Binding(get: { overrides.dundun }, set: { notch.force($0) })) {
+                    Text("真实状态").tag(DundunTestState?.none)
+                    Divider()
+                    ForEach(DundunTestState.allCases) { s in
+                        Text(s.title).tag(DundunTestState?.some(s))
+                    }
+                }
+                Picker("刘海", selection: Binding(get: { overrides.pin }, set: { notch.setPin($0) })) {
+                    ForEach(NotchPin.allCases) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
+            } header: {
+                Text("强制显示")
+            } footer: {
+                Text("只改盾盾和刘海的样子，不改出口判定，也不弹红卡、不响；真的红卡照常弹出。不写任何文件，重开 App 就恢复。")
+            }
+            DundunTriggerSection()
+            Section {
+                HStack {
+                    Spacer()
+                    Button("恢复真实状态") { notch.restoreRealState() }
+                        .disabled(overrides.isReal)
                 }
             }
         }
+    }
+}
+
+/// 「触发小动作」：左耳和上面的预览各播一次，只在内存里。播不了的按钮灰掉，下面写原因
+private struct DundunTriggerSection: View {
+    @ObservedObject private var triggers = DundunTriggers.shared
+
+    var body: some View {
+        let _ = triggers.revision
+        let targets = triggers.targets.compactMap { t in t.driver.map { (t.label, $0) } }
+        Section {
+            HStack {
+                ForEach(DundunTriggers.Action.allCases) { a in
+                    Button(a.title) { triggers.fire(a) }
+                        .disabled(targets.allSatisfy { triggers.reason(a, for: $0.1) != nil })
+                        .help(reasons(a, targets).joined(separator: "\n"))
+                }
+            }
+            ForEach(DundunTriggers.Action.allCases) { a in
+                let r = reasons(a, targets)
+                if !r.isEmpty {
+                    Text("\(a.title)：\(r.joined(separator: "；"))")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+        } header: {
+            Text("触发小动作")
+        } footer: {
+            Text("左耳（20pt）和上面的预览（40pt）各播一次。只在空闲时能播；不写任何文件。")
+        }
+    }
+
+    /// 播不了的目标和原因；空 = 都能播
+    private func reasons(_ a: DundunTriggers.Action, _ targets: [(String, DundunDriver)]) -> [String] {
+        if targets.isEmpty { return ["左耳和预览都不在屏幕上"] }
+        return targets.compactMap { label, d in triggers.reason(a, for: d).map { "\(label)：\($0)" } }
     }
 }
 

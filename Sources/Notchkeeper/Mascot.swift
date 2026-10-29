@@ -15,4 +15,4 @@ enum MascotEmote {
 }
 
 /// 当前使用的吉祥物实现
-typealias Mascot = DundunCanvasView
+typealias Mascot = DundunView

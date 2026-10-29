@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import DundunCore
 
 struct NotchCard: Identifiable, Equatable {
     enum Kind { case done, alert, recovered }
@@ -65,6 +66,18 @@ struct CardCountdown: Equatable {
 
 enum NotchMode: Equatable { case closed, card, dashboard }
 
+/// 「状态测试」的覆盖（StateTest.swift）：只在内存里，只经 NotchController 改，重开 App 就没了
+@MainActor
+final class NotchOverrides: ObservableObject {
+    @Published fileprivate(set) var dundun: DundunTestState?
+    @Published fileprivate(set) var pin: NotchPin = .auto
+
+    var isReal: Bool { dundun == nil && pin == .auto }
+
+    /// 盾盾实际显示的状态：强制的优先，否则是真实的守卫状态
+    func mascot(real: DundunState) -> DundunState { dundun?.dundun ?? real }
+}
+
 @MainActor
 final class NotchModel: ObservableObject {
     @Published var card: NotchCard?
@@ -72,11 +85,16 @@ final class NotchModel: ObservableObject {
     @Published var hovering = false      // 鼠标悬停展开的“岛”
     @Published var notchSize: CGSize = CGSize(width: 190, height: 32)
     @Published var countdown: CardCountdown?
+    let overrides = NotchOverrides()
 
+    /// 卡片压过一切（固定收起也挡不住真的红卡）；其余由固定方式决定，自动时跟悬停走
     var mode: NotchMode {
         if expanded, card != nil { return .card }
-        if hovering { return .dashboard }
-        return .closed
+        switch overrides.pin {
+        case .open: return .dashboard
+        case .closed: return .closed
+        case .auto: return hovering ? .dashboard : .closed
+        }
     }
 }
 
@@ -87,11 +105,46 @@ enum NotchLayout {
     static let rowHeight: CGFloat = 34
     static let maxRows = 5
 
+    /// 收起时刘海两侧各一只耳朵（expanded-spec.md「收起态」）：左耳放盾盾，右耳放状态指示
+    static let earWidth: CGFloat = 44
+    /// 收起时形状顶角往外翻的宽度（NotchShape 的 topRadius）
+    static let closedFlare: CGFloat = 4
+    /// 左耳盾盾画布 28×28，左缘在身体外边（形状左边 + 外翻）往里 6pt，离刘海也是 6pt（ear-dundun-spec.md）
+    static let earCanvas: CGFloat = 28
+    static let earCanvasInset: CGFloat = 6
+    /// 画布里身体中心的纵坐标；身体中心对齐 notchSize.height / 2，所以 32pt 刘海时画布上缘在 -0.5
+    static let earBodyCenterY: CGFloat = 16.5
+    /// 左耳盾盾的身体直径（dundun-final-spec.md §1.1：20pt 画布里的 r=10 正圆）
+    static let earMascotSize: CGFloat = 20
+    /// 右耳 7pt 圆点的圆心离形状右边 17.5（dundun-final-spec.md §2.4）
+    static let earDotInset: CGFloat = 17.5
+    /// 三颗点（右缘离形状右边 14）整组中心比圆点圆心再往左 3
+    static let earDotsShift: CGFloat = 3
+
+    /// 收起态两只耳朵在形状里的位置（原点在形状左上），W = 刘海宽 + 88，H = 刘海高
+    struct Ears: Equatable {
+        var canvas: CGRect
+        var bodyCenter: CGPoint
+        var dot: CGPoint
+        var dots: CGPoint
+    }
+
+    static func ears(notch: CGSize, flare: CGFloat = closedFlare) -> Ears {
+        let w = notch.width + 2 * earWidth, mid = notch.height / 2
+        let canvas = CGRect(x: flare + earCanvasInset, y: mid - earBodyCenterY, width: earCanvas, height: earCanvas)
+        return Ears(canvas: canvas, bodyCenter: CGPoint(x: canvas.minX + earCanvas / 2, y: mid),
+                    dot: CGPoint(x: w - earDotInset, y: mid), dots: CGPoint(x: w - earDotInset - earDotsShift, y: mid))
+    }
+
+    /// 没有刘海的屏幕（高度 0）不长耳朵，保持原来从顶端中间长出来的样子
+    static func hasEars(_ notch: CGSize) -> Bool { notch.height > 0 }
+
     static func topInset(_ notch: CGSize) -> CGFloat { max(notch.height, 24) }
 
     static func size(_ mode: NotchMode, notch: CGSize, rows: Int) -> CGSize {
         switch mode {
-        case .closed: return notch
+        case .closed:
+            return hasEars(notch) ? CGSize(width: notch.width + 2 * earWidth, height: notch.height) : notch
         case .card: return CGSize(width: cardWidth, height: topInset(notch) + 72)
         case .dashboard:
             let n = min(rows, maxRows)
@@ -127,7 +180,8 @@ final class NotchController {
     private var pendingAlert: NotchCard?
     /// 这次违规弹过红卡（之后被关掉、断网、守卫不响应都不清），回到 healthy 时据此弹恢复卡
     private var violationAlerted = false
-    private(set) var hasNotch = false
+    var hasNotch: Bool { NotchLayout.hasEars(model.notchSize) }
+    var overrides: NotchOverrides { model.overrides }
 
     private var moveMonitors: [Any] = []
     private let tracker = NotchMouseTracker()
@@ -161,7 +215,7 @@ final class NotchController {
         window.isReleasedWhenClosed = false
         window.animationBehavior = .none
 
-        let host = FirstMouseHostingView(rootView: NotchRoot(model: model, state: state, onDismiss: { [weak self] in
+        let host = FirstMouseHostingView(rootView: NotchRoot(model: model, overrides: model.overrides, state: state, onDismiss: { [weak self] in
             self?.dismissCurrent()
         }, onSettings: { [weak self] in
             self?.setHovering(false)
@@ -194,16 +248,18 @@ final class NotchController {
 
     private func position() {
         guard let s = targetScreen() else { return }
+        var notch: CGSize?
         if s.safeAreaInsets.top > 0, let l = s.auxiliaryTopLeftArea, let r = s.auxiliaryTopRightArea {
-            hasNotch = true
-            model.notchSize = CGSize(width: s.frame.width - l.width - r.width, height: s.safeAreaInsets.top)
-        } else {
-            hasNotch = false
-            // 没有刘海的屏幕：从屏幕顶端中间“长”出来
-            model.notchSize = CGSize(width: 180, height: 0)
+            notch = CGSize(width: s.frame.width - l.width - r.width, height: s.safeAreaInsets.top)
         }
-        screenFrame = s.frame
-        let f = s.frame
+        place(screen: s.frame, notch: notch)
+    }
+
+    /// 按屏幕和刘海尺寸摆窗口（自检直接喂尺寸）；notch 为 nil 表示没有刘海
+    func place(screen f: NSRect, notch: CGSize?) {
+        // 没有刘海的屏幕：从屏幕顶端中间“长”出来
+        model.notchSize = notch ?? CGSize(width: 180, height: 0)
+        screenFrame = f
         window.setFrame(NSRect(x: f.midX - Self.windowSize.width / 2, y: f.maxY - Self.windowSize.height,
                                width: Self.windowSize.width, height: Self.windowSize.height), display: true)
     }
@@ -329,6 +385,37 @@ final class NotchController {
         }
     }
 
+    // MARK: 状态测试（只在内存里，见 StateTest.swift）
+
+    var mode: NotchMode { model.mode }
+
+    /// 强制盾盾显示某个状态；nil 回到真实状态。只换盾盾的样子：不调 guardChanged、不碰 AppState，
+    /// 所以强制「危险」不弹红卡、不响，也不动「这次违规已关掉」的记录
+    func force(_ s: DundunTestState?) {
+        guard overrides.dundun != s else { return }
+        overrides.dundun = s
+    }
+
+    /// 固定展开 / 固定收起 / 自动。换的时候清掉悬停，回到自动时按当前鼠标重新判断
+    func setPin(_ p: NotchPin) {
+        guard overrides.pin != p else { return }
+        hoverIntent?.cancel(); hoverIntent = nil
+        leaveWork?.cancel(); leaveWork = nil
+        let opening = p == .open && model.mode == .closed
+        if opening { state.scanSessions(); orderFront() }
+        withAnimation(opening ? Motion.notchOpen : Motion.notchClose) {
+            overrides.pin = p
+            model.hovering = false
+        }
+        updateMouseCapture()
+    }
+
+    /// 「恢复真实状态」：两项覆盖一起清掉
+    func restoreRealState() {
+        force(nil)
+        setPin(.auto)
+    }
+
     // MARK: 悬停展开
 
     func setHoverEnabled(_ on: Bool) {
@@ -350,8 +437,9 @@ final class NotchController {
             let right = e.type == .rightMouseDown
             Task { @MainActor in _ = self.mouseDown(right: right) }
         }) { moveMonitors.append(g) }
-        if let l = NSEvent.addLocalMonitorForEvents(matching: .rightMouseDown, handler: { e in
-            self.mouseDown(right: true) ? nil : e
+        // 鼠标在收起的耳朵上时窗口接收鼠标（见 captures），左键点击也只有本地监听看得到
+        if let l = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown], handler: { e in
+            self.mouseDown(right: e.type == .rightMouseDown) ? nil : e
         }) { moveMonitors.append(l) }
     }
 
@@ -365,7 +453,7 @@ final class NotchController {
             menu.popUp(positioning: nil, at: p, in: nil)
             return true
         }
-        guard model.mode == .closed else { return false }
+        guard model.mode == .closed, overrides.pin == .auto else { return false }
         hoverIntent?.cancel(); hoverIntent = nil
         setHovering(true)
         return true
@@ -384,14 +472,20 @@ final class NotchController {
         let open = model.mode != .closed
         let level = open ? Self.openLevel : Self.restLevel
         if window.level != level { window.level = level }
-        let capture = open && shapeRect.contains(NSEvent.mouseLocation)
+        let capture = captures(NSEvent.mouseLocation)
         if window.ignoresMouseEvents == capture { window.ignoresMouseEvents = !capture }
     }
 
-    /// 刘海本体（或无刘海屏顶端中间一条细带）略放大一点作为触发热区
-    private var triggerRect: NSRect {
+    /// 这一点上窗口要不要接收鼠标：展开时是整个形状；收起时是刘海加两只黑色耳朵（耳朵挡在菜单栏上，
+    /// 点它不能漏给后面的菜单栏），没有刘海的屏幕收起时形状高 0，一律穿透
+    func captures(_ p: NSPoint) -> Bool {
+        (model.mode != .closed || hasNotch) && shapeRect.contains(p)
+    }
+
+    /// 收起的形状（刘海加两只耳朵，或无刘海屏顶端中间一条细带）略放大一点作为悬停、点击热区
+    var triggerRect: NSRect {
         let f = screenFrame
-        let n = model.notchSize
+        let n = NotchLayout.size(.closed, notch: model.notchSize, rows: 0)
         let w = (hasNotch ? n.width : 200) + 16
         let h = hasNotch ? n.height + 2 : 6
         return NSRect(x: f.midX - w / 2, y: f.maxY - h, width: w, height: h + Self.topEdgeSlack)
@@ -426,7 +520,7 @@ final class NotchController {
                 leaveWork = w
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: w)
             }
-        } else if hoverEnabled, triggerRect.contains(p) {
+        } else if hoverEnabled, overrides.pin == .auto, triggerRect.contains(p) {
             guard hoverIntent == nil else { return }
             let w = DispatchWorkItem { [weak self] in
                 guard let self else { return }
@@ -440,7 +534,8 @@ final class NotchController {
         }
     }
 
-    private func setHovering(_ on: Bool) {
+    /// 自检也用：模拟悬停展开 / 移开
+    func setHovering(_ on: Bool) {
         leaveWork?.cancel(); leaveWork = nil
         guard model.hovering != on else { return }
         if on {
@@ -494,6 +589,7 @@ struct NotchShape: Shape {
 
 struct NotchRoot: View {
     @ObservedObject var model: NotchModel
+    @ObservedObject var overrides: NotchOverrides
     @ObservedObject var state: AppState
     let onDismiss: () -> Void
     let onSettings: () -> Void
@@ -502,7 +598,7 @@ struct NotchRoot: View {
         let mode = model.mode
         let size = NotchLayout.size(mode, notch: model.notchSize, rows: state.sessions.count)
         let open = mode != .closed
-        let t: CGFloat = open ? 14 : 4
+        let t: CGFloat = open ? 14 : NotchLayout.closedFlare
         let b: CGFloat = mode == .dashboard ? 26 : (open ? 28 : 8)
         let shape = NotchShape(topRadius: t, bottomRadius: b)
         let glow: Color = mode == .card ? (model.card?.tint ?? .clear) : .white
@@ -548,12 +644,15 @@ struct NotchRoot: View {
                     .transition(Self.contentTransition)
             }
         case .dashboard:
-            NotchDashboard(state: state)
+            NotchDashboard(state: state, overrides: overrides)
                 .frame(width: NotchLayout.dashWidth)
                 .padding(.top, top)
                 .transition(Self.contentTransition)
         case .closed:
-            EmptyView()
+            if NotchLayout.hasEars(model.notchSize) {
+                NotchEars(mascot: overrides.mascot(real: state.presentation.mascotState), forced: overrides.dundun != nil,
+                          notch: model.notchSize, flare: inset)
+            }
         }
     }
 
@@ -563,15 +662,53 @@ struct NotchRoot: View {
         removal: .opacity.animation(.easeIn(duration: 0.1)))
 }
 
+/// 收起时的两只耳朵（expanded-spec.md「收起态」、ear-dundun-spec.md、dundun-final-spec.md）。纯黑、无描边无阴影，
+/// 底色就是 NotchRoot 的黑形状。坐标见 `NotchLayout.ears`：左耳身体圆心 x = 外翻 + 6 + 14、y = H/2；
+/// 右耳圆点圆心 x = W − 17.5。点击和悬停由 NotchController 的热区处理。
+struct NotchEars: View {
+    let mascot: DundunState
+    let forced: Bool
+    let notch: CGSize
+    let flare: CGFloat
+
+    @ObservedObject private var director = DundunDirector.shared
+
+    /// 右耳跟着左耳实际画的造型走（犯困时左耳睡着，右耳就不亮）
+    private var look: DundunLook {
+        (forced ? mascot : DundunState.shown(base: mascot, dizzy: false, drowsy: director.drowsy)).look
+    }
+
+    var body: some View {
+        let e = NotchLayout.ears(notch: notch, flare: flare)
+        let w = notch.width + 2 * NotchLayout.earWidth
+        ZStack(alignment: .topLeading) {
+            Mascot(state: mascot, size: NotchLayout.earMascotSize)
+                .environment(\.dundunLiteral, forced)
+                .environment(\.dundunTriggerTarget, "左耳 20pt")
+                .position(e.bodyCenter)
+            DundunEarView(look: look, height: notch.height)
+                .position(x: w - NotchLayout.earWidth / 2, y: notch.height / 2)
+        }
+        .frame(width: w, height: notch.height, alignment: .topLeading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .allowsHitTesting(false)
+        .onChange(of: look, initial: true) { _, l in DundunEarState.shared.entered(l) }
+    }
+}
+
 /// 悬停展开内容：出口 + 活跃会话。只显示项目名 / agent / 状态 / 时间，不显示任何对话内容。
 struct NotchDashboard: View {
     @ObservedObject var state: AppState
+    @ObservedObject var overrides: NotchOverrides
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
                 let p = state.presentation
-                Mascot(state: p.mascotState, size: 30)
+                Mascot(state: overrides.mascot(real: p.mascotState), size: 40)
+                    .environment(\.dundunLiteral, overrides.dundun != nil)
+                    // 展开过刘海就算看过错误，右耳红点灭（dundun-final-spec.md §2.4）
+                    .onAppear { DundunEarState.shared.markRead() }
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
                         GuardDot(presentation: p, glow: true)

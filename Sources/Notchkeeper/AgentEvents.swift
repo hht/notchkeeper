@@ -257,6 +257,8 @@ enum SelfTest {
               (try? JSONDecoder().decode(NKConfig.self, from: Data("{}".utf8))) == NKConfig())
         guardTests(check)
         singleInstanceTests(check)
+        notchEarTests(check)
+        stateTestTests(check)
         let delegate = AppDelegate()  // 菜单项的 target 是弱引用
         let menu = delegate.buildMainMenu()
         let comma = menu.items.compactMap(\.submenu).flatMap(\.items)
@@ -271,16 +273,7 @@ enum SelfTest {
         check("盾盾：黄盾回到正常 → 开心", DundunState.celebrates(from: .guardMismatch, to: .idle))
         check("盾盾：灰盾回到正常 → 不庆祝", !DundunState.celebrates(from: .guardUnknown, to: .idle))
         check("盾盾：红盾变灰盾 → 不庆祝", !DundunState.celebrates(from: .guardViolated, to: .guardUnknown))
-        check("盾盾：approval 用 question 的青色，琥珀只给 mismatch",
-              DundunStates[.approval]!.color == DundunStates[.question]!.color
-              && DundunStates[.approval]!.color != DundunStates[.guardMismatch]!.color)
-        let calm = DundunEngine()
-        calm.reduceMotion = true
-        calm.setState(.thinking, force: true)
-        calm.update(dt: DundunCanvasView.stepDt)
-        check("盾盾：减弱动态效果时眼睛不转", calm.tgYaw == 0 && calm.tgPitch == 0)
-        calm.setState(.approval)
-        check("盾盾：减弱动态效果时换状态走淡入淡出", calm.fade != nil)
+        dundunTests(check)
         check("盾盾：鼠标在刘海里距离为 0", DundunDirector.distance(from: NSPoint(x: 5, y: 5), to: NSRect(x: 0, y: 0, width: 10, height: 10)) == 0)
         check("盾盾：鼠标在刘海右下 (3,4) 处距离为 5", DundunDirector.distance(from: NSPoint(x: 13, y: -4), to: NSRect(x: 0, y: 0, width: 10, height: 10)) == 5)
         return ok
@@ -573,5 +566,113 @@ extension SelfTest {
         defer { argv.forEach { free($0) } }
         var pid: pid_t = 0
         return posix_spawn(&pid, exe, &actions, nil, argv, environ) == 0 ? pid : nil
+    }
+}
+
+// MARK: - 收起态耳朵和热区（expanded-spec.md「收起态」、ear-dundun-spec.md）
+
+@MainActor
+extension SelfTest {
+    static func notchEarTests(_ check: (String, Bool) -> Void) {
+        let notch = CGSize(width: 185, height: 32)
+        check("耳朵：收起宽度 = 刘海 + 2×44，高度 = 刘海高",
+              NotchLayout.size(.closed, notch: notch, rows: 0) == CGSize(width: 185 + 88, height: 32))
+        let flat = CGSize(width: 180, height: 0)
+        check("耳朵：无刘海屏（高 0）不长耳朵，收起尺寸不变",
+              !NotchLayout.hasEars(flat) && NotchLayout.size(.closed, notch: flat, rows: 0) == flat)
+        check("耳朵：左耳画布在形状左缘 + 外翻 4 + 6，离刘海 6pt",
+              NotchLayout.closedFlare + NotchLayout.earCanvasInset + NotchLayout.earCanvas
+                + NotchLayout.earCanvasInset == NotchLayout.earWidth)
+
+        _ = NSApplication.shared
+        let c = NotchController(onScreen: false)
+        let screen = NSRect(x: 0, y: 0, width: 1512, height: 982)
+        c.place(screen: screen, notch: notch)
+        let half = (notch.width + NotchLayout.earWidth) / 2   // 刘海中心到耳朵中心
+        let left = NSPoint(x: screen.midX - half, y: screen.maxY - 16)
+        let right = NSPoint(x: screen.midX + half, y: screen.maxY - 16)
+        let top = NSPoint(x: screen.midX - half, y: screen.maxY)   // 鼠标顶到屏幕最上沿
+        check("热区：收起时包含左右两只耳朵（含贴顶的鼠标）",
+              c.triggerRect.contains(left) && c.triggerRect.contains(right) && c.triggerRect.contains(top))
+        check("热区：收起时耳朵上接收鼠标，点击不漏给菜单栏", c.mode == .closed && c.captures(left) && c.captures(right))
+        check("热区：收起时耳朵外、刘海下面的透明区照样穿透", !c.captures(NSPoint(x: screen.midX, y: screen.maxY - 100))
+              && !c.captures(NSPoint(x: screen.midX - half - 40, y: screen.maxY - 16)))
+        c.place(screen: screen, notch: nil)
+        check("热区：无刘海屏收起时一律穿透，热区还是顶端中间 216 宽",
+              !c.captures(NSPoint(x: screen.midX, y: screen.maxY - 1)) && c.triggerRect.width == 216)
+    }
+
+    /// 状态测试：覆盖只在内存里，不碰守卫显示、红卡和任何文件
+    static func stateTestTests(_ check: (String, Bool) -> Void) {
+        _ = NSApplication.shared
+        let fm = FileManager.default
+        let files = [ConfigStore.shared.url, Log.url, GuardPaths.stateFile]
+        func stamp() -> [String] {
+            files.map { u in
+                let a = try? fm.attributesOfItem(atPath: u.path)
+                return "\(u.lastPathComponent) \(a != nil) \((a?[.size] as? Int) ?? -1) \((a?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0)"
+            }
+        }
+        let app = AppState.shared
+        let before = (app.display, app.presentation, ConfigStore.shared.config, stamp())
+
+        var sounds: [String] = []
+        let c = NotchController(config: { NKConfig() }, playSound: { sounds.append($0) }, onScreen: false)
+        c.place(screen: NSRect(x: 0, y: 0, width: 1512, height: 982), notch: CGSize(width: 185, height: 32))
+        check("状态测试：12 个状态，raw 值对得上清单",
+              DundunTestState.allCases.map(\.rawValue) == ["idle", "sleeping", "thinking", "working", "waiting", "done", "error",
+                                                            "interrupted", "dizzy", "warning-mismatch", "warning-stale", "danger"])
+        var shown = true
+        for s in DundunTestState.allCases {
+            c.force(s)
+            shown = shown && c.overrides.mascot(real: .idle) == s.dundun
+        }
+        check("状态测试：强制哪个状态，盾盾就显示哪个", shown)
+        for p in NotchPin.allCases { c.setPin(p) }
+        c.force(.danger)
+        check("状态测试：强制「危险」不弹红卡、不响", c.visibleCard == nil && sounds.isEmpty)
+        let after = (app.display, app.presentation, ConfigStore.shared.config, stamp())
+        check("状态测试：不动 AppState 的守卫显示", after.0 == before.0 && after.1 == before.1)
+        check("状态测试：不改配置，也不写 config.json、日志、guard-state.json", after.2 == before.2 && after.3 == before.3)
+
+        c.setPin(.open)
+        c.restoreRealState()
+        check("恢复真实状态：盾盾和刘海都回到真实（固定方式回到自动、收起）",
+              c.overrides.dundun == nil && c.overrides.pin == .auto && c.overrides.isReal && c.mode == .closed
+              && c.overrides.mascot(real: .guardMismatch) == .guardMismatch)
+
+        c.setPin(.open)
+        check("固定展开：不悬停也展开", c.mode == .dashboard)
+        c.setHovering(true)
+        c.setPin(.closed)
+        check("固定收起：压过悬停", c.mode == .closed)
+        c.setHovering(true)
+        check("固定收起：再悬停也不展开", c.mode == .closed)
+        c.show(AppDelegate.demoCard(kind: "alert", title: nil, detail: nil))
+        check("固定收起：真的红卡照常弹出", c.mode == .card && c.visibleCard?.kind == .alert)
+        c.restoreRealState()
+
+        // 真的红卡被关掉之后强制「危险」：既不重弹，也不清掉关掉的记录
+        sounds = []   // 上面演示红卡响过一次
+        let state = AppState()
+        let rig = NotchController(config: { NKConfig() }, playSound: { sounds.append($0) }, onScreen: false)
+        state.onPresentation = { rig.guardChanged(to: $0) }
+        rig.onAlertDismissed = { state.dismissViolation() }
+        let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+        let iso = ISO8601DateFormatter()
+        func violated(_ now: Date) -> GuardDisplay {
+            let j: [String: Any] = ["schemaVersion": 1, "verdict": "violated", "checkedAt": iso.string(from: now),
+                                    "violatedSince": iso.string(from: t0), "egressFailures": [String: Int]()]
+            return GuardStateReader.display(data: try! JSONSerialization.data(withJSONObject: j), now: now)
+        }
+        state.apply(violated(t0))
+        let basso = sounds.filter { $0 == "Basso" }.count
+        rig.dismissCurrent()
+        rig.force(.danger)
+        rig.setPin(.open)
+        rig.restoreRealState()
+        state.apply(violated(t0.addingTimeInterval(5)))
+        check("状态测试：关掉红卡后强制「危险」再恢复，同一次违规不重弹、不重响",
+              basso == 1 && rig.visibleCard == nil && sounds.filter { $0 == "Basso" }.count == 1)
     }
 }

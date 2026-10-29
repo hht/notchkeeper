@@ -1,30 +1,45 @@
 #if DEBUG
 import AppKit
 import SwiftUI
+import DundunCore
 
-/// `Notchkeeper --mascot-demo [outdir]`：把盾盾每个状态画成黑底 2x 的 PNG，截图验收用，
-/// 不用真去触发守卫或跑 agent（mascot-port-batch1.md、agent-cards.md）。只在 DEBUG 构建里有。
+/// `Notchkeeper --mascot-demo [outdir]`：把盾盾每个状态画成黑底 PNG，截图验收用，
+/// 不用真去触发守卫或跑 agent（dundun-final-spec.md、agent-cards.md）。只在 DEBUG 构建里有。
+/// 画的是 DundunCore 给的确定帧（停留帧、小动作中间帧、过渡中间帧），和屏幕上一模一样的 DundunPaint。
 @MainActor
 enum MascotDemo {
     static func run(outDir: URL) -> Bool {
         try? FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
-        var shots: [(name: String, engine: DundunEngine, size: CGFloat)] = []
-        func add(_ name: String, _ state: DundunState, size: CGFloat, reduceMotion: Bool = false, beaming: Bool = false) {
-            let e = DundunEngine()
-            e.reduceMotion = reduceMotion
-            e.showsShield = size >= 30
-            e.setState(state, force: true)
-            if beaming { e.setPermanentEmote(.happy) }
-            shots.append((name, e, size))
+        var ok = true
+        var count = 0
+        func shot(_ name: String, _ r: DundunRender, _ scale: DundunScale) {
+            let base = DundunPaint.base(scale)
+            let view = DundunPaint(render: r, scale: scale, size: base)
+                .frame(width: base.width, height: base.height)
+                .background(Color.black)
+            let ir = ImageRenderer(content: view)
+            ir.scale = scale == .small ? 4 : 2
+            ok = save(ir.cgImage, outDir.appendingPathComponent("\(name).png")) && ok
+            count += 1
         }
-        for s in DundunState.allCases {
-            add("\(s.rawValue)-40", s, size: 40)
-            add("\(s.rawValue)-40-reduce-motion", s, size: 40, reduceMotion: true)
-            add("\(s.rawValue)-120", s, size: 120)
+        for scale in [DundunScale.small, .large] {
+            let sz = scale == .small ? "20" : "40"
+            for look in DundunLook.allCases {
+                let p = DundunPlayer(scale: scale, look: look, at: 0, seed: 7)
+                shot("\(look.rawValue)-\(sz)", p.render(at: 60), scale)
+                shot("\(look.rawValue)-\(sz)-enter", p.render(at: 0.25), scale)
+            }
+            for m in [DundunMicro.turn, .pitch, .roll, .peek] {
+                var p = DundunPlayer(scale: scale, look: .idle, at: 0, seed: 7)
+                _ = p.advance(to: 0)
+                _ = p.trigger(m, at: 1)
+                shot("micro-\(m.rawValue)-\(sz)", p.render(at: 1.2), scale)
+            }
+            var t = DundunPlayer(scale: scale, look: .idle, at: 0, seed: 7)
+            _ = t.advance(to: 0)
+            t.setLook(.danger, at: 1)
+            shot("transition-idle-danger-\(sz)", t.render(at: 1.1), scale)
         }
-        add("idle-22", .idle, size: 22)
-        add("sleeping-22", .sleeping, size: 22)
-        add("about-beaming-54", .idle, size: 54, beaming: true)
 
         // 真实的红卡：放进屏幕外的窗口，让 TimelineView 和 onAppear 照常跑
         let card = NotchCardView(card: .exitAlert(), countdown: nil, onDismiss: {})
@@ -39,26 +54,9 @@ enum MascotDemo {
         window.contentView = host
         window.orderFrontRegardless()
 
-        // 补间按真实时间算：主线程跑 1.6 秒、每 1/60 秒走一步，停在各状态稳定后的画面
-        let end = Date().addingTimeInterval(1.6)
-        while Date() < end {
-            RunLoop.main.run(until: Date().addingTimeInterval(1.0 / 60))
-            for s in shots { s.engine.update(dt: DundunCanvasView.stepDt) }
-        }
+        // 让卡片里的 onAppear 和计时器跑一会儿再截
+        RunLoop.main.run(until: Date().addingTimeInterval(0.6))
 
-        var ok = true
-        for s in shots {
-            let c = DundunCanvasView.canvasSize(body: s.size)
-            let still = Canvas { ctx, size in
-                s.engine.draw(context: ctx, size: size)
-                s.engine.drawExtras(context: ctx, size: size)
-            }
-            .frame(width: c.width, height: c.height)
-            .background(Color.black)
-            let r = ImageRenderer(content: still)
-            r.scale = 2
-            ok = save(r.cgImage, outDir.appendingPathComponent("\(s.name).png")) && ok
-        }
         if let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) {
             host.cacheDisplay(in: host.bounds, to: rep)
             ok = save(rep.cgImage, outDir.appendingPathComponent("card-violated-38.png")) && ok
@@ -66,7 +64,7 @@ enum MascotDemo {
             ok = false
         }
         window.close()
-        print("mascot demo: \(shots.count + 1) PNG → \(outDir.path)")
+        print("mascot demo: \(count + 1) PNG → \(outDir.path)")
         return ok
     }
 

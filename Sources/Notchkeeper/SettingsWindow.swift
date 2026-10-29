@@ -10,10 +10,12 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
 
     private let model = SettingsModel()
     private let state: AppState
+    private let notch: NotchController
     private lazy var window: NSWindow = makeWindow()
 
-    init(state: AppState) {
+    init(state: AppState, notch: NotchController) {
         self.state = state
+        self.notch = notch
     }
 
     func show(_ pane: SettingsPane? = nil) {
@@ -33,7 +35,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     }
 
     private func hostingController() -> NSViewController {
-        let host = NSHostingController(rootView: SettingsView(model: model, state: state, store: ConfigStore.shared))
+        let host = NSHostingController(rootView: SettingsView(model: model, state: state, store: ConfigStore.shared, notch: notch))
         // 让 navigationTitle 和工具栏交给窗口显示，与系统设置一致
         // @see https://developer.apple.com/documentation/swiftui/nshostingcontroller/scenebridgingoptions
         host.sceneBridgingOptions = [.title, .toolbars]

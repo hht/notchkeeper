@@ -26,7 +26,7 @@ enum NotchkeeperMain {
             if args.count > i + 1 { args[i + 1] = dir } else { args.append(dir) }
         }
         #endif
-        if args.contains("--selftest") || args.contains("--mascot-demo") {
+        if args.contains("--selftest") || args.contains("--mascot-demo") || args.contains("--cpu-bench") {
             TestHome.enter(arguments: args)
         }
         if args.contains("--selftest") {
@@ -35,6 +35,12 @@ enum NotchkeeperMain {
         #if DEBUG
         if let i = args.firstIndex(of: "--mascot-demo") {
             exit(MascotDemo.run(outDir: URL(fileURLWithPath: args[i + 1])) ? 0 : 1)
+        }
+        // 在单实例锁之前退出：不和正在运行的 Notchkeeper 抢锁
+        if let i = args.firstIndex(of: "--cpu-bench") {
+            let scenario = args.count > i + 1 ? args[i + 1] : "idle"
+            let seconds = args.count > i + 2 ? Double(args[i + 2]) ?? 60 : 60
+            exit(CpuBench.run(scenario: scenario, seconds: seconds) ? 0 : 1)
         }
         #endif
         if let i = args.firstIndex(of: "--login-item") {
@@ -61,10 +67,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var settings: SettingsWindowController!
     var notch: NotchController!
     private var cancellables = Set<AnyCancellable>()
+    private var sigterm: DispatchSourceSignal?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         notch = NotchController()
-        settings = SettingsWindowController(state: state)
+        settings = SettingsWindowController(state: state, notch: notch)
         notch.onOpenSettings = { [weak self] in self?.openSettings() }
         notch.contextMenu = buildMenu()
         NSApp.mainMenu = buildMainMenu()
@@ -87,14 +94,58 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         DundunDirector.shared.start(notchRect: { [weak self] in self?.notch.anchorRect ?? .zero })
         state.start()
+        watchSIGTERM()
         Log.write("Notchkeeper 启动")
         Log.write("notch screen: \(notch.hasNotch)")
     }
 
-    /// 退出前取消守卫订阅，目录监听和定时器跟着关掉
+    /// 退出前记一行日志（带原因），再取消守卫订阅，目录监听和定时器跟着关掉
     /// @see https://developer.apple.com/documentation/appkit/nsapplicationdelegate/applicationwillterminate(_:)
     func applicationWillTerminate(_ notification: Notification) {
+        Log.write("Notchkeeper 退出（\(Self.quitReason ?? "原因不明：有人调了 terminate")）")
         state.stopWatchingGuard()
+    }
+
+    /// 退出原因。本 App 自己发起的退出（菜单、设置页、SIGTERM）先记下再 terminate；
+    /// 注销、关机或别的 App 让它退出时，AppKit 收到 quit Apple 事件后也走 terminate，在这里认出来。
+    /// 崩溃和 SIGKILL 不经过 terminate，记不到。
+    private static var quitReason: String?
+
+    /// 自己发起的退出都走这里，日志里才分得清是谁让它退的
+    /// @see https://developer.apple.com/documentation/appkit/nsapplication/terminate(_:)
+    static func quit(reason: String) {
+        if quitReason == nil { quitReason = reason }
+        NSApp.terminate(nil)
+    }
+
+    /// terminate 之后、真正退出之前调用；此时正在处理的 Apple 事件若是 quit（'aevt'/'quit'），就是系统或别的 App 要它退出
+    /// @see https://developer.apple.com/documentation/appkit/nsapplicationdelegate/applicationshouldterminate(_:)
+    /// @see https://developer.apple.com/documentation/foundation/nsappleeventmanager/currentappleevent
+    /// @see https://developer.apple.com/documentation/foundation/nsappleeventdescriptor/eventid
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if Self.quitReason == nil, let e = NSAppleEventManager.shared().currentAppleEvent,
+           e.eventClass == AEEventClass(kCoreEventClass), e.eventID == AEEventID(kAEQuitApplication) {
+            Self.quitReason = "收到 quit Apple 事件：注销、关机或别的 App 要求退出"
+        }
+        return .terminateNow
+    }
+
+    /// kill / launchctl 发来的 SIGTERM 默认直接杀进程，applicationWillTerminate 不会跑。
+    /// 先把默认动作设成忽略，再用 dispatch source 在主队列接住：记日志，然后正常 terminate。
+    /// @see https://developer.apple.com/library/archive/documentation/General/Conceptual/ConcurrencyProgrammingGuide/GCDWorkQueues/GCDWorkQueues.html
+    /// @see https://developer.apple.com/documentation/dispatch/dispatchsource/makesignalsource(signal:queue:)
+    /// @see https://developer.apple.com/documentation/dispatch/dispatchobject/activate()
+    private func watchSIGTERM() {
+        signal(SIGTERM, SIG_IGN)
+        let source = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
+        source.setEventHandler {
+            MainActor.assumeIsolated {
+                Log.write("收到 SIGTERM，正常退出")
+                Self.quit(reason: "SIGTERM")
+            }
+        }
+        source.activate()
+        sigterm = source
     }
 
     /// 再次打开 App（Finder 双击、`open -a`）时没有菜单栏图标可点，直接打开设置
@@ -154,7 +205,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(ip, forType: .string)
     }
-    @objc func quit() { NSApp.terminate(nil) }
+    @objc func quit() { Self.quit(reason: "菜单里点了退出") }
 
     /// scripts/demo.sh done|alert ["标题"] ["详情"]
     @objc func handleCardNotification(_ n: Notification) {
