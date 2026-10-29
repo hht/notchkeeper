@@ -101,7 +101,9 @@ App 订阅 `GuardStateWatcher(directory:).displays()`（GuardWatch），自己�
 | unknown，其余原因 | 灰色空心环 | 守卫没有响应 |
 | violated | 红卡 `#FF453A`，响 Basso | 出口不合规 · 有流量没走 utun 隧道 |
 | stale 或 clockSkew，且 `lastVerdict == violated` | 红卡保留，不再响 | 出口不合规 · 守卫没有响应，无法确认出口是否恢复 |
-| violated，且防火墙已开、状态摘要新鲜、核对通过（阶段 4） | 红卡，锁图标，不响 | 代理断开，防火墙已拦住外网 · 没有泄漏 |
+| violated，且防火墙已开、状态摘要新鲜、核对通过（第 5 步） | 红卡，锁图标，不响 | 代理断开，防火墙已拦住外网 · 没有泄漏 |
+
+表里的「图形」是状态点（面板、设置页）。收起时右耳显示什么由盾盾的造型决定（`docs/mascot.md` §2）：断网和守卫没响应在右耳显示告示图标，探针没结果显示灰色空心环。
 
 - **用户关掉红卡**：App 在内存里记下 `dismissedViolationSince = violatedSince`。只要之后读到的 `violatedSince` 还是这个值，就不再弹卡，但状态点仍按当前状态画：
   - violated 时画红点；

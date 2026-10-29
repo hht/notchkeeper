@@ -4,7 +4,7 @@
 
 ## 这是什么
 
-Haitao 本机自用的 macOS 刘海应用。SwiftPM 构建，SwiftUI + AppKit，macOS 14+，只做暗色，没有菜单栏图标。它做四件事：
+Haitao 本机自用的 macOS 刘海应用。SwiftPM 构建，SwiftUI + AppKit，macOS 14+，简体中文和 English，没有菜单栏图标。它做四件事：
 
 1. **出口守卫（只监测）**：后台的用户级 LaunchAgent `guardd` 检查 Clash、utun 路由和出口 IPv4，结果写进 `guard-state.json`。App 监听这个文件，在刘海上显示状态。
 2. **防火墙（一键开关）**：开启后，除局域网外凡是不走 Clash 隧道的出站流量一律丢弃；关闭后完全不拦。
@@ -22,7 +22,7 @@ Haitao 本机自用的 macOS 刘海应用。SwiftPM 构建，SwiftUI + AppKit，
    - 计算与副作用分开：核心是输入数据、输出数据的纯值类型；文件监听、探针、pf、画界面放在外层。
 3. **算法精妙。** 先想清本质，先定数据结构、状态机与不变量，再写分支。同一件事只有一个 owner，禁止特例瀑布。规模小（几个进程、几十个会话、一只吉祥物），就用最直接的算法；要调速，先测量。精妙指本质对、分支少，不是炫技。
 4. **逻辑清晰可测试，测试先行（TDD）。** 新行为、新规则、修 bug，都先写一个会失败的测试，亲眼看它失败，再改到绿。时间、随机数、文件系统、网络探针、进程表都从参数注入，测试可以快进时间、重放事件序列。纯逻辑测不了的部分（窗口、动效、权限弹窗、pf），在提交说明里写实机步骤和结果。
-5. **信任边界。** 外部数据在边界解析成精确类型，之后内部直接用。外部数据包括：会话 jsonl、`config.json`、`guard-state.json`、防火墙状态文件、探针响应、`proc_pidpath` 结果。
+5. **信任边界。** 外部数据在边界解析成精确类型，之后内部直接用。外部数据包括：sessions 文件、`config.json`、`guard-state.json`、防火墙状态文件、探针响应、`proc_pidpath` 结果。
    - 非法状态尽量用类型排除。
    - **「未知」是一个值**，既不是 healthy 也不是 violated：断网、探针超时、状态文件过期都是 unknown。
    - 兜底与默认值只给真会发生的情况；内部不变量坏了就 `preconditionFailure`。
@@ -40,7 +40,7 @@ Haitao 本机自用的 macOS 刘海应用。SwiftPM 构建，SwiftUI + AppKit，
 - **守卫只监测，判定止于 GuardCore。** 四种 verdict：
   - `violated`：去往公网（局域网以外）的路由不走 utun（Haitao 2026-10-28：除局域网外全部流量必须走代理）。只有一轮完整的 healthy 才能解除；断网、探针超时、守卫停了，都不会把它降级。
   - `egressMismatch`：出口 IP 不在允许列表，只显示琥珀色。
-  - `unknown`：显示灰色空心环，不弹卡。
+  - `unknown`：不弹卡；状态点是灰色空心环，收起时右耳照盾盾造型显示（`docs/mascot.md` §2）。
   - `healthy`。
 
   红卡显示与否，只看当前状态和 `dismissedViolationSince`。从任何路径进入 healthy 都要撤掉红卡。完整规则见 `docs/egress-guard.md`。
@@ -50,11 +50,12 @@ Haitao 本机自用的 macOS 刘海应用。SwiftPM 构建，SwiftUI + AppKit，
   - **开、关都要管理员密码。** App 不常驻特权代码；特权部分只有安装好的脚本和 LaunchDaemon。安装和任何规则改动，都先给用户看 diff 并备份，由用户自己执行。
   - **不杀进程**，不针对任何 App。
   - 细节见 `docs/firewall.md`。
-- **只提醒顶层回合结束。** 判定 agent 状态将由第 3 步新建的 `AgentCore` 负责，并配固定测试（目前仓里还没有这个 target）；来源改为 `~/.claude/sessions/<pid>.json`，规则待第 1 步写进 `docs/agent-integration.md`（现状见 `HANDOFF.md`「agent 状态新来源」）。零 hook：不改任何 agent 的配置。
+- **只提醒顶层回合的结束和需要你介入。** agent 状态只由 `AgentCore`（第 3 步新建）判定，配固定测试；来源是 `~/.claude/sessions/<pid>.json`，规则见 `docs/agent-integration.md`。零 hook：不改任何 agent 的配置。
+- **sessions 文件不做兼容**（Haitao 2026-10-29）：格式变了就直接改代码，不退回会话 JSONL，不做多版本兼容。解析不了的照准则 5 计数、跳过。
 - **只读元数据，不读对话内容。** 会话文件只取判定需要的字段；日志和界面不出现消息正文、工具参数和输出。
 - **除防火墙外不碰网络与 shell 环境。** 不改 `~/.zshrc`，不改系统网络设置。「打开 Clash」只是打开 App。出口探测只请求第三方服务（如 ipinfo.io），不碰 Claude / Anthropic 的域名。guardd 是用户级 LaunchAgent，不要 sudo。
 - **密钥不打印，日志不记 IP。** 界面上完整显示出口 IP（Haitao 2026-10-28）。测试与文档里的 IP 用 `198.51.100.x`。
-- **品牌**：盾盾是原创角色（Haitao 2026-10-29），造型与动效以 `docs/mascot.md` 为准。不用 Grok、Codex、Coucou、Mochi 等别家的名字、形象和音效。过渡期：现有从 Coucou（MIT）移植来的代码，在阶段 2、3 删掉之前，保留原 MIT 声明和设置页致谢。
+- **品牌**：盾盾是原创角色（Haitao 2026-10-29），造型与动效以 `docs/mascot.md` 为准。不用 Grok、Codex、Coucou、Mochi 等别家的名字、形象和音效。过渡期：现有从 Coucou（MIT）移植来的代码，在第 4 步重写删掉之前，保留原 MIT 声明和设置页致谢。
 - **看不见就不调度。** 窗口收起、被遮挡、熄屏、锁屏时，停掉所有动画和计时器。性能验收数字以 `docs/mascot.md` 为准。
 
 ## 界面准则
@@ -63,8 +64,9 @@ Haitao 本机自用的 macOS 刘海应用。SwiftPM 构建，SwiftUI + AppKit，
 - **默认不打扰**：空闲时收进刘海，悬停或点击才展开；完成卡按设置自动收回；红卡一直留到恢复。
 - **状态 = 颜色 + 图标 + 文案**：绿 = healthy，琥珀 = egressMismatch，灰 = unknown，红 = violated。
 - **点击范围**：只有看得见的形状接收点击，透明区域一律穿透，不挡菜单栏。卡片只用阴影，不加描边。
-- **文案**：中文为主，一句话说清；按钮写动作本身（「重新检测」）。
-- **截图**：改了 UI 要附暗色截图，刘海机型一张；有外接屏时，再补一张无刘海外接屏的。
+- **亮暗**：贴着刘海的部分（耳朵、面板、卡片）永远黑底白字，只有设置窗口跟随系统亮暗。细节见 `docs/ui.md`。
+- **文案**：源语言是简体中文，一句话说清；按钮写动作本身（「重新检测」）。所有界面文案走 String Catalog，同时给 English 译文（`docs/ui.md`「多语言」）。
+- **截图**：改了 UI 要附截图，张数见 `docs/ui.md`「截图」。
 
 ## 文档
 
@@ -72,10 +74,11 @@ Haitao 本机自用的 macOS 刘海应用。SwiftPM 构建，SwiftUI + AppKit，
 |---|---|
 | 开工前、换会话 | `HANDOFF.md`（已定决策、进度、待办）、`README.md`（运行、安装、模块） |
 | 守卫信号、判定、`guard-state.json`、怎么画 | `docs/egress-guard.md` |
-| 会话怎么读、什么时候算回合结束 | `HANDOFF.md`「agent 状态新来源」（`docs/agent-integration.md` 第 1 步重写） |
+| 会话怎么读、什么时候算回合结束、什么时候响声音 | `docs/agent-integration.md` |
 | 防火墙规则、开关、恢复 | `docs/firewall.md` |
 | 盾盾的造型数据、动效、性能验收 | `docs/mascot.md` |
-| 起名字 | `docs/ubiquitous-language.md`（写第一个新领域概念时建立） |
+| 亮暗、多语言、面板布局、截图 | `docs/ui.md` |
+| 起名字 | `docs/ubiquitous-language.md` |
 
 结论与文档冲突时，明确指出；改已定的决策，先改文档并经用户确认。
 
@@ -83,7 +86,7 @@ Haitao 本机自用的 macOS 刘海应用。SwiftPM 构建，SwiftUI + AppKit，
 
 - **验收**：`swift build` 零警告，并且 `swift test` 全绿，两项都过才算完成。
 - `./scripts/run.sh`：release 编译、打包 `build/Notchkeeper.app`、ad-hoc 签名并启动；会先结束正在运行的实例。
-- `./scripts/demo.sh done|alert`：手动触发卡片，在实机上验 UI。它靠分布式通知，本机任何进程都能发，所以阶段 3 起只在 DEBUG 构建里监听。
+- `./scripts/demo.sh done|alert`：手动触发卡片，在实机上验 UI。它靠分布式通知，本机任何进程都能发，所以第 4 步起只在 DEBUG 构建里监听。
 - guardd 的单轮调试、真机只读冒烟、安装和卸载见 `README.md`。
 - 新增 lint / format 工具或依赖，要用户明示同意。
 
@@ -94,11 +97,7 @@ Haitao 本机自用的 macOS 刘海应用。SwiftPM 构建，SwiftUI + AppKit，
   - 优先值类型和 `enum` 状态机；错误用 `throws` 带具体错误类型。
   - UI 状态只在 `@MainActor` 上改；后台工作用专用队列或 actor。
   - 外部数据不强制解包。
-- **领域词**：同一概念只有一个名字。
-  - 顶层回合结束叫 turn end，出口叫 egress。
-  - 守卫结论叫 verdict（`healthy` / `egressMismatch` / `unknown` / `violated`）。
-  - 盾盾的造型叫 look，动作叫 motion。
-  - 新词先进词表。
+- **领域词**：同一概念只有一个名字，以 `docs/ubiquitous-language.md` 为准，例如 turn end、egress、verdict、look、motion；新词先进词表。盾盾在代码里统一用 `Mascot` 前缀（Haitao 2026-10-29）。
 - **配置与状态文件**：JSON 字段 lowerCamelCase；缺失字段用默认值，未知字段忽略；时间用 ISO 8601。
 - **注释**：写为什么，不写做了什么。依赖外部行为的地方标 `@see`；规格里的数字注明出自哪份文档。
 - **不写包 README**：每个 target 的职责写在 `Package.swift` 的注释和类型注释里；细节已经在 `docs/` 的，只链接、不重复。
@@ -135,7 +134,7 @@ Haitao 本机自用的 macOS 刘海应用。SwiftPM 构建，SwiftUI + AppKit，
 | 查 API / pf / agent 格式等事实 | `research` | 代码 `@see` 或 `docs/` |
 | 验证状态模型或界面草稿 | `prototype` | 用完即删，结论写进 `docs/` |
 | 按切片实现 | `tdd`（接口词汇见 `codebase-design`） | 代码 + 测试 |
-| 界面布局、动效、评审 | `ui-ux-pro-max` | `docs/mascot.md` 或代码 |
+| 界面布局、动效、评审 | `ui-ux-pro-max` | `docs/ui.md`、`docs/mascot.md` 或代码 |
 | 难 bug、性能回退 | `diagnosing-bugs` | 根因写入提交说明 |
 | 起名字、记决策 | `domain-modeling` | `docs/ubiquitous-language.md` |
 | 改本文件 / skill | `writing-for-agents` | — |

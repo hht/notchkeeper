@@ -13,7 +13,7 @@ Haitao 本机自用的刘海应用（SwiftPM，macOS 14+），没有菜单栏图
 ## 还没做
 
 - **防火墙**：设计见 `docs/firewall.md`。顺序是先写恢复脚本并实测通过，再写拦截规则。
-- **Agent 完成卡**：改读 `~/.claude/sessions/<pid>.json`（见 `HANDOFF.md`「agent 状态新来源」）。目前只能用 `scripts/demo.sh done` 手动触发。
+- **Agent 完成卡**：改读 `~/.claude/sessions/<pid>.json`（见 `docs/agent-integration.md`）。目前只能用 `scripts/demo.sh done` 手动触发。
 
 ## 运行
 
@@ -89,3 +89,6 @@ NOTCHKEEPER_LIVE_PROBES=1 swift test --filter LiveProbes   # 真机只读冒烟�
 - `docs/egress-guard.md`：守卫的信号、判定、状态文件、怎么画
 - `docs/firewall.md`：防火墙（未实现）
 - `docs/mascot.md`：盾盾的造型数据与动效
+- `docs/agent-integration.md`：agent 状态从哪读、什么时候提醒
+- `docs/ui.md`：亮暗、多语言、面板布局、截图
+- `docs/ubiquitous-language.md`：词表
