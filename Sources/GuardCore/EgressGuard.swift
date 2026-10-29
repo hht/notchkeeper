@@ -53,9 +53,6 @@ public enum Verdict: String, Codable, Sendable, Equatable {
     case unknown
     /// 路由不走 utun（规则 1）
     case violated
-
-    /// 只有 violated 触发拦截；其余只显示。
-    public var intercepts: Bool { self == .violated }
 }
 
 public struct EgressGuard: Sendable {

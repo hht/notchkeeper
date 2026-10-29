@@ -80,10 +80,4 @@ private func run(_ seq: [Observation]) -> [Verdict] {
         var g = EgressGuard()
         #expect(g.observe(obs(ips: [leaked]), allowlist: []) == .unknown)
     }
-
-    /// 只有 violated 触发拦截；琥珀色两态只显示
-    @Test func onlyViolatedIntercepts() {
-        #expect(Verdict.violated.intercepts)
-        #expect(![Verdict.healthy, .unknown, .egressMismatch].contains { $0.intercepts })
-    }
 }

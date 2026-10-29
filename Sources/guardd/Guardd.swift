@@ -3,7 +3,7 @@ import GuardCore
 import GuardProbes
 
 /// 回答：出口守卫的后台进程每一轮做什么——跑三路探针、交给 `EgressGuard` 判定、写状态文件（App 监听这个文件）。
-/// 不判定（规则在 GuardCore），不探测细节（在 GuardProbes），不画界面，也不拦截（见 `onVerdictChange`）。
+/// 不判定（规则在 GuardCore），不探测细节（在 GuardProbes），不画界面，也不拦截（拦截归防火墙，docs/firewall.md）。
 ///
 /// 网络路径（有没有物理网络）只用来给 unknown 标原因（offline / probeFailed），不影响 verdict。
 ///
@@ -12,10 +12,6 @@ import GuardProbes
 /// 允许列表每轮从同目录的 `config.json` 重读（见 `AllowlistFile`）。
 @main
 enum Guardd {
-    /// 拦截接缝：verdict 变化、状态文件写好之后调用一次。本片故意不实现。
-    /// 甲（杀进程）和 killswitch 的取舍待 Haitao 定，见 docs/interception.md、docs/killswitch-integration.md。
-    static let onVerdictChange: @Sendable (Verdict) -> Void = { _ in }
-
     static func main() async {
         let args = CommandLine.arguments.dropFirst()
         guard args.isEmpty || args.elementsEqual(["--once"]) else {
@@ -67,12 +63,11 @@ enum Guardd {
                 try StateFile.write(state.encoded(), to: stateURL)
                 if shown != notified {
                     // 文件写好之后才算这一轮生效；App 靠 GuardStateWatcher 监听目录拿到新文件，不需要通知
-                    if verdict != notified?.verdict { onVerdictChange(verdict) } // 拦截只关心 verdict
                     log("verdict: \(notified?.description ?? "-") → \(shown.description)")
                     notified = shown
                 }
             } catch {
-                // 写失败不更新 notified，下一轮重试写文件、记日志、调拦截接缝
+                // 写失败不更新 notified，下一轮重试写文件、记日志
                 log("写 \(GuardState.fileName) 失败：\(error)")
                 if once { return 1 }
             }
