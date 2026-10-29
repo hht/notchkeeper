@@ -83,6 +83,9 @@ struct SettingsView: View {
             detail
                 .formStyle(.grouped)
                 .navigationTitle(model.pane.title)
+                .safeAreaInset(edge: .top) {
+                    if store.fileUnreadable { ConfigUnreadableBanner(store: store) }
+                }
         }
         .preferredColorScheme(.dark)
     }
@@ -98,6 +101,25 @@ struct SettingsView: View {
         case .stateTest: StateTestPane(overrides: notch.overrides, state: state, notch: notch)
         case .about: AboutPane(store: store)
         }
+    }
+}
+
+/// config.json 解不开时，改了也存不进去（ConfigStore 不覆盖原文件），所以先说清楚，并把改配置的控件禁掉
+private struct ConfigUnreadableBanner: View {
+    let store: ConfigStore
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.yellow)
+            Text("配置文件解不开，设置暂时改不了。改好文件后自动恢复。")
+            Spacer()
+            Button("打开配置文件") { store.openFile() }.controlSize(.small)
+        }
+        .font(.callout)
+        .padding(10)
+        .background(.yellow.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .padding(.horizontal, 20)
+        .padding(.top, 8)
     }
 }
 
@@ -192,6 +214,7 @@ private struct NotchPane: View {
                     Text("显示出口状态和活跃会话")
                 }
             }
+            .disabled(store.fileUnreadable)
             Section("动态效果") {
                 LabeledContent {
                     Button("打开辅助功能设置…") {
@@ -259,14 +282,19 @@ private struct ExitGuardPane: View {
             } footer: {
                 if invalid {
                     Text("不是有效的 IPv4 地址，或已在列表里。").foregroundStyle(.red)
+                } else if store.fileUnreadable {
+                    // guardd 只解 allowlist，别的键坏了它照样读到真实列表，这里却是默认值
+                    Text("配置文件解不开，这里显示的是默认设置，不是文件里的列表。")
                 } else if store.config.allowlist.isEmpty {
                     Text("列表为空时守卫无法判断出口是否正确，只能显示「暂时查不到出口」（没走隧道仍会报不合规）。")
                 }
             }
+            .disabled(store.fileUnreadable)
             Section("提示") {
                 Toggle("出口不合规时弹出红卡", isOn: $store.config.autoAlert)
                 Toggle("红卡一直保留，直到恢复", isOn: $store.config.alertPersistent)
             }
+            .disabled(store.fileUnreadable)
         }
     }
 
@@ -300,6 +328,7 @@ private struct NotificationsPane: View {
                 }
             }
         }
+        .disabled(store.fileUnreadable)
     }
 }
 
@@ -323,6 +352,7 @@ private struct DundunPane: View {
                     Text("眼睛看着鼠标、身体往那边歪；鼠标到刘海上时探头。关掉后眼睛一直看正前方")
                 }
             }
+            .disabled(store.fileUnreadable)
         }
     }
 }

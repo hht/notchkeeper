@@ -1,10 +1,9 @@
 # HANDOFF
 
-最后更新：2026-10-29（帧率上限、全仓删除一轮已分两个提交；阶段 2b 原型定稿，文档还没改）。换会话或开工前先读本文，再读 `CLAUDE.md`。
+最后更新：2026-10-29（帧率上限、全仓删除一轮、P0 修复已提交；阶段 2b 原型定稿，文档还没改）。换会话或开工前先读本文，再读 `CLAUDE.md`。
 
 **新会话从这里开始**：
-1. TDD 修 P0（见「待办与已知问题」），单独一个 `fix` 提交。
-2. 再按「开发计划」走第 0 步剩下的部分（原型挪到单独分支）和第 1 步（文档定稿）。
+1. 按「开发计划」走第 0 步剩下的部分（原型挪到单独分支，要用户同意）和第 1 步（文档定稿）。
 
 ## 已定决策
 
@@ -46,11 +45,11 @@
 
 | 步 | 内容 | 产出 / 验收 | 状态 |
 |---|---|---|---|
-| 0 | 收尾：提交帧率上限、删除一轮（都已过 reviewer）；修 P0；原型提交到单独分支 `prototype/dundun-3d`，从 main 工作区删掉 | 提交（要用户同意） | 两个提交已做；P0、原型分支待做 |
+| 0 | 收尾：提交帧率上限、删除一轮（都已过 reviewer）；修 P0；原型提交到单独分支 `prototype/dundun-3d`，从 main 工作区删掉 | 提交（要用户同意） | 两个提交、P0 已做；原型分支待做 |
 | 1 | **文档一轮定稿**（一次给用户确认）：<br>• CLAUDE.md（用 `writing-for-agents`）：亮暗都支持、多语言、截图规则、agent 状态来源改成 sessions 文件、子 agent 过滤规则跟着改、「不写降级路径」<br>• `docs/dundun.md` §1–§5（见「阶段 2b 接手要点」）<br>• `docs/agent-integration.md`：sessions 文件、三个事件、声音<br>• 新建 `docs/ubiquitous-language.md`<br>• 新建 `docs/ui.md`：面板网格、亮色范围、多语言方案（见下） | 用户确认的文档 | 待做 |
 | 2 | **盾盾 2b**：DundunCore 加 4 个造型、眼形多边形和对齐、球面朝向、新编排；App 侧照原型 (a) 搭图层树、右耳告示 | 测试；实机截图（亮暗各一）；CPU 重测（120Hz、不限帧） | 待做 |
 | 3 | **agent 状态新来源**：先实测 `kind` 取值、子 agent 会不会写文件；新建 `AgentCore` 读 sessions 文件，三个事件 | 测试；实机只读冒烟 | 待做 |
-| 4 | **App 外壳重写**（原阶段 3）：<br>• `NotchCore`：GuardPresentation、CardQueue、HoverMachine、MascotResolver、配置解码（同时修 P0）<br>• 面板网格重排、展开时盾盾从左耳缓动到面板<br>• 接上完成卡、需要介入卡和声音<br>• 亮色模式、多语言的基础设施，所有新文案走 String Catalog<br>• 精简设置页（加「语言」「声音」）<br>• 删除 `Sessions.swift`（旧的 `SessionScanner`、`ProcessCounts`、App 版 `AgentSession` / `AgentKind`）<br>• `demo.sh` 的通知只在 DEBUG 构建里监听<br>• 刘海视图只订阅 `presentation` | 测试；亮暗 × 中英截图；CPU 验收（2a 没过的那条） | 待做 |
+| 4 | **App 外壳重写**（原阶段 3）：<br>• `NotchCore`：GuardPresentation、CardQueue、HoverMachine、MascotResolver、配置解码（P0 的测试 `Tests/NotchkeeperTests` 跟着挪）<br>• 面板网格重排、展开时盾盾从左耳缓动到面板<br>• 接上完成卡、需要介入卡和声音<br>• 亮色模式、多语言的基础设施，所有新文案走 String Catalog<br>• 精简设置页（加「语言」「声音」）<br>• 删除 `Sessions.swift`（旧的 `SessionScanner`、`ProcessCounts`、App 版 `AgentSession` / `AgentKind`）<br>• `demo.sh` 的通知只在 DEBUG 构建里监听<br>• 刘海视图只订阅 `presentation` | 测试；亮暗 × 中英截图；CPU 验收（2a 没过的那条） | 待做 |
 | 5 | **防火墙**（原阶段 4）：root 实测 → 恢复脚本并实测 → 试运行和自动回滚 → 规则、LaunchDaemon、安装脚本、App 开关；shielded 造型接线 | 按全局 Contract「高影响」档收工 | 待做 |
 
 已完成：阶段 0（文档重置）、1（后端清理）、2a（盾盾改用 Core Animation；CPU 验收因旧会话扫描没过，第 4 步删掉后重测）。
@@ -75,7 +74,7 @@
 
 - **原型** `prototype/dundun-3d/`（未跟踪）：`main.swift` + `run.sh`。运行 `./prototype/dundun-3d/run.sh`。按 prototype skill 的规矩，用完要提交到一个单独分支（例如 `prototype/dundun-3d`），不进 main；这也要用户同意。写完文档后从 main 的工作区删掉。
 
-帧率上限和全仓删除一轮已提交（10-29，`refactor: 去掉盾盾动画的帧率上限`、`refactor: 删除没有调用方和从没生效的代码`），删了什么见第二个提交的说明。
+帧率上限、全仓删除一轮、P0 已提交（10-29，`refactor: 去掉盾盾动画的帧率上限`、`refactor: 删除没有调用方和从没生效的代码`、`fix: config.json 解不开时不再用默认值覆盖`），删了什么、怎么修的见各自的提交说明。
 
 ## 阶段 2b 接手要点
 
@@ -190,7 +189,6 @@
 - `domain-modeling`：新领域词进词表。
 - `run`：启动 App、截图。
 - `diagnosing-bugs`：CPU 不达标时用。
-- `tdd`：修 P0（`config.json` 解不开时不覆盖原文件）先写失败测试。
 - `writing-for-agents`：第 1 步改 CLAUDE.md（亮色、多语言、截图规则）。
 - `prototype`：第 0 步把 `prototype/dundun-3d` 提交到单独分支的规矩。
 - `handoff`：换会话时更新本文件（本仓的交接文档就是 `HANDOFF.md`，不另写 `handoff.md`；macOS 不分大小写，会覆盖它）。
@@ -202,6 +200,7 @@
   - 范围要和用户确认。agent 的建议：贴着刘海的部分（收起的耳朵、展开面板、完成卡、红卡）在亮色模式下**仍是纯黑**。刘海是硬件，灵动岛在亮色模式下也是黑的（推断，写文档前查 Apple HIG 的 Live Activities / Dynamic Island 一节）。亮色模式只作用于设置窗口这类不贴刘海的界面。
   - 盾盾的配色和装饰色是按黑底设计的，例如睡着的 Z 是 `#B9C3F0`。放在亮底的设置页预览里，要逐个检查对比度，必要时给装饰加亮色模式下的变体。
   - 菜单栏本身随壁纸变亮变暗，但刘海区域永远是黑的，耳朵不受影响。
+- **配置文件解不开的横幅没实机截图**：P0 修复让设置页在 `config.json` 解不开时顶部显示横幅、禁用改配置的控件。实机验证要临时改坏真实的 `config.json`（先备份）；用户 10-29 定：先不做，第 4 步重写设置页时一起看。另外 reviewer 提过横幅的黄色和琥珀（egressMismatch）容易混，到时一起定。
 - **盾盾实机检查**：2b 做完后补 16 个造型的暗色截图（刘海机型一张；有外接屏时补无刘海的）。
 - **2a 审查留下的（第 2 步一起改）**：
   - 换造型时 `stopLoops()` 直接撤循环：晕的摆锤、工作的浮动会一下子跳回 0。原型的做法同样会跳，写实现时用补间收尾。
@@ -210,7 +209,6 @@
   - `DundunDirector` 的时钟决策（醒来时刻、恢复、推迟小动作）还没抽成值类型测试。
 - **设置页预览可能不跟鼠标**（推断）：Notchkeeper 在前台时，全局鼠标监听收不到本 App 窗口里的事件。第 4 步 处理。
 - **MIT 声明**：`DundunDirector.swift`、`EarView.swift` 里从旧 `DundunView.swift` 搬来的代码保留了 Coucou 的 MIT 声明，第 4 步 重写时一起删掉。
-- **P0**：`config.json` 有语法错误时，启动会用默认值覆盖整份文件，允许列表被清空（`Sources/Notchkeeper/Config.swift:57-63`）。第 4 步 修。
 - **IPv6**：守卫只查 IPv4，IPv6 直连泄漏看不见（推断，待实测 `route -n get -inet6`）。第 5 步 一起处理。
 - **utun 判定过宽**：任何 utun 都算「在隧道上」，开着别的 VPN 时可能看漏（推断）。
 - **出口探测频率**：每 5 秒请求 3 个回显服务，可能被限流（推断）。
@@ -219,7 +217,6 @@
   - 第 2 步：`DundunState` / `Look` / `DundunTestState` 三套枚举描述同一件事，只留 `Look`；`DundunConst` + `CGColor.hex`（Generic RGB）和 `RGB.cg`（sRGB）同一个 hex 两种色彩空间；`Choreography.Property` 的 rawValue 是 CA 键路径、`Look` 的参数叫 `guardUnknown`，核心知道了外层的名字；`DundunDirector` 犯困 / 回正 / 推迟小动作的时钟决策抽成纯值；`Dundun` / `Mascot` 两套前缀统一成 `Dundun`（审查建议，待用户定）。
   - 第 2 步待用户定：`DundunView.interactive` 全仓没人传 `true`，`docs/dundun.md` 写的「点一下晕」永远不触发——接上还是连 `dizzy` 一起删。
   - 第 4 步：`NotchController` 里的卡片队列、悬停状态机、布局几何、`GuardPresentation` 的判定进 `NotchCore`；红卡「关掉的是哪一次」现在分在 `AppState.dismissedViolationSince` 和 `NotchController.pendingAlert/violationAlerted` 两处，合成一个 owner；`Notch.swift:366` 用 `asyncAfter(0.5)` 等收起动画；`Common.swift` 的 `enum Motion` 和领域词 motion 撞名；`NKConfig` 去前缀；`ConfigStore` 每秒轮询、`AppState` 每 4 秒扫会话，看不见时也在跑；`Sessions.swift` 还扫 Codex 会话、用 `JSONSerialization` 整行解码（读进了正文）。
-  - P0（见上条）没在这轮修：它是修复，不是删除，单独 TDD。
   - **删 `--selftest` 丢掉的覆盖，第 4 步在 `NotchCore` 里用 swift test 补回**（reviewer 10-29；原文 `git show d8a28dd:Sources/Notchkeeper/AgentEvents.swift`，约 50 条）：违规 → unknown → healthy 撤红卡；关掉的同一次违规不再弹、新的一次照弹；stale / clockSkew 且 lastVerdict 是 violated 时保留红卡、不响 Basso；非常驻红卡到时不重弹；恢复卡只在弹过红卡后出现；`GuardPresentation` 各状态的颜色和文案。
   - `config.json` 里的 `launchAtLogin`、`suppressWhenHostFrontmost`、`agents` 三个键下次存盘时会被去掉（没有消费者）。以后要做「按 agent 开关」从默认值重来。
 - **审查**：2a 之前第 2 轮 reviewer 查出的两条必须修已经改好，但没有再审一轮。

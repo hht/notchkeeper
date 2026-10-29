@@ -11,6 +11,8 @@ let package = Package(
             path: "Sources/Notchkeeper",
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
+        // App 外壳里还没挪进核心 target 的逻辑（目前是 config.json 的读写）
+        .testTarget(name: "NotchkeeperTests", dependencies: ["Notchkeeper"]),
         // 出口守卫的纯逻辑：不 import SwiftUI / AppKit，不做 I/O
         .target(name: "GuardCore"),
         .testTarget(name: "GuardCoreTests", dependencies: ["GuardCore"]),

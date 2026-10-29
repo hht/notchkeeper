@@ -29,7 +29,7 @@ Haitao 本机自用的刘海应用（SwiftPM，macOS 14+），没有菜单栏图
   - 在刘海上右键，有「设置… / 拷贝出口 IP / 退出」；
   - App 已经在运行时，再打开一次会弹出设置；
   - ⌘, 打开设置，⌘Q 退出。
-- **配置**：`~/Library/Application Support/Notchkeeper/config.json`。改了会自动热加载，缺的字段用默认值。**允许列表默认是空的**，这时守卫只能判 unknown，要先在设置里加上你的出口 IP。
+- **配置**：`~/Library/Application Support/Notchkeeper/config.json`。改了会自动热加载，缺的字段用默认值；文件解不开（语法错、字段类型不对）时先用默认设置、不改文件，改好后自动生效。**允许列表默认是空的**，这时守卫只能判 unknown，要先在设置里加上你的出口 IP。
 - **日志**：`~/Library/Logs/Notchkeeper/notchkeeper.log`，用本地时间；不记 IP，也不记对话内容。
 
 ## 出口守卫 guardd
