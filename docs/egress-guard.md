@@ -72,10 +72,10 @@
   IP 只允许出现在 `egressIP` 这一个字段（Haitao 2026-10-28 定：面板显示 IP；文件是本地的、0600，不是日志）。不存网卡名。有测试钉住：`egressIP` 以外的任何字段都没有点分 IP，stderr 日志和 `--once` 输出也没有（`EgressIPInStateFile.onlyEgressIPCarriesAnIP`、`RoundMerge.summaryAndVerdictLogNeverContainIPs`）。
 - `unknownReason` 是新增的可选字段，`schemaVersion` 仍是 1：旧文件没有这个键照样能解（解成「没有原因」），旧 App 读新文件会忽略它。**以后给 `unknownReason` 加新取值必须升 `schemaVersion`**：旧 App 遇到不认识的取值会整份文件解不开（`.unreadable`），升版本后它走 `.newerSchema`，两条路显示一样，但意图清楚。
 - `violatedSince` 也是可选字段，`schemaVersion` 仍是 1：旧文件没有它照样能解。
-- `egressIP` 同样是可选字段，`schemaVersion` 仍是 1：旧文件没有它解成 `nil`，旧 App 读新文件会忽略它。IP 变了不单独发通知（通知只跟 verdict / `unknownReason`），App 靠 5 秒定时重读拿到新值。
+- `egressIP` 同样是可选字段，`schemaVersion` 仍是 1：旧文件没有它解成 `nil`，旧 App 读新文件会忽略它。guardd 每轮都重写文件，IP 变了 App 的目录监听就会读到新值。
 - **重启接续粘性**：KeepAlive 会重启 guardd，粘性只放内存的话，重启后第一轮 unknown / 出口不符会把 violated 文件覆盖掉，红卡悄悄消失。所以启动时先读上一份 `guard-state.json`（`Guardd.resumedGuard`）：解得开、`schemaVersion` 和现在一样、verdict 是 `violated`，就从 violated 开始（`EgressGuard(resuming:)`），`violatedSince` 沿用原值（旧 guardd 没写时用那份文件的 `checkedAt`）。**不看新旧**：只有一轮 healthy 能解除，停了多久都一样。其他 verdict、文件不存在、解不开、格式更新，一律从 unknown 从头开始。接续时 stderr 记一行。
 - 原因由 `UnknownReason.decide(verdict:path:)` 决定（GuardCore，纯函数），只看 verdict 和这一轮的网络快照：unknown 已经说明探针没给出结果，快照只用来分是不是断网。所以 Clash 没开、允许列表为空这类 unknown，只要网通着就是 `probeFailed`。
-- **通知**：verdict 或 `unknownReason` 变化时（包括启动后第一轮）先写文件，再发 `DistributedNotificationCenter` 通知 `com.notchkeeper.guard-state-changed`，不带 userInfo，App 收到后重读文件。都没变不发。拦截接缝 `onVerdictChange` 只在 verdict 变化时调用，原因变化不算。
+- **变化**：verdict 或 `unknownReason` 变化时（包括启动后第一轮），写好文件后记一行日志。不发通知：App 用 `GuardStateWatcher` 监听目录拿到新文件（见下面「不轮询」一节）。拦截接缝 `onVerdictChange` 只在 verdict 变化时调用，原因变化不算。
 
 **调度：不重叠**
 
@@ -101,13 +101,13 @@
 
 日志只在问题出现或变化时记一行，恢复时再记一行，不带 IP。
 
-**`--once`**：跑一轮、写文件、发通知（第一轮必然算变化），stdout 打一行 `verdict=… clashRunning=… routeOnTunnel=… egressMatches=… egressFailures=… unknownReason=…`，没有 IP。写文件失败 exit 1。
+**`--once`**：跑一轮、写文件、记一行 verdict 变化日志（第一轮必然算变化），stdout 打一行 `verdict=… clashRunning=… routeOnTunnel=… egressMatches=… egressFailures=… unknownReason=…`，没有 IP。写文件失败 exit 1。
 
 **这一片没做的**
 
 - **拦截**：只留一个接缝 `Guardd.onVerdictChange`（写好文件、verdict 变化时调用），现在是空实现。甲（杀进程）和 killswitch 的取舍待 Haitao 定；killswitch 是否取代乙也待 Haitao 拍板，见 `docs/killswitch-integration.md`。
 - **常驻**：Slice 5 的 LaunchAgent 模板和安装 / 卸载脚本已在仓库里，2026-10-28 已安装（见 `docs/slice5-install.md`）。
-- **App 接线**：已完成（`93286d3`），App 用 GuardCore 的 `GuardStateReader` 读文件；改为订阅 `GuardStateWatcher`、去掉 5 秒重读由 S1m0nE 做（见下面「不轮询」一节）。
+- **App 接线**：已完成（`93286d3`），App 用 GuardCore 的 `GuardStateReader` 读文件；`ceac9f6` 起改为订阅 `GuardStateWatcher`，不再 5 秒重读（见下面「不轮询」一节）。
 
 **App 怎么读（给 S1m0nE）**
 
@@ -178,11 +178,4 @@ for await shown in GuardStateWatcher(directory: GuardPaths.directory).displays()
 
 **用户关掉红卡**：App 在内存里记 `dismissedViolationSince = shown.violatedSince`。之后每次读到的 `violatedSince` 等于它，就不再弹红卡、只画灰色空心环（违规还在，只是用户知道了）；读到的值不同（新的一次违规）照常弹。读到新鲜 healthy 时清掉 `dismissedViolationSince`，并按恢复规则出绿色恢复卡。`violatedSince` 只在旧 guardd 写的文件里会是 `nil`；那时关掉的记录也是 `nil`，同样一直有效到 healthy。这个值不落盘：App 重启后已关掉的红卡会再出现一次，宁可多提醒。
 
-刚好 15 秒算新鲜，超过才算过期。接线要做三件事：
-
-1. 观察分布式通知 `GuardState.changedNotification`（`com.notchkeeper.guard-state-changed`），收到就重读文件。通知不带 userInfo，文件是唯一事实来源：
-   ```swift
-   DistributedNotificationCenter.default().addObserver(forName: .init(GuardState.changedNotification), object: nil, queue: .main) { _ in reload() }
-   ```
-2. 再加一个 5 秒的定时器也重读。guardd 只在 verdict 变化时发通知；它停了就不会再有通知，只能靠定时重读发现 `checkedAt` 过期。
-3. 删掉 `AppState.swift` 里的 `IPProbe` 和它自己的定时器，App 不再自己探测。
+刚好 15 秒算新鲜，超过才算过期。App 怎么拿到最新结果见上面「不轮询」一节；App 自己不再探测出口。

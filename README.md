@@ -52,7 +52,7 @@ bash scripts/uninstall-guardd.sh --purge      # 同时删 guardd.log 和 guard-s
 | `~/Library/Application Support/Notchkeeper/backup/` | 重装时旧文件的备份，卸载也保留 |
 
 - guardd 只读 `config.json` 里的 `allowlist`，每轮重读，改了下一轮生效。
-- verdict 变化时 guardd 发分布式通知 `com.notchkeeper.guard-state-changed`。App 通过 `GuardStateReader`（在 `GuardCore` 里）读 `guard-state.json`：启动时读一次，收到通知时重读，另外每 5 秒重读一次。App 自己不再探测出口。
+- App 用 `GuardStateWatcher`（在 `GuardWatch` 里）监听 `guard-state.json` 所在目录：启动时读一次，文件变了 100ms 内重读，到 `checkedAt` + 15 秒再读一次以便判断过期，另有 30 秒兜底；显示规则只在 `GuardStateReader`（`GuardCore`）一处。不轮询、不用分布式通知，App 自己也不探测出口。
 - 调试：`swift run guardd --once` 跑一轮就退出，打印一行结果，不含 IP。
 
 verdict 的意思：
@@ -73,7 +73,7 @@ guardd 停了，`guard-state.json` 超过 15 秒没更新就算过期：上次�
 | `Notchkeeper`（`Sources/Notchkeeper/`） | App：刘海、卡片、设置页、会话列表、盾盾（`Mascot/`），依赖 `GuardCore` |
 | `GuardCore` | 出口判定、`guard-state.json` 格式、`GuardStateReader`；纯逻辑，不做 I/O |
 | `GuardProbes` | 路由、Clash 进程、出口 IP、网络路径这几路观测，只做 I/O，不判定 |
-| `guardd` | 后台进程：每轮跑探针、判定、写状态文件、发通知 |
+| `guardd` | 后台进程：每轮跑探针、判定、写状态文件 |
 | `AgentCore` / `AgentWatch` | Claude Code 会话的回合状态，只读会话文件尾部；**App 还没接** |
 
 ## 测试

@@ -6,8 +6,6 @@ import Foundation
 /// 日志和 `--once` 输出照旧不带 IP（AGENTS.md「日志不记 IP」）。
 public struct GuardState: Codable, Equatable, Sendable {
     public static let currentSchemaVersion = 1
-    /// guardd 每次 verdict 变化时发出的分布式通知；不带 userInfo，App 收到后重读文件（文件是唯一事实来源）。
-    public static let changedNotification = "com.notchkeeper.guard-state-changed"
     public static let fileName = "guard-state.json"
 
     public var schemaVersion = currentSchemaVersion

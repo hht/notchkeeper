@@ -99,4 +99,4 @@ guardd 被卸载以后，`guard-state.json` 不再更新，App 在 15 秒内把�
 
 ## 5. App 不用开着
 
-guardd 由 launchd 在登录时启动，和 Notchkeeper.app 是两个独立的进程：App 没开、崩了、被退出，guardd 照样每 5 秒检查并写 `guard-state.json`。App 只是显示：启动时读一次文件，之后靠分布式通知和 5 秒定时重读。反过来，guardd 没在跑时，`guard-state.json` 不再更新，App 在 15 秒内判为过期（stale）；如果最后一次 verdict 是 violated，红卡继续保留，否则显示灰色 unknown。
+guardd 由 launchd 在登录时启动，和 Notchkeeper.app 是两个独立的进程：App 没开、崩了、被退出，guardd 照样每 5 秒检查并写 `guard-state.json`。App 只是显示：启动时读一次文件，之后靠 `GuardStateWatcher` 监听文件所在目录，文件一变就重读。反过来，guardd 没在跑时，`guard-state.json` 不再更新，App 在 15 秒内判为过期（stale）；如果最后一次 verdict 是 violated，红卡继续保留，否则显示灰色 unknown。
