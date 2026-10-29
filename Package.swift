@@ -17,6 +17,9 @@ let package = Package(
         // 出口守卫的三路观测（路由、Clash 进程、出口 IP），只做 I/O 和边界解析，不做判定
         .target(name: "GuardProbes", dependencies: ["GuardCore"]),
         .testTarget(name: "GuardProbesTests", dependencies: ["GuardProbes"]),
+        // App 侧监听 guard-state.json 所在目录，变了就交给 GuardStateReader；GuardCore 管什么时候读，这里只做 I/O
+        .target(name: "GuardWatch", dependencies: ["GuardCore"]),
+        .testTarget(name: "GuardWatchTests", dependencies: ["GuardWatch"]),
         // 出口守卫后台进程：轮询三路探针、写 guard-state.json、verdict 变化时发分布式通知
         .executableTarget(name: "guardd", dependencies: ["GuardCore", "GuardProbes"]),
         .testTarget(name: "guarddTests", dependencies: ["guardd"]),

@@ -52,10 +52,10 @@ public enum GuardStateReader {
         guard let state = try? GuardState.decode(data) else {
             return GuardDisplay(verdict: .unknown, checkedAt: nil, reason: .unreadable)
         }
-        let seconds = Double(interval.components.seconds) + Double(interval.components.attoseconds) / 1e18
+        let seconds = interval.timeInterval
         let age = now.timeIntervalSince(state.checkedAt)
         let since = state.verdict == .violated ? state.violatedSince : nil // 别的 verdict 带了也丢掉
-        if age > staleAfterIntervals * seconds {
+        if now > staleDeadline(checkedAt: state.checkedAt, interval: interval) {
             return GuardDisplay(verdict: .unknown, checkedAt: state.checkedAt, reason: .stale,
                                 lastVerdict: state.verdict, violatedSince: since)
         }
@@ -69,6 +69,11 @@ public enum GuardStateReader {
         let egressIP = state.egressIP.flatMap(IPv4.init)?.description
         return GuardDisplay(verdict: state.verdict, checkedAt: state.checkedAt, reason: .fresh, unknownReason: unknownReason,
                             lastVerdict: state.verdict, violatedSince: since, egressIP: egressIP)
+    }
+
+    /// 过了这个时刻（严格晚于）`display` 就报 stale。`GuardReadSchedule` 按它挂过期重读，两边只有这一处定义。
+    static func staleDeadline(checkedAt: Date, interval: Duration) -> Date {
+        checkedAt.addingTimeInterval(staleAfterIntervals * interval.timeInterval)
     }
 
     private struct Header: Decodable {
@@ -86,4 +91,9 @@ public enum GuardPaths {
     public static let stateFile = directory.appendingPathComponent(GuardState.fileName)
     /// App 写、guardd 只读 `allowlist`
     public static let configFile = directory.appendingPathComponent("config.json")
+}
+
+extension Duration {
+    /// `Date` 的运算用 `TimeInterval`（秒，Double）
+    var timeInterval: TimeInterval { Double(components.seconds) + Double(components.attoseconds) / 1e18 }
 }

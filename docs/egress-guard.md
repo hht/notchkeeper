@@ -140,6 +140,24 @@ let shown = GuardStateReader.display(data: data, now: Date())   // interval 默�
 
 `egressIP` 只在新鲜时给，文件里的值不是合法 IPv4 时也给 `nil`（文件是外部数据）。和 `lastVerdict` 故意不同：guardd 不响应时红卡可以靠 `lastVerdict` 保留，但旧 IP 不能当成现在的出口显示，界面显示「—」。
 
+**不轮询，订阅 `GuardStateWatcher`（Jason 2026-10-28）**
+
+App 不再每 5 秒读一次文件，改为依赖 `GuardWatch` target，订阅一个流；显示规则仍只有 `GuardStateReader.display` 一处：
+
+```swift
+import GuardCore
+import GuardWatch
+
+for await shown in GuardStateWatcher(directory: GuardPaths.directory).displays() {
+    // shown 就是上面表里的 GuardDisplay；开始时马上来一次，之后只在结果变了时来
+}
+```
+
+- 监听的是目录（`DispatchSource` + `O_EVTONLY`），不是文件：guardd 用临时文件 + rename 替换，文件 fd 第一次替换后就失效。同目录的 `config.json` 变了会多读一次，结果没变不发。目录被删或改名时关掉旧 fd，之后每次读前重开。
+- 什么时候读归 GuardCore 的纯状态机 `GuardReadSchedule`，取三者最早：目录事件后 100ms（窗口内的事件合并成一次读）；上次 `checkedAt` + 3 个间隔（15 秒，reader 开始判 stale 的时刻，加 0.1 秒余量），guardd 死了不写文件也能变成 stale，红卡照旧靠 `lastVerdict` 保留；距上次读 30 秒兜底。
+- 目录必须由调用方传入，测试一律传临时目录。
+- 延迟：出口恢复后，guardd 下一轮写出 healthy 到红卡撤掉只剩 100ms 合并窗口。最坏约 16 秒（恢复正好落在一轮刚探测完：这一轮最多 8 秒、下一轮最多 8 秒），一般 2～3 秒。恢复后第一轮又遇到 unknown 时，violated 照设计多粘一轮。
+
 `lastVerdict` 选「新鲜时等于 `verdict`」而不是新鲜时 `nil`：它的意思始终是「文件里写的是什么」，只看能不能信这份文件，App 不用分新鲜 / 过期两种写法。
 
 **怎么画（颜色已定）**：所有 unknown 都是**同一个灰色空心环 `#8E8E93`**，原因只决定文字，不改颜色。琥珀色实心只给 egressMismatch，红色卡片只给 violated。
