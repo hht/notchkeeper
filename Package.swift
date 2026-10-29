@@ -20,7 +20,7 @@ let package = Package(
         // App 侧监听 guard-state.json 所在目录，变了就交给 GuardStateReader；GuardCore 管什么时候读，这里只做 I/O
         .target(name: "GuardWatch", dependencies: ["GuardCore"]),
         .testTarget(name: "GuardWatchTests", dependencies: ["GuardWatch"]),
-        // 出口守卫后台进程：轮询三路探针、写 guard-state.json、verdict 变化时发分布式通知
+        // 出口守卫后台进程：轮询三路探针、写 guard-state.json（App 用 GuardWatch 监听这个文件）
         .executableTarget(name: "guardd", dependencies: ["GuardCore", "GuardProbes"]),
         .testTarget(name: "guarddTests", dependencies: ["guardd"]),
         // Claude Code 会话的回合状态：纯逻辑，只解码元数据，不做 I/O
