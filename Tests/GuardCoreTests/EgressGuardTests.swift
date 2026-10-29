@@ -1,12 +1,12 @@
 import Testing
 @testable import GuardCore
 
-private let allowed = IPv4("216.36.90.150")!
+private let allowed = IPv4("198.51.100.8")!
 private let leaked = IPv4("1.2.3.4")!
-private let allowlist: Set<IPv4> = [allowed, IPv4("216.36.90.116")!]
+private let allowlist: Set<IPv4> = [allowed, IPv4("198.51.100.7")!]
 
 private func obs(clash: Bool? = true, iface: String? = "utun4", ips: [IPv4] = [allowed]) -> Observation {
-    Observation(clashRunning: clash, primaryInterface: iface, egressIPs: ips)
+    Observation(clashRunning: clash, routeInterface: iface, egressIPs: ips)
 }
 
 private func run(_ seq: [Observation]) -> [Verdict] {
@@ -15,7 +15,7 @@ private func run(_ seq: [Observation]) -> [Verdict] {
 }
 
 @Suite struct IPv4Parsing {
-    @Test(arguments: ["216.36.90.150", "0.0.0.0", "255.255.255.255"])
+    @Test(arguments: ["198.51.100.8", "0.0.0.0", "255.255.255.255"])
     func accepts(_ s: String) { #expect(IPv4(s)?.description == s) }
 
     @Test(arguments: ["", "1.2.3", "1.2.3.4.5", "256.1.1.1", "1..2.3", "1.2.3.4 ", "+1.2.3.4", "١.2.3.4", "1234.1.1.1", "010.1.1.1", "1.2.3.00"])
@@ -25,32 +25,35 @@ private func run(_ seq: [Observation]) -> [Verdict] {
 @Suite struct Verdicts {
     @Test func allGoodIsHealthy() { #expect(run([obs()]) == [.healthy]) }
 
-    /// Clash 不在但路由和 IP 都正常：不是「明确异常」（AGENTS.md 硬规则），只算 unknown
+    /// Clash 不在但路由和 IP 都正常：流量没漏，只算 unknown
     @Test func clashDownAloneIsUnknown() {
         #expect(run([obs(clash: false)]) == [.unknown])
     }
 
     @Test func clashDownWithRouteOffTunnelIsViolated() {
-        #expect(run([obs(clash: false, iface: "en0")]) == [.violated(.routeOffTunnel)])
+        #expect(run([obs(clash: false, iface: "en0")]) == [.violated])
     }
 
     @Test func routeOffTunnelIsImmediate() {
-        #expect(run([obs(iface: "en0")]) == [.violated(.routeOffTunnel)])
+        #expect(run([obs(iface: "en0")]) == [.violated])
     }
 
-    @Test func badEgressNeedsTwoConsecutiveRounds() {
-        #expect(run([obs(), obs(ips: [leaked]), obs(ips: [leaked])])
-            == [.healthy, .healthy, .violated(.egressNotAllowed)])
+    /// 方案 A：出口 IP 不在允许列表只提示，永远不触发拦截（回显服务可能和 Claude 不在同一节点）
+    @Test func badEgressOnlyWarnsNeverViolates() {
+        #expect(run([obs(ips: [leaked]), obs(ips: [leaked]), obs(ips: [leaked])])
+            == [.egressMismatch, .egressMismatch, .egressMismatch])
     }
 
-    @Test func goodRoundResetsBadCount() {
-        #expect(run([obs(ips: [leaked]), obs(), obs(ips: [leaked])])
-            == [.unknown, .healthy, .healthy])
+    @Test func anyBadProbeIsMismatch() {
+        #expect(run([obs(ips: [allowed, leaked])]) == [.egressMismatch])
     }
 
-    @Test func anyBadProbeCountsAsBad() {
-        #expect(run([obs(ips: [allowed, leaked]), obs(ips: [leaked, allowed])])
-            == [.unknown, .violated(.egressNotAllowed)])
+    @Test func mismatchWinsOverMissingSignals() {
+        #expect(run([obs(clash: nil, ips: [leaked])]) == [.egressMismatch])
+    }
+
+    @Test func goodRoundClearsMismatch() {
+        #expect(run([obs(ips: [leaked]), obs()]) == [.egressMismatch, .healthy])
     }
 
     @Test(arguments: [
@@ -58,28 +61,29 @@ private func run(_ seq: [Observation]) -> [Verdict] {
     ])
     func missingSignalIsUnknown(_ o: Observation) { #expect(run([o]) == [.unknown]) }
 
-    @Test func violationIsStickyThroughUnknown() {
-        #expect(run([obs(iface: "en0"), obs(ips: []), obs(clash: nil)])
-            == [.violated(.routeOffTunnel), .violated(.routeOffTunnel), .violated(.routeOffTunnel)])
-    }
-
-    /// 超时那一轮不清零：探针时好时坏时，漏出去的 IP 照样会被确认
-    @Test func timeoutBetweenBadRoundsDoesNotResetCount() {
-        #expect(run([obs(ips: [leaked]), obs(ips: []), obs(ips: [leaked])])
-            == [.unknown, .unknown, .violated(.egressNotAllowed)])
+    /// violated 只有一轮完整 healthy 才解除：断网、探针超时、IP 不符都不放行
+    @Test func violationIsStickyUntilHealthy() {
+        #expect(run([obs(iface: "en0"), obs(ips: []), obs(clash: nil), obs(ips: [leaked])])
+            == [.violated, .violated, .violated, .violated])
     }
 
     @Test func fullHealthyRoundClearsViolation() {
-        #expect(run([obs(iface: "en0"), obs()]) == [.violated(.routeOffTunnel), .healthy])
+        #expect(run([obs(iface: "en0"), obs()]) == [.violated, .healthy])
     }
 
-    @Test func immediateRuleWinsOverPendingEgress() {
-        #expect(run([obs(iface: "en0", ips: [leaked])]) == [.violated(.routeOffTunnel)])
+    @Test func routeRuleWinsOverMismatch() {
+        #expect(run([obs(iface: "en0", ips: [leaked])]) == [.violated])
     }
 
-    /// 允许列表为空是配置问题，不是「明确异常」：永远 unknown，不累计
-    @Test func emptyAllowlistIsUnknownNeverViolated() {
+    /// 允许列表为空是配置问题：IP 一律算未知
+    @Test func emptyAllowlistIsUnknown() {
         var g = EgressGuard()
-        for _ in 0..<3 { #expect(g.observe(obs(ips: [leaked]), allowlist: []) == .unknown) }
+        #expect(g.observe(obs(ips: [leaked]), allowlist: []) == .unknown)
+    }
+
+    /// 只有 violated 触发拦截；琥珀色两态只显示
+    @Test func onlyViolatedIntercepts() {
+        #expect(Verdict.violated.intercepts)
+        #expect(![Verdict.healthy, .unknown, .egressMismatch].contains { $0.intercepts })
     }
 }

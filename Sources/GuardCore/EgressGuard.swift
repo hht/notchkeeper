@@ -1,70 +1,95 @@
-/// 回答：根据一轮观测，出口现在是 healthy、unknown 还是 violated。
+import Foundation
+
+/// 回答：根据一轮观测，出口现在是 healthy、egressMismatch、unknown 还是 violated。
 /// 不知道观测从哪来（Clash 进程、路由表、HTTP 探针都在外层），也不知道判定结果拿去做什么。
 ///
-/// 规则（M3 设计，群内 2026-10-28 定）：
-/// 「明确异常」只有两种（AGENTS.md 硬规则）：默认路由不走 utun，或出口 IP 不在允许列表。
-/// 1. 默认路由不走 utun → 立即 violated。
-/// 2. 探针拿到不在允许列表的 IP，累计 `requiredBadObservations` 轮才 violated，防抖动。
-///    只有一轮全部正常的 IP 才清零；探针全超时的那一轮不清零，免得时好时坏的探针掩盖泄漏。
-/// 3. Clash 在、路由走 utun、IP 都在允许列表，三者都成立才 healthy；其余（Clash 不在、
-///    读不到路由、探针全超时）→ unknown。Clash 不在但路由和 IP 正常时流量并没有漏出去。
-/// 允许列表为空是配置问题，不是异常：IP 一路记为未知，不累计。
-/// 4. violated 是粘性的：只有一轮完整的 healthy 观测才能解除，不会降级成 unknown。
-///    理由：断网时探针全失败，不能因此放行已经拦下的 Claude。
+/// 规则（Haitao 2026-10-28 定出口 IP 方案 A；拦截方式见 docs/killswitch-integration.md，待定）：
+/// 1. 去往公网的路由不走 utun（见 GuardProbes.RouteProbe，不是默认路由）→ 立即 violated。这是唯一触发拦截的情况。
+/// 2. 探针拿到不在允许列表的 IP → egressMismatch：只亮琥珀色，不拦截。回显服务可能被 Clash 分到和
+///    Claude 不同的节点，这个信号不足以杀进程。允许列表为空是配置问题，IP 一律算未知。
+/// 3. Clash 在、路由走 utun、IP 都在允许列表，三者都成立才 healthy；其余（Clash 不在、读不到路由、
+///    探针全超时）→ unknown。Clash 不在但路由和 IP 正常时流量并没有漏出去。
+/// 4. violated 是粘性的：只有一轮完整的 healthy 才能解除。断网时探针全失败，不能因此放行已经拦下的 Claude。
+///    粘性跨进程：guardd 重启时用 `init(resuming:)` 从上一份 violated 状态文件接续（见 docs/egress-guard.md 第 4 节）。
 
 /// 一轮观测。`nil` 表示这一路没拿到结果，即「未知」，不是「正常」。
 public struct Observation: Sendable {
     public var clashRunning: Bool?
-    public var primaryInterface: String?
+    public var routeInterface: String?
     /// 各探针拿到的出口 IP；失败的探针不放进来。
     public var egressIPs: [IPv4]
 
-    public init(clashRunning: Bool?, primaryInterface: String?, egressIPs: [IPv4]) {
+    public init(clashRunning: Bool?, routeInterface: String?, egressIPs: [IPv4]) {
         self.clashRunning = clashRunning
-        self.primaryInterface = primaryInterface
+        self.routeInterface = routeInterface
         self.egressIPs = egressIPs
+    }
+
+    /// 路由走没走 utun；`nil` 是没读到路由。
+    public var routeOnTunnel: Bool? { routeInterface.map { $0.hasPrefix("utun") } }
+
+    /// 拿到的 IP 是否全在允许列表；没拿到 IP、或允许列表为空（配置问题）都是 `nil`（未知）。
+    public func egressMatches(_ allowlist: Set<IPv4>) -> Bool? {
+        guard !allowlist.isEmpty, !egressIPs.isEmpty else { return nil }
+        return egressIPs.allSatisfy(allowlist.contains)
+    }
+
+    /// 这一轮报给 App 显示的出口 IP（状态文件的 `egressIP`）；没拿到 IP 是 `nil`，绝不拿上一轮的补。
+    /// 有不在允许列表的就只从这些里挑（出口不符时显示的是不符的那个）；回显服务说法不一时取出现次数最多的，
+    /// 一样多取数值最小的，和探针返回的先后无关。只用于显示，不参与判定。
+    public func shownEgressIP(allowlist: Set<IPv4>) -> IPv4? {
+        let outside = egressIPs.filter { !allowlist.contains($0) }
+        let counts = Dictionary((outside.isEmpty ? egressIPs : outside).map { ($0, 1) }, uniquingKeysWith: +)
+        return counts.min { a, b in
+            a.value != b.value ? a.value > b.value : a.key.octets.lexicographicallyPrecedes(b.key.octets)
+        }?.key
     }
 }
 
-public enum Violation: Sendable, Equatable {
-    case routeOffTunnel
-    case egressNotAllowed
-}
-
-public enum Verdict: Sendable, Equatable {
+public enum Verdict: String, Codable, Sendable, Equatable {
     case healthy
+    /// 出口 IP 不在允许列表（规则 2）
+    case egressMismatch
     case unknown
-    case violated(Violation)
+    /// 路由不走 utun（规则 1）
+    case violated
+
+    /// 只有 violated 触发拦截；其余只显示。
+    public var intercepts: Bool { self == .violated }
 }
 
 public struct EgressGuard: Sendable {
-    public static let requiredBadObservations = 2
-
     public private(set) var verdict: Verdict = .unknown
-    private var badEgressCount = 0
+    /// 这次违规从哪一轮开始：进入 violated 的那一轮设上，粘住期间不变，healthy 解除时清空。只有 violated 时才有。
+    /// App 用它区分「同一次违规」和「新的一次」（用户关掉红卡记的是它）。
+    public private(set) var violatedSince: Date?
 
     public init() {}
 
-    public mutating func observe(_ o: Observation, allowlist: Set<IPv4>) -> Verdict {
-        let ips = allowlist.isEmpty ? [] : o.egressIPs
-        let egressBad = ips.contains { !allowlist.contains($0) }
-        let egressGood = !ips.isEmpty && !egressBad
-        if egressBad { badEgressCount += 1 } else if egressGood { badEgressCount = 0 }
+    /// 重启接续：上一份状态是 violated 时从 violated 开始，`violatedSince` 沿用原值（旧 guardd 没写就用那份的 `checkedAt`）。
+    /// 不看新旧：只有一轮 healthy 能解除，停了多久都一样。其他 verdict、`nil`（没有可信的上一份）都从头开始。
+    public init(resuming previous: GuardState?) {
+        guard let previous, previous.verdict == .violated else { return }
+        verdict = .violated
+        violatedSince = previous.violatedSince ?? previous.checkedAt
+    }
 
+    /// `now` 只用来记 `violatedSince`，不影响判定。
+    public mutating func observe(_ o: Observation, allowlist: Set<IPv4>, at now: Date = Date()) -> Verdict {
+        let route = o.routeOnTunnel, egress = o.egressMatches(allowlist)
         let next: Verdict
-        if let iface = o.primaryInterface, !iface.hasPrefix("utun") {
-            next = .violated(.routeOffTunnel)
-        } else if badEgressCount >= Self.requiredBadObservations {
-            next = .violated(.egressNotAllowed)
-        } else if egressBad {
-            next = verdict // 还没确认，维持上一轮的结论
-        } else if egressGood, o.clashRunning == true, o.primaryInterface != nil {
+        if route == false {
+            next = .violated
+        } else if egress == false {
+            next = .egressMismatch
+        } else if egress == true, route == true, o.clashRunning == true {
             next = .healthy
         } else {
             next = .unknown
         }
 
-        if case .violated = verdict, next == .unknown { return verdict } // 规则 4
+        if verdict == .violated, next != .healthy { return verdict } // 规则 4
+        violatedSince = next == .violated ? now : nil // 粘住时上面已经返回，这里的 violated 一定是新的一次
         verdict = next
         return verdict
     }
