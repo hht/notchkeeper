@@ -2,7 +2,7 @@ import CoreGraphics
 
 /// 鼠标在哪，盾盾就往哪看、往哪歪。输入鼠标相对身体圆心的位移，输出眼睛偏移和身体倾角。
 /// 不知道鼠标从哪来、什么时候回正（App），也不知道怎么动过去（`Choreography.followSpring`）。
-/// 数字出自 docs/dundun.md §5「跟随鼠标」：400pt 以内跟，眼睛最多偏 1.5 单位，身体最多倾斜 4°。
+/// 数字出自 docs/mascot.md §5「跟随鼠标」：400pt 以内跟，眼睛最多偏 1.5 单位，身体最多倾斜 4°。
 public struct Gaze: Equatable, Sendable {
     /// 眼睛偏移，画布单位，+y 向下
     public var eyes: CGVector

@@ -1,6 +1,6 @@
 import AppKit
 import SwiftUI
-import DundunCore
+import MascotCore
 
 // 设置窗口：按 macOS 系统设置的布局，只用原生控件。
 // 每个开关直接绑定 ConfigStore，改了立刻写盘，不在视图里缓存配置值。
@@ -347,7 +347,7 @@ private struct DundunPane: View {
                 .frame(maxWidth: .infinity)
             }
             Section {
-                Toggle(isOn: $store.config.dundunFollowsMouse) {
+                Toggle(isOn: $store.config.mascotFollowsMouse) {
                     Text("跟随鼠标")
                     Text("眼睛看着鼠标、身体往那边歪；鼠标到刘海上时探头。关掉后眼睛一直看正前方")
                 }

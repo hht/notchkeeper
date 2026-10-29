@@ -17,16 +17,16 @@
 | 10-29 | 防火墙安全底线：先写恢复脚本 `scripts/firewall-rescue.sh` 并在本机实测通过，才能写 block 规则；每次开启都先试运行，2 分钟内没点「保留」就自动回滚；开启、保留、关闭都要输管理员密码（见 `docs/firewall.md`） |
 | 10-29 | 防火墙 DNS：只用代理配置的 DNS。隧道以外、非 root 的 53 端口一律拦，局域网 DNS 也不放行（本机系统 DNS 本来就走 utun） |
 | 10-29 | 防火墙开着、守卫判 violated、防火墙核对通过时：仍弹红卡，但图标换成锁，文案「代理断开，防火墙已拦住外网 · 没有泄漏」，不响 Basso |
-| 10-29 | 盾盾是原创角色，删掉 Coucou 例外；移植自 Coucou 的旧代码在阶段 2、3 删除之前，保留其 MIT 声明。动画要高级、活泼，空闲时有小动作，加回呼吸，眼睛和身体跟随鼠标（见 `docs/dundun.md`） |
+| 10-29 | 盾盾是原创角色，删掉 Coucou 例外；移植自 Coucou 的旧代码在阶段 2、3 删除之前，保留其 MIT 声明。动画要高级、活泼，空闲时有小动作，加回呼吸，眼睛和身体跟随鼠标（见 `docs/mascot.md`） |
 | 10-29 | ~~守卫没有响应时，盾盾用沙漏造型；断网或探针没结果时，盾盾造型不变~~ → 被下面「断网有自己的造型」部分取代：沙漏造型保留；断网改用 offline 造型；探针没结果（probeFailed）仍不改造型，右耳灰色空心环 |
 | 10-29 | 删掉 `--selftest`，纯逻辑测试全部改用 `swift test`；验收只看 `swift build` 零警告和 `swift test` 全绿 |
 | 10-29 | 每批改动派只读的 reviewer 子 agent 审查（`.claude/agents/reviewer.md`），至多两轮；commit 仍要用户明示同意 |
 | 10-29 | 汇报、提交说明、文档、注释一律用中文 |
 | 10-29 | 盾盾动画不设帧率上限，越高越好：不给 `preferredFrameRateRange`。取舍：Apple 建议能低就低以省电，120Hz 下常驻循环的合成功耗记在 WindowServer 上，`top -pid` 量不到；用户选画面优先 |
-| 10-29 | 跟随鼠标做成设置开关：设置页「盾盾」→「跟随鼠标」，`config.json` 的 `dundunFollowsMouse`，默认开 |
+| 10-29 | 跟随鼠标做成设置开关：设置页「盾盾」→「跟随鼠标」，`config.json` 的 `mascotFollowsMouse`，默认开 |
 | 10-29 | 盾盾「二维图形模拟三维」：身体是球，眼睛贴在球面上，所有动作（包括跟随鼠标）都用头的朝向（yaw、pitch、roll）表达；有左右 360° 转圈和上下 360° 翻圈 |
 | 10-29 | 伪 3D 用方案 (a) Core Animation 3D：yaw ⊃ pitch ⊃ roll 三层 `CATransformLayer`，眼睛图层 `anchorPointZ = −半径` 贴在球的切面上，`isDoubleSided = false` 藏背面。(b) 纯函数投影原型里和 (a) 画面一致，但每次输入变化都要重采样，弃用 |
-| 10-29 | 眼睛放大到 ×1.35（相对 `docs/dundun.md` §3 现有尺寸） |
+| 10-29 | 眼睛放大到 ×1.35（相对 `docs/mascot.md` §3 现有尺寸） |
 | 10-29 | 换造型全部补间：眼形逐点变形（所有眼形化成 120 点闭合多边形 + 对齐起点，照 Flubber）、渐变色过渡、头转到新造型的朝向（弹簧）、旧装饰缩小淡出 + 新装饰弹出（照 SF Symbols Replace）。原「眨眼换形」废弃；眨眼也改成眼形补间成一条线再回来 |
 | 10-29 | 每个造型都有常驻节奏：身体呼吸、睁眼的造型眨眼、头的小动作、装饰循环（睡着的 zZZ 依次上浮等）。数字以原型为准（见下方「阶段 2b 接手要点」） |
 | 10-29 | 新增 4 个造型：干了很久（longTurn）、等你批准（approval）、断网（offline）、防火墙守住（shielded）。共 16 个 |
@@ -41,13 +41,13 @@
 
 ## 开发计划（agent 制定，10-29）
 
-**原则**：先文档后代码；底层（DundunCore、AgentCore）先于 App 外壳；横切的需求（亮色、多语言）在重写 App 外壳时**从第一行就按规范写**，不先写死中文和黑色再返工。每一步都是：TDD → `swift build` 零警告 + `swift test` 全绿 → reviewer 至多两轮 → 用户明示后提交，同时更新本文件。
+**原则**：先文档后代码；底层（MascotCore、AgentCore）先于 App 外壳；横切的需求（亮色、多语言）在重写 App 外壳时**从第一行就按规范写**，不先写死中文和黑色再返工。每一步都是：TDD → `swift build` 零警告 + `swift test` 全绿 → reviewer 至多两轮 → 用户明示后提交，同时更新本文件。
 
 | 步 | 内容 | 产出 / 验收 | 状态 |
 |---|---|---|---|
 | 0 | 收尾：提交帧率上限、删除一轮（都已过 reviewer）；修 P0；原型提交到单独分支 `prototype/dundun-3d`，从 main 工作区删掉 | 提交（要用户同意） | 两个提交、P0 已做；原型分支待做 |
-| 1 | **文档一轮定稿**（一次给用户确认）：<br>• CLAUDE.md（用 `writing-for-agents`）：亮暗都支持、多语言、截图规则、agent 状态来源改成 sessions 文件、子 agent 过滤规则跟着改、「不写降级路径」<br>• `docs/dundun.md` §1–§5（见「阶段 2b 接手要点」）<br>• `docs/agent-integration.md`：sessions 文件、三个事件、声音<br>• 新建 `docs/ubiquitous-language.md`<br>• 新建 `docs/ui.md`：面板网格、亮色范围、多语言方案（见下） | 用户确认的文档 | 待做 |
-| 2 | **盾盾 2b**：DundunCore 加 4 个造型、眼形多边形和对齐、球面朝向、新编排；App 侧照原型 (a) 搭图层树、右耳告示 | 测试；实机截图（亮暗各一）；CPU 重测（120Hz、不限帧） | 待做 |
+| 1 | **文档一轮定稿**（一次给用户确认）：<br>• CLAUDE.md（用 `writing-for-agents`）：亮暗都支持、多语言、截图规则、agent 状态来源改成 sessions 文件、子 agent 过滤规则跟着改、「不写降级路径」<br>• `docs/mascot.md` §1–§5（见「阶段 2b 接手要点」）<br>• `docs/agent-integration.md`：sessions 文件、三个事件、声音<br>• 新建 `docs/ubiquitous-language.md`<br>• 新建 `docs/ui.md`：面板网格、亮色范围、多语言方案（见下） | 用户确认的文档 | 待做 |
+| 2 | **盾盾 2b**：MascotCore 加 4 个造型、眼形多边形和对齐、球面朝向、新编排；App 侧照原型 (a) 搭图层树、右耳告示 | 测试；实机截图（亮暗各一）；CPU 重测（120Hz、不限帧） | 待做 |
 | 3 | **agent 状态新来源**：先实测 `kind` 取值、子 agent 会不会写文件；新建 `AgentCore` 读 sessions 文件，三个事件 | 测试；实机只读冒烟 | 待做 |
 | 4 | **App 外壳重写**（原阶段 3）：<br>• `NotchCore`：GuardPresentation、CardQueue、HoverMachine、MascotResolver、配置解码（P0 的测试 `Tests/NotchkeeperTests` 跟着挪）<br>• 面板网格重排、展开时盾盾从左耳缓动到面板<br>• 接上完成卡、需要介入卡和声音<br>• 亮色模式、多语言的基础设施，所有新文案走 String Catalog<br>• 精简设置页（加「语言」「声音」）<br>• 删除 `Sessions.swift`（旧的 `SessionScanner`、`ProcessCounts`、App 版 `AgentSession` / `AgentKind`）<br>• `demo.sh` 的通知只在 DEBUG 构建里监听<br>• 刘海视图只订阅 `presentation` | 测试；亮暗 × 中英截图；CPU 验收（2a 没过的那条） | 待做 |
 | 5 | **防火墙**（原阶段 4）：root 实测 → 恢复脚本并实测 → 试运行和自动回滚 → 规则、LaunchDaemon、安装脚本、App 开关；shielded 造型接线 | 按全局 Contract「高影响」档收工 | 待做 |
@@ -94,7 +94,7 @@
 | 11 个动作（转圈、翻圈、东张西望、点头、歪头、摇头、抬头看天、低头看脚、侧身 90°、好奇歪看、完成跳转） | `moves` |
 | 跟随鼠标：400pt 内 yaw ±25°、pitch ±20°，取整 0.5°，弹簧 response 0.3 / damping 0.85 | `Controller.mouseMoved`、`Mascot.lookAt` |
 
-**眼形相对 `docs/dundun.md` §3 的改动**：
+**眼形相对 `docs/mascot.md` §3 的改动**：
 - 思考：两只眼同向往右上看（看向思考云）。原来的一圆一线用户说怪。
 - 工作 / 干了很久：两只眼往下看（看手上的活）。原来的半圆眼像犯困。
 - 等你回答：竖长大眼 + 歪头 −10°。
@@ -111,9 +111,9 @@
 - 眼形补间：`CGPath.flattened` → 按弧长重采样到 120 点 → 统一绕向 → 旋转起点让平方距离最小。描边类眼形（闭眼、笑眼、><、螺旋）先化成带圆头的轮廓再采样。
 
 **写文档的顺序**：
-1. 改 `docs/dundun.md`：§1 加球面模型和角度；§2 改成 16 个造型，含左右耳归属（上排 / 下排）和新的右耳指示（上排：三蓝点、青点、青柠点 `#B5E04A`；下排：装饰图标；probeFailed：灰环）；§3 新眼形（×1.35）；§4 新增 4 个装饰；§5 补间、常驻节奏、眨眼、动作清单、优先级。给用户确认。
+1. 改 `docs/mascot.md`：§1 加球面模型和角度；§2 改成 16 个造型，含左右耳归属（上排 / 下排）和新的右耳指示（上排：三蓝点、青点、青柠点 `#B5E04A`；下排：装饰图标；probeFailed：灰环）；§3 新眼形（×1.35）；§4 新增 4 个装饰；§5 补间、常驻节奏、眨眼、动作清单、优先级。给用户确认。
 2. 新领域词进 `docs/ubiquitous-language.md`：look 的 16 个名字、上排 / 下排（建议叫 mood decoration / alert sign，先问用户）、Track、Cue、Pose、Part、Gaze、EarIndicator。
-3. TDD 改 DundunCore：`Look` 加 4 个 case；眼形多边形和对齐写成纯函数并单测（点数相同、绕向一致、对齐后平方距离最小；转 90° 时眼睛在边缘、宽度约 0，转 180° 不可见）；`Choreography` 按新节奏重写。
+3. TDD 改 MascotCore：`Look` 加 4 个 case；眼形多边形和对齐写成纯函数并单测（点数相同、绕向一致、对齐后平方距离最小；转 90° 时眼睛在边缘、宽度约 0，转 180° 不可见）；`Choreography` 按新节奏重写。
 4. App 侧图层树照原型的 (a)。
 
 **造型优先级（agent 提议，写文档时请用户确认）**：守卫（danger / shielded > mismatch > stale > offline）> 晕 > agent（等你批准 > 等你回答 > 出错 > 干了很久 > 工作 > 思考 > 完成……）> 睡着 > 空闲。「干了很久」的门槛暂定一个回合超过 10 分钟。
@@ -183,7 +183,7 @@
 
 ## 建议用的 skill
 
-- `tdd`：DundunCore 的每个纯值类型都先写测试。接口用语见 `codebase-design`。
+- `tdd`：MascotCore 的每个纯值类型都先写测试。接口用语见 `codebase-design`。
 - `ui-ux-pro-max`：面板网格、动效节奏、实机评审。
 - `research`：sessions 文件的 `kind` 取值、子 agent 行为。
 - `domain-modeling`：新领域词进词表。
@@ -215,7 +215,7 @@
 - **旧注释**：指向已删文档的已改完；剩下「Emily 规格」「Emily 2026-10-28」几处出处说法（`Notch.swift`），第 4 步 重写时确认后改成 docs 出处。
 - **审查发现、留给重写的**（10-29 两个只读审查 agent，删除之外的部分）：
   - 第 2 步：`DundunState` / `Look` / `DundunTestState` 三套枚举描述同一件事，只留 `Look`；`DundunConst` + `CGColor.hex`（Generic RGB）和 `RGB.cg`（sRGB）同一个 hex 两种色彩空间；`Choreography.Property` 的 rawValue 是 CA 键路径、`Look` 的参数叫 `guardUnknown`，核心知道了外层的名字；`DundunDirector` 犯困 / 回正 / 推迟小动作的时钟决策抽成纯值；`Dundun` / `Mascot` 两套前缀统一成 `Dundun`（审查建议，待用户定）。
-  - 第 2 步待用户定：`DundunView.interactive` 全仓没人传 `true`，`docs/dundun.md` 写的「点一下晕」永远不触发——接上还是连 `dizzy` 一起删。
+  - 第 2 步待用户定：`DundunView.interactive` 全仓没人传 `true`，`docs/mascot.md` 写的「点一下晕」永远不触发——接上还是连 `dizzy` 一起删。
   - 第 4 步：`NotchController` 里的卡片队列、悬停状态机、布局几何、`GuardPresentation` 的判定进 `NotchCore`；红卡「关掉的是哪一次」现在分在 `AppState.dismissedViolationSince` 和 `NotchController.pendingAlert/violationAlerted` 两处，合成一个 owner；`Notch.swift:366` 用 `asyncAfter(0.5)` 等收起动画；`Common.swift` 的 `enum Motion` 和领域词 motion 撞名；`NKConfig` 去前缀；`ConfigStore` 每秒轮询、`AppState` 每 4 秒扫会话，看不见时也在跑；`Sessions.swift` 还扫 Codex 会话、用 `JSONSerialization` 整行解码（读进了正文）。
   - **删 `--selftest` 丢掉的覆盖，第 4 步在 `NotchCore` 里用 swift test 补回**（reviewer 10-29；原文 `git show d8a28dd:Sources/Notchkeeper/AgentEvents.swift`，约 50 条）：违规 → unknown → healthy 撤红卡；关掉的同一次违规不再弹、新的一次照弹；stale / clockSkew 且 lastVerdict 是 violated 时保留红卡、不响 Basso；非常驻红卡到时不重弹；恢复卡只在弹过红卡后出现；`GuardPresentation` 各状态的颜色和文案。
   - `config.json` 里的 `launchAtLogin`、`suppressWhenHostFrontmost`、`agents` 三个键下次存盘时会被去掉（没有消费者）。以后要做「按 agent 开关」从默认值重来。

@@ -8,8 +8,8 @@ struct NKConfig: Codable, Equatable {
     // 通用
     var soundEnabled = true
     var hoverExpand = true
-    /// 盾盾的眼睛和身体跟着鼠标走、鼠标到刘海上时探头（docs/dundun.md §5）
-    var dundunFollowsMouse = true
+    /// 盾盾的眼睛和身体跟着鼠标走、鼠标到刘海上时探头（docs/mascot.md §5）
+    var mascotFollowsMouse = true
     // 出口守卫
     // 不内置任何真实出口：空列表时 guardd 判不了出口（unknown），设置页会提示
     var allowlist: [String] = []
@@ -28,7 +28,7 @@ struct NKConfig: Codable, Equatable {
         }
         soundEnabled = try v(.soundEnabled, d.soundEnabled)
         hoverExpand = try v(.hoverExpand, d.hoverExpand)
-        dundunFollowsMouse = try v(.dundunFollowsMouse, d.dundunFollowsMouse)
+        mascotFollowsMouse = try v(.mascotFollowsMouse, d.mascotFollowsMouse)
         allowlist = try v(.allowlist, d.allowlist)
         autoAlert = try v(.autoAlert, d.autoAlert)
         alertPersistent = try v(.alertPersistent, d.alertPersistent)

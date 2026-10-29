@@ -1,9 +1,9 @@
 import CoreGraphics
 import Testing
-@testable import DundunCore
+@testable import MascotCore
 
 @Suite struct LookTests {
-    /// docs/dundun.md §1：眼睛都在身体圆里
+    /// docs/mascot.md §1：眼睛都在身体圆里
     @Test func eyesInsideBody() {
         for e in EyeShape.allCases {
             for part in [e.left, e.right] {
@@ -24,7 +24,7 @@ import Testing
         }
     }
 
-    /// docs/dundun.md §1：装饰只在右上 x 18.5–28、y 0.5–8.5（40pt 第三个 Z 例外），不压身体圆
+    /// docs/mascot.md §1：装饰只在右上 x 18.5–28、y 0.5–8.5（40pt 第三个 Z 例外），不压身体圆
     @Test func decorationStaysInCorner() {
         let corner = CGRect(x: 18.5, y: 0.5, width: 9.5, height: 8)
         let thirdZ = CGRect(x: 28.5, y: -3.6, width: 5, height: 4.2)
@@ -49,7 +49,7 @@ import Testing
         for l in [Look.idle, .working, .interrupted, .dizzy] { #expect(l.decoration(.large).isEmpty, "\(l)") }
     }
 
-    /// 右耳：docs/dundun.md §2 表的最后一列；守卫 unknown 的另两种原因也是灰色空心环
+    /// 右耳：docs/mascot.md §2 表的最后一列；守卫 unknown 的另两种原因也是灰色空心环
     @Test(arguments: [
         (Look.idle, false, false, EarIndicator.none), (.idle, false, true, .error), (.idle, true, false, .unknown),
         (.thinking, false, false, .dots), (.working, false, false, .dots), (.question, false, false, .question),

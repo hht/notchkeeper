@@ -43,7 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .receive(on: RunLoop.main)
             .sink { [weak self] c in
                 self?.notch.setHoverEnabled(c.hoverExpand)
-                DundunDirector.shared.setFollowsMouse(c.dundunFollowsMouse)
+                DundunDirector.shared.setFollowsMouse(c.mascotFollowsMouse)
             }
             .store(in: &cancellables)
 

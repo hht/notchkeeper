@@ -1,5 +1,5 @@
 import Testing
-@testable import DundunCore
+@testable import MascotCore
 
 /// 从 start 起一直取到 end，记下每个提示和它的时刻
 private func run(seed: UInt64, from start: Double = 0, to end: Double) -> [(at: Double, cue: Cue)] {
@@ -27,7 +27,7 @@ private func blinks(_ log: [(at: Double, cue: Cue)]) -> [(at: Double, double: Bo
         #expect(run(seed: 43, to: 600).map(\.at) != a.map(\.at))
     }
 
-    /// docs/dundun.md §5：小动作每 8–20s 一个，不连续重复
+    /// docs/mascot.md §5：小动作每 8–20s 一个，不连续重复
     @Test func idleMotionsSpacedAndNeverRepeat() {
         for seed in UInt64(1)...20 {
             let m = motions(run(seed: seed, to: 3600))

@@ -1,9 +1,9 @@
 import AppKit
 import SwiftUI
-import DundunCore
+import MascotCore
 
 /// 盾盾嵌进 SwiftUI 的地方。
-/// 布局占 size × size，正好是身体圆的外框；画布按 docs/dundun.md §1 的比例画在 overlay 里，装饰在右上方出框。
+/// 布局占 size × size，正好是身体圆的外框；画布按 docs/mascot.md §1 的比例画在 overlay 里，装饰在右上方出框。
 /// size ≤ 24 用 20pt 画法（左耳），更大用 40pt 画法按比例缩放（面板、卡片、设置页）。
 /// 这里只决定造型（晕、开心、犯困盖不盖过调用方给的状态）；怎么画、怎么动见 `DundunLayerView`。
 struct DundunView: View {
@@ -96,7 +96,7 @@ private struct DundunLayer: NSViewRepresentable {
 }
 
 extension DundunState {
-    /// 画成哪一种造型。守卫 unknown 不改造型，右耳显示灰环（docs/dundun.md §2）
+    /// 画成哪一种造型。守卫 unknown 不改造型，右耳显示灰环（docs/mascot.md §2）
     var look: Look {
         switch self {
         case .idle, .guardUnknown: return .idle

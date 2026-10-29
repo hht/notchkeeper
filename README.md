@@ -72,7 +72,7 @@ swift run guardd --once                       # 调试：只跑一轮，打印�
 | `GuardProbes` | 路由、Clash 进程、出口 IP、网络路径这几路观测。只做 I/O，不做判定 |
 | `GuardWatch` | App 什么时候重读 `guard-state.json`（监听所在目录） |
 | `guardd` | 后台进程：每轮跑探针、判定、写状态文件 |
-| `DundunCore` | 盾盾此刻是什么造型、做什么动作。纯逻辑 |
+| `MascotCore` | 盾盾此刻是什么造型、做什么动作。纯逻辑 |
 
 ## 测试
 
@@ -88,4 +88,4 @@ NOTCHKEEPER_LIVE_PROBES=1 swift test --filter LiveProbes   # 真机只读冒烟�
 - `HANDOFF.md`：已定决策、进度、待办
 - `docs/egress-guard.md`：守卫的信号、判定、状态文件、怎么画
 - `docs/firewall.md`：防火墙（未实现）
-- `docs/dundun.md`：盾盾的造型数据与动效
+- `docs/mascot.md`：盾盾的造型数据与动效

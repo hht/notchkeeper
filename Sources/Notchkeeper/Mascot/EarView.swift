@@ -28,9 +28,9 @@
 import AppKit
 import SwiftUI
 import QuartzCore
-import DundunCore
+import MascotCore
 
-/// 错误没看过：进入 error 起 30 分钟内右耳亮橙点，展开过刘海（看过面板）就灭（docs/dundun.md §2）
+/// 错误没看过：进入 error 起 30 分钟内右耳亮橙点，展开过刘海（看过面板）就灭（docs/mascot.md §2）
 @MainActor
 final class DundunEarState: ObservableObject {
     static let shared = DundunEarState()
@@ -79,7 +79,7 @@ struct DundunEarView: NSViewRepresentable {
     }
 }
 
-/// 右耳图层：点、三蓝点、空心环，危险时红点外圈柔和脉冲（docs/dundun.md §2、§5）。换指示时 0.2s 交叉淡化
+/// 右耳图层：点、三蓝点、空心环，危险时红点外圈柔和脉冲（docs/mascot.md §2、§5）。换指示时 0.2s 交叉淡化
 @MainActor
 final class EarLayerView: MascotLayerView {
     private let dot: CGPoint

@@ -1,9 +1,9 @@
 import AppKit
 import QuartzCore
-import DundunCore
+import MascotCore
 
-/// 一只盾盾的图层树：把造型画出来，把 DundunCore 编排好的动作交给 Core Animation 播。
-/// 中间帧由系统合成器在 App 进程外插值，App 只在换造型、动作开始、鼠标换了目标时提交一次（docs/dundun.md §5「渲染」）。
+/// 一只盾盾的图层树：把造型画出来，把 MascotCore 编排好的动作交给 Core Animation 播。
+/// 中间帧由系统合成器在 App 进程外插值，App 只在换造型、动作开始、鼠标换了目标时提交一次（docs/mascot.md §5「渲染」）。
 /// 不知道造型从哪来、什么时候眨眼（DundunDirector）。
 ///
 /// 和 ui-ux-pro-max 的 SwiftUI 建议（用 `.animation`）不同：自定义 Animatable 每一帧都要在主线程跑 body，

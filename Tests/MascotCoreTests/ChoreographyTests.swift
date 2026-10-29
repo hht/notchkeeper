@@ -1,5 +1,5 @@
 import Testing
-@testable import DundunCore
+@testable import MascotCore
 
 /// 某次编排里所有 Track（循环、进场、换造型、空闲小动作、眨眼）
 private func everything(reduceMotion: Bool) -> [Track] {
@@ -55,7 +55,7 @@ private func isFullTurn(_ t: Track) -> Bool {
 }
 
 @Suite struct ReduceMotion {
-    /// docs/dundun.md §5「减弱动态效果」：不位移、不缩放、不旋转；只保留眨眼（眼皮）
+    /// docs/mascot.md §5「减弱动态效果」：不位移、不缩放、不旋转；只保留眨眼（眼皮）
     @Test func noMovementExceptBlink() {
         for t in everything(reduceMotion: true) where t.property.isMovement {
             #expect(t.part == .lids, "减弱动态效果下还在动：\(t)")
@@ -91,7 +91,7 @@ private func isFullTurn(_ t: Track) -> Bool {
         Choreography.loop(look, size: .small, reduceMotion: false).filter { $0.part == .body && [.scale, .scaleX, .scaleY].contains($0.property) }
     }
 
-    /// docs/dundun.md §5：周期 4.6s，scaleY 1→1.03、scaleX 1→0.99，正弦往返
+    /// docs/mascot.md §5：周期 4.6s，scaleY 1→1.03、scaleX 1→0.99，正弦往返
     @Test func idle() {
         let b = breath(.idle)
         let y = b.first { $0.property == .scaleY }, x = b.first { $0.property == .scaleX }
@@ -116,7 +116,7 @@ private func isFullTurn(_ t: Track) -> Bool {
 }
 
 @Suite struct Blink {
-    /// docs/dundun.md §5：scaleY 1→0.1→1，闭眼 60ms ease-in，睁眼 90ms ease-out
+    /// docs/mascot.md §5：scaleY 1→0.1→1，闭眼 60ms ease-in，睁眼 90ms ease-out
     @Test func single() {
         let t = Choreography.tracks(for: .blink(double: false), reduceMotion: false)
         #expect(t.count == 1)

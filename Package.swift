@@ -7,7 +7,7 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "Notchkeeper",
-            dependencies: ["GuardCore", "GuardWatch", "DundunCore"],
+            dependencies: ["GuardCore", "GuardWatch", "MascotCore"],
             path: "Sources/Notchkeeper",
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
@@ -26,7 +26,7 @@ let package = Package(
         .executableTarget(name: "guardd", dependencies: ["GuardCore", "GuardProbes"]),
         .testTarget(name: "guarddTests", dependencies: ["guardd"]),
         // 盾盾此刻是什么造型、做什么动作：造型数据、动作编排（[Track]）、空闲调度、跟随鼠标。纯值类型，只依赖 CoreGraphics
-        .target(name: "DundunCore"),
-        .testTarget(name: "DundunCoreTests", dependencies: ["DundunCore"]),
+        .target(name: "MascotCore"),
+        .testTarget(name: "MascotCoreTests", dependencies: ["MascotCore"]),
     ]
 )

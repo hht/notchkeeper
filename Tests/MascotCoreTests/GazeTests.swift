@@ -1,11 +1,11 @@
 import CoreGraphics
 import Testing
-@testable import DundunCore
+@testable import MascotCore
 
 @Suite struct GazeTests {
     private func gaze(_ x: CGFloat, _ y: CGFloat) -> Gaze { Gaze(toward: CGVector(dx: x, dy: y)) }
 
-    /// docs/dundun.md §5：400pt 以外不跟
+    /// docs/mascot.md §5：400pt 以外不跟
     @Test func outOfReachRests() {
         #expect(gaze(401, 0) == .rest)
         #expect(gaze(0, -900) == .rest)

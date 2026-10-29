@@ -28,7 +28,7 @@ import CoreGraphics
 
 // MARK: - States (Coucou IslandTypes.swift)
 
-/// 盾盾此刻的状态（画成哪个造型见 `DundunState.look`，造型表见 docs/dundun.md §2）。
+/// 盾盾此刻的状态（画成哪个造型见 `DundunState.look`，造型表见 docs/mascot.md §2）。
 /// 守卫的四个来自 guardd；空闲 / 睡着 / 晕由盾盾自己定；其余由「状态测试」或之后接上的 agent 事件给。
 enum DundunState {
     case idle, sleeping, working, finished, error, dizzy
@@ -48,7 +48,7 @@ enum DundunState {
 
 // MARK: - Constants
 
-/// 守卫提示用的颜色（卡片、刘海边框）。盾盾自己的颜色在 DundunCore（§2.3）
+/// 守卫提示用的颜色（卡片、刘海边框）。盾盾自己的颜色在 MascotCore（§2.3）
 enum DundunConst {
     static let amber = CGColor.hex(0xFFB020)
     static let red   = CGColor.hex(0xFF453A)

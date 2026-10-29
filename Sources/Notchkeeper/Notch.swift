@@ -1,6 +1,6 @@
 import AppKit
 import SwiftUI
-import DundunCore
+import MascotCore
 
 struct NotchCard: Identifiable, Equatable {
     enum Kind { case done, alert, recovered }
@@ -105,18 +105,18 @@ enum NotchLayout {
     static let rowHeight: CGFloat = 34
     static let maxRows = 5
 
-    /// 收起时刘海两侧各一只耳朵：左耳放盾盾，右耳放状态指示（docs/dundun.md §1）
+    /// 收起时刘海两侧各一只耳朵：左耳放盾盾，右耳放状态指示（docs/mascot.md §1）
     static let earWidth: CGFloat = 44
     /// 收起时形状顶角往外翻的宽度（NotchShape 的 topRadius）
     static let closedFlare: CGFloat = 4
-    /// 左耳盾盾画布 28×28，左缘在身体外边（形状左边 + 外翻）往里 6pt，离刘海也是 6pt（docs/dundun.md §1）
+    /// 左耳盾盾画布 28×28，左缘在身体外边（形状左边 + 外翻）往里 6pt，离刘海也是 6pt（docs/mascot.md §1）
     static let earCanvas: CGFloat = 28
     static let earCanvasInset: CGFloat = 6
     /// 画布里身体中心的纵坐标；身体中心对齐 notchSize.height / 2，所以 32pt 刘海时画布上缘在 -0.5
     static let earBodyCenterY: CGFloat = 16.5
-    /// 左耳盾盾的身体直径（docs/dundun.md §1：20pt 版）
+    /// 左耳盾盾的身体直径（docs/mascot.md §1：20pt 版）
     static let earMascotSize: CGFloat = 20
-    /// 右耳 7pt 圆点的圆心离形状右边 17.5（docs/dundun.md §1）
+    /// 右耳 7pt 圆点的圆心离形状右边 17.5（docs/mascot.md §1）
     static let earDotInset: CGFloat = 17.5
     /// 三颗点（右缘离形状右边 14）整组中心比圆点圆心再往左 3
     static let earDotsShift: CGFloat = 3
@@ -645,7 +645,7 @@ struct NotchRoot: View {
         removal: .opacity.animation(.easeIn(duration: 0.1)))
 }
 
-/// 收起时的两只耳朵（docs/dundun.md §1、§2）。纯黑、无描边无阴影，
+/// 收起时的两只耳朵（docs/mascot.md §1、§2）。纯黑、无描边无阴影，
 /// 底色就是 NotchRoot 的黑形状。坐标见 `NotchLayout.ears`：左耳身体圆心 x = 外翻 + 6 + 14、y = H/2；
 /// 右耳圆点圆心 x = W − 17.5。点击和悬停由 NotchController 的热区处理。
 struct NotchEars: View {

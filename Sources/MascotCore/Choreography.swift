@@ -4,7 +4,7 @@ import CoreGraphics
 /// 不知道图层怎么搭、动画怎么提交（App 的 DundunLayerView），也不知道什么时候该做（`IdleDirector`、App）。
 /// 所有 Track 都叠加（additive）在图层的静止值上：values 是相对静止值的偏移，所以姿态、注视、呼吸、小动作可以同时生效。
 /// 实测（macOS 26，2026-10-29）：additive 的 transform.scale.x 偏移 0.5 叠在静止值 2 上得 2.5；同一键路径的两个 additive 动画相加。
-/// 数字出自 docs/dundun.md §5。
+/// 数字出自 docs/mascot.md §5。
 /// @see https://developer.apple.com/documentation/quartzcore/capropertyanimation/isadditive
 public enum Choreography {
     /// 停在某个造型时一直循环的动作
@@ -183,7 +183,7 @@ public enum EarRing {
 public enum Part: Hashable, Sendable {
     /// 整个身体，锚点在身体底部：跳、浮、缩、呼吸
     case body
-    /// 渐变和脸，绕身体圆心转：歪头、转圈、摆锤（身体圆本身不转，docs/dundun.md §1）
+    /// 渐变和脸，绕身体圆心转：歪头、转圈、摆锤（身体圆本身不转，docs/mascot.md §1）
     case turn
     /// 两只眼睛整体：东张西望、跟随鼠标、探头放大
     case gaze

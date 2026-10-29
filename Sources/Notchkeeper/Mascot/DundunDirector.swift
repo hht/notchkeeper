@@ -27,11 +27,11 @@
 
 import AppKit
 import QuartzCore
-import DundunCore
+import MascotCore
 
 /// 所有盾盾共用的一份：唯一的时钟（眨眼、空闲小动作，左耳和面板同步）、鼠标、犯困、熄屏锁屏暂停。
 /// 不知道盾盾怎么画、动作长什么样；什么时候做什么由 `IdleDirector` 定，这里只按它给的时刻醒来、把提示发给看得见的盾盾。
-/// 一只都看不见、或者熄屏锁屏时，时钟和犯困计时器都停掉（docs/dundun.md §5「渲染」）。
+/// 一只都看不见、或者熄屏锁屏时，时钟和犯困计时器都停掉（docs/mascot.md §5「渲染」）。
 @MainActor
 final class DundunDirector: ObservableObject {
     static let shared = DundunDirector()

@@ -18,7 +18,7 @@ Haitao 本机自用的 macOS 刘海应用。SwiftPM 构建，SwiftUI + AppKit，
 1. **删除优先。** 每行代码都要答得出「删掉会坏什么」。答不出，先查来历；查清了仍答不出，就删，前提是可读性不降。只转发、只换名字、只有一个调用方的函数、类型、文件，一律内联。不为没出现的需求写代码（测试、重构不算）。同样的行为，代码越少越好；200 行能写成 50 行就重写。
 2. **一个模块一个问题。** target 和文件按问题划分：一个问题就是一个会独立变化的设计决定，例如「出口健不健康」「回合结束了没有」「盾盾此刻做什么动作」「卡片怎么排队」。不按 View / Model / Manager 切。
    - 接口比实现小得多。类型注释第一句写它回答哪个问题、不该知道什么。
-   - 宁深勿碎，依赖单向无环。核心 target（`GuardCore`、`AgentCore`、`DundunCore`、`NotchCore`）不 import SwiftUI / AppKit，也不提外围的名字。
+   - 宁深勿碎，依赖单向无环。核心 target（`GuardCore`、`AgentCore`、`MascotCore`、`NotchCore`）不 import SwiftUI / AppKit，也不提外围的名字。
    - 计算与副作用分开：核心是输入数据、输出数据的纯值类型；文件监听、探针、pf、画界面放在外层。
 3. **算法精妙。** 先想清本质，先定数据结构、状态机与不变量，再写分支。同一件事只有一个 owner，禁止特例瀑布。规模小（几个进程、几十个会话、一只吉祥物），就用最直接的算法；要调速，先测量。精妙指本质对、分支少，不是炫技。
 4. **逻辑清晰可测试，测试先行（TDD）。** 新行为、新规则、修 bug，都先写一个会失败的测试，亲眼看它失败，再改到绿。时间、随机数、文件系统、网络探针、进程表都从参数注入，测试可以快进时间、重放事件序列。纯逻辑测不了的部分（窗口、动效、权限弹窗、pf），在提交说明里写实机步骤和结果。
@@ -54,8 +54,8 @@ Haitao 本机自用的 macOS 刘海应用。SwiftPM 构建，SwiftUI + AppKit，
 - **只读元数据，不读对话内容。** 会话文件只取判定需要的字段；日志和界面不出现消息正文、工具参数和输出。
 - **除防火墙外不碰网络与 shell 环境。** 不改 `~/.zshrc`，不改系统网络设置。「打开 Clash」只是打开 App。出口探测只请求第三方服务（如 ipinfo.io），不碰 Claude / Anthropic 的域名。guardd 是用户级 LaunchAgent，不要 sudo。
 - **密钥不打印，日志不记 IP。** 界面上完整显示出口 IP（Haitao 2026-10-28）。测试与文档里的 IP 用 `198.51.100.x`。
-- **品牌**：盾盾是原创角色（Haitao 2026-10-29），造型与动效以 `docs/dundun.md` 为准。不用 Grok、Codex、Coucou、Mochi 等别家的名字、形象和音效。过渡期：现有从 Coucou（MIT）移植来的代码，在阶段 2、3 删掉之前，保留原 MIT 声明和设置页致谢。
-- **看不见就不调度。** 窗口收起、被遮挡、熄屏、锁屏时，停掉所有动画和计时器。性能验收数字以 `docs/dundun.md` 为准。
+- **品牌**：盾盾是原创角色（Haitao 2026-10-29），造型与动效以 `docs/mascot.md` 为准。不用 Grok、Codex、Coucou、Mochi 等别家的名字、形象和音效。过渡期：现有从 Coucou（MIT）移植来的代码，在阶段 2、3 删掉之前，保留原 MIT 声明和设置页致谢。
+- **看不见就不调度。** 窗口收起、被遮挡、熄屏、锁屏时，停掉所有动画和计时器。性能验收数字以 `docs/mascot.md` 为准。
 
 ## 界面准则
 
@@ -74,7 +74,7 @@ Haitao 本机自用的 macOS 刘海应用。SwiftPM 构建，SwiftUI + AppKit，
 | 守卫信号、判定、`guard-state.json`、怎么画 | `docs/egress-guard.md` |
 | 会话怎么读、什么时候算回合结束 | `HANDOFF.md`「agent 状态新来源」（`docs/agent-integration.md` 第 1 步重写） |
 | 防火墙规则、开关、恢复 | `docs/firewall.md` |
-| 盾盾的造型数据、动效、性能验收 | `docs/dundun.md` |
+| 盾盾的造型数据、动效、性能验收 | `docs/mascot.md` |
 | 起名字 | `docs/ubiquitous-language.md`（写第一个新领域概念时建立） |
 
 结论与文档冲突时，明确指出；改已定的决策，先改文档并经用户确认。
@@ -135,7 +135,7 @@ Haitao 本机自用的 macOS 刘海应用。SwiftPM 构建，SwiftUI + AppKit，
 | 查 API / pf / agent 格式等事实 | `research` | 代码 `@see` 或 `docs/` |
 | 验证状态模型或界面草稿 | `prototype` | 用完即删，结论写进 `docs/` |
 | 按切片实现 | `tdd`（接口词汇见 `codebase-design`） | 代码 + 测试 |
-| 界面布局、动效、评审 | `ui-ux-pro-max` | `docs/dundun.md` 或代码 |
+| 界面布局、动效、评审 | `ui-ux-pro-max` | `docs/mascot.md` 或代码 |
 | 难 bug、性能回退 | `diagnosing-bugs` | 根因写入提交说明 |
 | 起名字、记决策 | `domain-modeling` | `docs/ubiquitous-language.md` |
 | 改本文件 / skill | `writing-for-agents` | — |

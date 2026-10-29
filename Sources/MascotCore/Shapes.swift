@@ -1,7 +1,7 @@
 import CoreGraphics
 
 // 盾盾各部件的形状：画布坐标里的 CGPath 和画法。不知道这些形状怎么动。
-// 坐标、路径全部照 docs/dundun.md §1、§3、§4，单位是画布单位，原点左上、+y 向下。
+// 坐标、路径全部照 docs/mascot.md §1、§3、§4，单位是画布单位，原点左上、+y 向下。
 
 /// 身体各部位在画布上的位置
 public enum Anatomy {
@@ -199,7 +199,7 @@ private func union(_ paths: [CGPath]) -> CGPath {
     paths.dropFirst().reduce(paths[0]) { $0.union($1) }
 }
 
-/// 四角星：外顶点上下左右，内顶点在 45° 方向、两轴各偏 inner（docs/dundun.md §4 的两颗星都是这个形状）
+/// 四角星：外顶点上下左右，内顶点在 45° 方向、两轴各偏 inner（docs/mascot.md §4 的两颗星都是这个形状）
 private func star(center c: CGPoint, outer: CGFloat, inner: CGFloat) -> CGPath {
     let p = CGMutablePath()
     p.addLines(between: (0..<8).map { i in

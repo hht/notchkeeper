@@ -2,7 +2,7 @@ import CoreGraphics
 
 /// 盾盾此刻是哪个造型、这个造型长什么样（颜色、眼形、静止姿态、右耳）。
 /// 不知道造型从哪来（守卫、agent、鼠标），那是 App 的事；也不知道怎么动，见 `Choreography`。
-/// 数据全部出自 docs/dundun.md §2。
+/// 数据全部出自 docs/mascot.md §2。
 public enum Look: String, CaseIterable, Sendable {
     case idle, sleeping, thinking, working, question, finished, error, interrupted, dizzy, mismatch, stale, danger
 
@@ -41,7 +41,7 @@ public enum Look: String, CaseIterable, Sendable {
     /// 只有睁着的眼会眨（圆眼、大眼、专注的半圆、星星眼）；笑眼、螺旋眼、闭眼这些本身就是表情，眨了反而怪
     public var blinks: Bool { eyes == .round || eyes == .big || eyes == .focus || eyes == .spark }
 
-    /// 停在这个造型时的姿态（docs/dundun.md §5：思考歪头 6°、等你回答 −8°、出错一缩、stale 不透明度 0.85）
+    /// 停在这个造型时的姿态（docs/mascot.md §5：思考歪头 6°、等你回答 −8°、出错一缩、stale 不透明度 0.85）
     public var pose: Pose {
         switch self {
         case .thinking: return Pose(tilt: 6 * .pi / 180)
@@ -72,7 +72,7 @@ public struct RGB: Equatable, Sendable {
     public static let ink = RGB(0x16171A)
 }
 
-/// 右耳指示（docs/dundun.md §2 表的最后一列）。点直径 7pt；三蓝点直径 3pt、间距 2；空心环 7pt、1pt 描边
+/// 右耳指示（docs/mascot.md §2 表的最后一列）。点直径 7pt；三蓝点直径 3pt、间距 2；空心环 7pt、1pt 描边
 public enum EarIndicator: Equatable, Sendable {
     case none, dots, question, error, mismatch, unknown, danger
 
