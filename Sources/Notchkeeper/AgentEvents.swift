@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import GuardCore
 
 // MARK: - 支持的 agent
 
@@ -7,7 +8,7 @@ enum AgentKind: String, CaseIterable, Codable, Identifiable {
     case claudeCode = "claude-code"
     case codex
     case zcode
-    case grokBuild = "grok-build"
+    case grokBot = "grok-bot"
     case opencode
     case dsh
     case devin
@@ -23,7 +24,7 @@ enum AgentKind: String, CaseIterable, Codable, Identifiable {
         case .claudeCode: return "Claude Code"
         case .codex: return "Codex"
         case .zcode: return "ZCode"
-        case .grokBuild: return "Grok Build"
+        case .grokBot: return "Grok Bot"
         case .opencode: return "OpenCode"
         case .dsh: return "DSH"
         case .devin: return "Devin"
@@ -37,10 +38,10 @@ enum AgentKind: String, CaseIterable, Codable, Identifiable {
     /// 通用图形，不使用任何品牌标志
     var symbol: String {
         switch self {
-        case .claudeCode: return "sparkle"
+        case .claudeCode: return "apple.terminal"
         case .codex: return "chevron.left.forwardslash.chevron.right"
         case .zcode: return "z.square"
-        case .grokBuild: return "hammer"
+        case .grokBot: return "bubble.left"
         case .opencode: return "curlybraces"
         case .dsh: return "terminal"
         case .devin: return "person.crop.square"
@@ -53,10 +54,10 @@ enum AgentKind: String, CaseIterable, Codable, Identifiable {
 
     var tint: Color {
         switch self {
-        case .claudeCode: return Color(red: 0.85, green: 0.47, blue: 0.34)
+        case .claudeCode: return Color(white: 0.62)
         case .codex: return Color(red: 0.36, green: 0.55, blue: 0.98)
         case .zcode: return .indigo
-        case .grokBuild: return .gray
+        case .grokBot: return .gray
         case .opencode: return .teal
         case .dsh: return .mint
         case .devin: return .cyan
@@ -67,20 +68,7 @@ enum AgentKind: String, CaseIterable, Codable, Identifiable {
         }
     }
 
-    /// 下一阶段接入方式：每个 agent 只用 1 个“回合结束”钩子
-    var hookMechanism: String {
-        switch self {
-        case .claudeCode: return "Stop hook（不装 SubagentStop）"
-        case .codex: return "notify 1 行配置"
-        case .grokBuild: return "通知 hook"
-        case .opencode: return "session.idle 插件"
-        case .cursorAgent: return "stop hook"
-        case .antigravity: return "Stop hook（fullyIdle）"
-        default: return "Stop hook"
-        }
-    }
-
-    /// 悬停面板的会话列表目前能被动读取的 agent
+    /// 刘海展开后的会话列表目前能被动读取的 agent
     var passiveSessionSupport: Bool { self == .claudeCode || self == .codex }
 
     /// “宿主 App 在前台时不提示”用到的宿主 bundle id
@@ -168,7 +156,7 @@ enum HookPayloadParser {
                               isSubagent: s("hook_event_name") == "subagentStop",
                               stopHookActive: loops > 0, timestamp: now, source: .hook)
 
-        case .grokBuild, .opencode, .trae:
+        case .grokBot, .opencode, .trae:
             let kindStr = s("session_kind") ?? s("kind") ?? "main"
             return AgentEvent(agent: agent, sessionId: s("session_id") ?? "?", turnId: s("turn_id"), cwd: s("cwd"),
                               kind: .completed, isSubagent: kindStr == "subagent" || b("isSubagent"),
@@ -215,6 +203,7 @@ final class TurnDeduper {
 
 // MARK: - 自检（scripts/run.sh 之后可运行 `Notchkeeper --selftest`）
 
+@MainActor
 enum SelfTest {
     static func run() -> Bool {
         var ok = true
@@ -223,6 +212,11 @@ enum SelfTest {
             print("\(cond ? "PASS" : "FAIL")  \(name)")
             if !cond { ok = false }
         }
+        // 隔离前提：没在临时 HOME 里就什么都不跑，免得写到真实 ~/Library（依次求值，前一个不过就不碰后面的）
+        let paths: [() -> URL] = [{ Log.url }, { GuardPaths.directory }, { ConfigStore.shared.url }]
+        let isolated = paths.allSatisfy { !TestHome.isUnderRealHome($0()) }
+        check("隔离：日志、guard-state、配置都不在真实主目录下", isolated)
+        guard isolated else { return false }
         let main = HookPayloadParser.parse(agent: .claudeCode, json: ["hook_event_name": "Stop", "session_id": "a", "stop_hook_active": false])!
         check("Claude Stop 主会话 → 提示", CompletionFilter.decide(main, config: cfg, frontmostBundleID: nil) == .alert)
         let sub = HookPayloadParser.parse(agent: .claudeCode, json: ["hook_event_name": "SubagentStop", "session_id": "a"])!
@@ -235,6 +229,10 @@ enum SelfTest {
         let cur = HookPayloadParser.parse(agent: .cursorAgent, json: ["status": "completed", "loop_count": 1])!
         check("Cursor loop_count>0 → 不提示", CompletionFilter.decide(cur, config: cfg, frontmostBundleID: nil) != .alert)
         check("宿主在前台 → 不提示", CompletionFilter.decide(main, config: cfg, frontmostBundleID: "com.apple.Terminal") != .alert)
+        let dec = { (j: String) in try? JSONDecoder().decode(NKConfig.self, from: Data(j.utf8)) }
+        check("完成卡时长：默认 6 秒，超出 2–10 被夹住",
+              dec("{}")?.cardAutoDismissSeconds == 6 && dec(#"{"cardAutoDismissSeconds":15}"#)?.cardAutoDismissSeconds == 10
+              && dec(#"{"cardAutoDismissSeconds":1}"#)?.cardAutoDismissSeconds == 2)
         let ag = HookPayloadParser.parse(agent: .antigravity, json: ["fullyIdle": false])
         check("Antigravity 未 fullyIdle → 无事件", ag == nil)
         let d = TurnDeduper()
@@ -251,8 +249,286 @@ enum SelfTest {
         for a in [AgentKind.claudeCode, .codex] {
             print("INFO    \(a.displayName): \(sessions.filter { $0.agent == a }.count)")
         }
-        print("INFO  进程: claude×\(procs.claude) codex×\(procs.codex)")
+        print("INFO  进程: claude×\(procs.claude)")
         print("INFO  开机启动状态: \(LoginItem.statusText)")
+        check("配置：默认允许列表为空（代码里不内置真实出口 IP）", NKConfig().allowlist.isEmpty)
+        check("配置：空的 config.json 解出来每个字段都等于默认值（含空允许列表）",
+              (try? JSONDecoder().decode(NKConfig.self, from: Data("{}".utf8))) == NKConfig())
+        guardTests(check)
+        singleInstanceTests(check)
+        let delegate = AppDelegate()  // 菜单项的 target 是弱引用
+        let menu = delegate.buildMainMenu()
+        let comma = menu.items.compactMap(\.submenu).flatMap(\.items)
+            .first { $0.keyEquivalent == "," && $0.keyEquivalentModifierMask == .command }
+        check("⌘, 打开设置（齿轮走的也是 openSettings）", comma?.action == #selector(AppDelegate.openSettings) && comma?.target === delegate)
+        // 盾盾（mascot-port-batch1.md、Emily 2026-10-28）
+        check("盾盾：守卫状态压过晕和犯困", DundunState.shown(base: .guardViolated, dizzy: true, drowsy: true) == .guardViolated)
+        check("盾盾：晕压过犯困", DundunState.shown(base: .idle, dizzy: true, drowsy: true) == .dizzy)
+        check("盾盾：idle 且犯困 → 睡着", DundunState.shown(base: .idle, dizzy: false, drowsy: true) == .sleeping)
+        check("盾盾：红盾回到正常 → 头像不另外开心，开心跟着恢复卡", !DundunState.celebrates(from: .guardViolated, to: .idle))
+        check("盾盾：恢复卡出场开心，红卡不开心", NotchCard.recovered.mascotEmote == .cheer && NotchCard.exitAlert().mascotEmote == .none)
+        check("盾盾：黄盾回到正常 → 开心", DundunState.celebrates(from: .guardMismatch, to: .idle))
+        check("盾盾：灰盾回到正常 → 不庆祝", !DundunState.celebrates(from: .guardUnknown, to: .idle))
+        check("盾盾：红盾变灰盾 → 不庆祝", !DundunState.celebrates(from: .guardViolated, to: .guardUnknown))
+        check("盾盾：approval 用 question 的青色，琥珀只给 mismatch",
+              DundunStates[.approval]!.color == DundunStates[.question]!.color
+              && DundunStates[.approval]!.color != DundunStates[.guardMismatch]!.color)
+        let calm = DundunEngine()
+        calm.reduceMotion = true
+        calm.setState(.thinking, force: true)
+        calm.update(dt: DundunCanvasView.stepDt)
+        check("盾盾：减弱动态效果时眼睛不转", calm.tgYaw == 0 && calm.tgPitch == 0)
+        calm.setState(.approval)
+        check("盾盾：减弱动态效果时换状态走淡入淡出", calm.fade != nil)
+        check("盾盾：鼠标在刘海里距离为 0", DundunDirector.distance(from: NSPoint(x: 5, y: 5), to: NSRect(x: 0, y: 0, width: 10, height: 10)) == 0)
+        check("盾盾：鼠标在刘海右下 (3,4) 处距离为 5", DundunDirector.distance(from: NSPoint(x: 13, y: -4), to: NSRect(x: 0, y: 0, width: 10, height: 10)) == 5)
         return ok
+    }
+}
+
+// MARK: - 出口守卫显示和红卡（Vera 清单）
+
+@MainActor
+extension SelfTest {
+    /// 第一层测纯函数 GuardPresentation；第二层用真的 GuardStateReader 解 guard-state.json，
+    /// 驱动真的 AppState 和 NotchController（不上屏、不出声，声音记进数组）
+    static func guardTests(_ check: (String, Bool) -> Void) {
+        typealias P = GuardPresentation
+        let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+        let t1 = t0.addingTimeInterval(600)
+
+        // 第一层：纯函数
+        func p(_ v: Verdict, _ r: UnknownReason? = nil, last: Verdict? = nil, since: Date? = nil, dismissed: Date?? = nil) -> P {
+            P(verdict: v, unknownReason: r, lastVerdict: last ?? (v == .unknown ? nil : v), violatedSince: since,
+              dismissedViolationSince: dismissed)
+        }
+        check("显示：healthy「出口正常」，无红卡", p(.healthy).title == "出口正常" && p(.healthy).alert == nil)
+        check("显示：mismatch 琥珀、无红卡", p(.egressMismatch).tone == .mismatch && p(.egressMismatch).alert == nil
+              && p(.egressMismatch).title == "出口 IP 和预期不一致")
+        check("显示：unknown offline 灰环 + 文案", p(.unknown, .offline, last: .unknown).tone == .unknown
+              && p(.unknown, .offline, last: .unknown).title == "网络不通，暂时没法检查出口")
+        check("显示：unknown probeFailed 文案", p(.unknown, .probeFailed, last: .unknown).title == "暂时查不到出口")
+        check("显示：missing / unreadable / newerSchema →「守卫没有响应」灰环、无红卡",
+              p(.unknown).title == "守卫没有响应" && p(.unknown).tone == .unknown && p(.unknown).alert == nil)
+        check("显示：violated 红卡 + Basso", p(.violated, since: t0).alert == P.Alert(detail: P.violatedDetail, sounds: true))
+        let held = p(.unknown, last: .violated, since: t0)
+        check("显示：stale 且 lastVerdict violated → 红卡保留、新副标题、不响", held.tone == .violated
+              && held.alert == P.Alert(detail: P.unresponsiveDetail, sounds: false))
+        check("显示：stale 且 lastVerdict healthy →「守卫没有响应」无红卡",
+              p(.unknown, last: .healthy).title == "守卫没有响应" && p(.unknown, last: .healthy).alert == nil)
+        let dv = p(.violated, since: t0, dismissed: .some(t0))
+        check("关掉：同一次违规 → 无红卡、红点", dv.alert == nil && dv.tone == .violated)
+        let ds = p(.unknown, last: .violated, since: t0, dismissed: .some(t0))
+        check("关掉：同一次违规且守卫不响应 → 无红卡、灰环", ds.alert == nil && ds.tone == .unknown)
+        check("关掉：新的 violatedSince → 红卡再弹", p(.violated, since: t1, dismissed: .some(t0)).alert?.sounds == true)
+        check("关掉：旧 guardd 没写 violatedSince，关掉记 nil 也算",
+              p(.violated, dismissed: .some(nil)).alert == nil && p(.violated).alert != nil)
+
+        // 第二层：真的 reader + AppState + NotchController
+        let iso = ISO8601DateFormatter()
+        var now = t0
+        func file(_ v: String, at: Date? = nil, reason: String? = nil, since: Date? = nil, ip: String? = nil) -> Data {
+            var j: [String: Any] = ["schemaVersion": 1, "verdict": v, "checkedAt": iso.string(from: at ?? now), "egressFailures": [String: Int]()]
+            if let reason { j["unknownReason"] = reason }
+            if let since { j["violatedSince"] = iso.string(from: since) }
+            if let ip { j["egressIP"] = ip }
+            return try! JSONSerialization.data(withJSONObject: j)
+        }
+        enum R { case healthy, mismatch, offline, violated(Date), stale(Date), skew(Date), missing }
+        @MainActor final class Rig {
+            var cfg = NKConfig()
+            var sounds: [String] = []
+            let state = AppState()
+            let notch: NotchController
+            init() {
+                weak var me: Rig?
+                notch = NotchController(config: { me?.cfg ?? NKConfig() }, playSound: { me?.sounds.append($0) }, onScreen: false)
+                me = self
+                state.onPresentation = { [unowned self] in self.notch.guardChanged(to: $0) }
+                notch.onAlertDismissed = { [unowned self] in self.state.dismissViolation() }
+            }
+            var card: NotchCard.Kind? { notch.visibleCard?.kind }
+            var basso: Int { sounds.filter { $0 == "Basso" }.count }
+            var glass: Int { sounds.filter { $0 == "Glass" }.count }
+        }
+        _ = NSApplication.shared
+        func read(_ rig: Rig, _ r: R) {
+            now = now.addingTimeInterval(5)
+            let data: Data?
+            switch r {
+            case .healthy: data = file("healthy", ip: "203.0.113.10")
+            case .mismatch: data = file("egressMismatch", ip: "203.0.113.99")
+            case .offline: data = file("unknown", reason: "offline")
+            case .violated(let s): data = file("violated", since: s, ip: "203.0.113.10")
+            case .stale(let s): data = file("violated", at: now.addingTimeInterval(-60), since: s)
+            case .skew(let s): data = file("violated", at: now.addingTimeInterval(60), since: s)
+            case .missing: data = nil
+            }
+            rig.state.apply(GuardStateReader.display(data: data, now: now))
+        }
+        func run(_ path: [R], rig: Rig? = nil) -> Rig {
+            let rig = rig ?? Rig()
+            for r in path { read(rig, r) }
+            return rig
+        }
+
+        let a = run([.violated(t0), .offline])
+        check("红卡：违规 → 网络不通，红卡保留", a.card == .alert && a.basso == 1)
+        read(a, .healthy)
+        check("红卡：违规 → unknown → healthy，红卡撤掉、弹恢复卡", a.card == .recovered)
+        let endings: [[R]] = [[.violated(t0), .healthy], [.violated(t0), .offline, .healthy], [.violated(t0), .stale(t0), .healthy],
+                              [.violated(t0), .skew(t0), .missing, .healthy], [.stale(t0), .healthy], [.mismatch, .violated(t0), .mismatch, .healthy]]
+        check("红卡：任何以 healthy 结尾的序列都没有红卡", endings.allSatisfy { run($0).card != .alert })
+        let b = run([.violated(t0), .offline, .violated(t0), .missing, .violated(t0)])
+        check("红卡：违规 → unknown → 违规，不重弹、不重响", b.card == .alert && b.basso == 1)
+        let c = run([.violated(t0), .healthy, .healthy, .offline, .healthy])
+        check("恢复卡：一次恢复只出现一次", c.glass == 1 && c.card == .recovered && c.notch.countdown?.total == NotchCard.recoveredSeconds)
+        check("恢复卡：mismatch → healthy 不弹卡（只让盾盾开心）", run([.mismatch, .healthy]).card == nil)
+        check("恢复卡：unknown → healthy 什么都不做", run([.offline, .healthy]).sounds.isEmpty && run([.missing, .healthy]).card == nil)
+        for (name, r) in [("stale", R.stale(t0)), ("clockSkew", R.skew(t0))] {
+            let fresh = run([r])
+            check("红卡：\(name) 且 lastVerdict violated → 红卡、新副标题、不响 Basso",
+                  fresh.card == .alert && fresh.notch.visibleCard?.detail == P.unresponsiveDetail && fresh.basso == 0)
+            let after = run([.violated(t0), r])
+            check("红卡：违规后 \(name) → 原红卡换副标题、不重响",
+                  after.card == .alert && after.notch.visibleCard?.detail == P.unresponsiveDetail && after.basso == 1)
+        }
+        let d = run([.violated(t0)])
+        d.notch.dismissCurrent()
+        read(d, .violated(t0))
+        check("关掉：同一次违规不再弹、显示红点", d.card == nil && d.basso == 1 && d.state.presentation.tone == .violated)
+        read(d, .stale(t0))
+        check("关掉：守卫不响应时不弹、显示灰环", d.card == nil && d.state.presentation.tone == .unknown)
+        read(d, .violated(t1))
+        check("关掉：新的 violatedSince 不经过 healthy 也再弹", d.card == .alert && d.basso == 2)
+        let e = run([.violated(t0)])
+        e.notch.dismissCurrent()
+        read(e, .healthy)
+        check("关掉后 healthy：弹恢复卡", e.card == .recovered)
+        read(e, .violated(t0))
+        check("healthy 清掉关掉的记录：同一个 violatedSince 也再弹", e.card == .alert && e.basso == 2)
+        let f = Rig()
+        f.cfg.alertPersistent = false
+        read(f, .violated(t0))
+        check("非常驻红卡：有倒计时", f.notch.countdown != nil)
+        f.notch.dismissCurrent()   // 倒计时到时走的就是这里
+        read(f, .violated(t0))
+        check("非常驻红卡：到时收起后不每 5 秒重弹重响", f.card == nil && f.basso == 1)
+        let g = Rig()
+        g.cfg.autoAlert = false
+        _ = run([.violated(t0), .healthy], rig: g)
+        check("关闭「出口异常时弹出红卡」：不弹红卡，也不弹恢复卡", g.sounds.isEmpty && g.card == nil)
+        // 演示路径（App.handleCardNotification，scripts/demo.sh alert）不挡自动撤卡
+        let h = Rig()
+        h.notch.show(AppDelegate.demoCard(kind: "alert", title: nil, detail: nil))
+        read(h, .healthy)
+        check("演示红卡：读到 healthy 自动撤掉，不弹恢复卡", h.card == nil && h.glass == 0)
+        h.notch.show(AppDelegate.demoCard(kind: "alert", title: nil, detail: nil))
+        _ = run([.violated(t0), .healthy], rig: h)
+        check("演示红卡挂着时真违规 → healthy：照样撤卡、弹恢复卡", h.card == .recovered && h.basso == 2)
+
+        // 恢复卡 4 秒自动收起、悬停暂停（真的计时器，约 8 秒）
+        let k = run([.violated(t0), .healthy])
+        func wait(_ s: TimeInterval) { RunLoop.main.run(until: Date().addingTimeInterval(s)) }
+        wait(1)
+        k.notch.setCardHover(true)
+        let left = k.notch.countdown?.remaining(at: Date().addingTimeInterval(5)) ?? 0
+        check("恢复卡：悬停时倒计时暂停（剩约 3 秒）", k.notch.countdown?.isPaused == true && abs(left - 3) < 0.3)
+        wait(3.5)
+        check("恢复卡：悬停期间不收起", k.card == .recovered)
+        k.notch.setCardHover(false)
+        wait(2.5)
+        check("恢复卡：移开后接着倒计时", k.card == .recovered)
+        wait(0.8)
+        check("恢复卡：剩下的时间走完后收起", k.card == nil)
+    }
+}
+
+// MARK: - 单实例
+
+@MainActor
+extension SelfTest {
+    static func singleInstanceTests(_ check: (String, Bool) -> Void) {
+        let me = SingleInstance.Instance(pid: 200, start: 10)
+        check("单实例：更早启动的实例在 → 本实例退出", SingleInstance.olderInstance(than: me, among: [.init(pid: 300, start: 9)])?.pid == 300)
+        check("单实例：只有更晚启动的 → 本实例留下", SingleInstance.olderInstance(than: me, among: [.init(pid: 300, start: 11)]) == nil)
+        check("单实例：同一时刻启动，pid 小的留下",
+              SingleInstance.olderInstance(than: me, among: [.init(pid: 100, start: 10)]) != nil
+              && SingleInstance.olderInstance(than: me, among: [.init(pid: 300, start: 10)]) == nil)
+        check("单实例：列表里的自己不算", SingleInstance.olderInstance(than: me, among: [me]) == nil)
+        check("单实例：自检进程（未打包，prohibited）不算会画界面的实例",
+              !SingleInstance.runningGUIInstances().contains { $0.pid == getpid() })
+        check("单实例：锁文件不随 HOME 改变（测试实例和正式实例抢同一把锁）",
+              SingleInstance.lockURL.map { !$0.path.hasPrefix(NSHomeDirectory() + "/") && !TestHome.isUnderRealHome($0) } ?? false)
+
+        let lock = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("single-instance-test.lock")
+        guard case .acquired(let fd) = SingleInstance.lock(at: lock) else { return check("单实例锁：第一个拿到", false) }
+        check("单实例锁：同一进程再开一次也拿不到（flock 按打开的文件算）", SingleInstance.lock(at: lock) == .heldByOther)
+        check("单实例锁：另一个进程同时启动 → 拿不到、立即退出", probe(lock) == 3)
+        close(fd)
+        check("单实例锁：持有者关掉后，下一个能拿到", probe(lock) == 0)
+
+        // run.sh 的顺序：pkill（SIGTERM）旧实例，再启动新的。旧进程已退出但还没被回收（僵尸）时也不能挡住新实例
+        if let old = spawnHolder(lock) {
+            check("重启：旧实例在时新实例退出", probe(lock) == 3)
+            kill(old, SIGTERM)
+            var info = siginfo_t()
+            waitid(P_PID, id_t(old), &info, WEXITED | WNOWAIT)   // 等它退出，但不回收
+            check("重启：旧实例刚退出（尚未回收）→ 锁已释放，新实例能启动", probe(lock) == 0)
+            check("重启：退出中的旧实例不算在运行", SingleInstance.instance(old) == nil)
+            var status: Int32 = 0
+            waitpid(old, &status, 0)
+        } else {
+            check("重启：起旧实例", false)
+        }
+        // 崩溃：进程被 SIGKILL，锁文件留在磁盘上，但锁随进程消失
+        if let crashed = spawnHolder(lock) {
+            kill(crashed, SIGKILL)
+            var status: Int32 = 0
+            waitpid(crashed, &status, 0)
+            check("崩溃：留下的锁文件不挡新实例", FileManager.default.fileExists(atPath: lock.path) && probe(lock) == 0)
+        } else {
+            check("崩溃：起旧实例", false)
+        }
+    }
+
+    /// 起一个 `--instance-probe <lock> --hold` 子进程，拿到锁、在标准输出说 held 后才返回；
+    /// 子进程读标准输入，自检退出时管道断开它就跟着退出，不会遗留
+    private static func spawnHolder(_ lock: URL) -> pid_t? {
+        var toChild: [Int32] = [0, 0], fromChild: [Int32] = [0, 0]
+        guard pipe(&toChild) == 0, pipe(&fromChild) == 0 else { return nil }
+        _ = fcntl(toChild[1], F_SETFD, FD_CLOEXEC)
+        _ = fcntl(fromChild[0], F_SETFD, FD_CLOEXEC)
+        guard let pid = spawn(["--instance-probe", lock.path, "--hold"], stdin: toChild[0], stdout: fromChild[1]) else { return nil }
+        close(toChild[0]); close(fromChild[1])
+        var buf = [UInt8](repeating: 0, count: 8)
+        let n = read(fromChild[0], &buf, buf.count)
+        close(fromChild[0])
+        guard n > 0, String(decoding: buf.prefix(n), as: UTF8.self).hasPrefix("held") else {
+            kill(pid, SIGKILL); var s: Int32 = 0; waitpid(pid, &s, 0)
+            return nil
+        }
+        return pid
+    }
+
+    /// 起一个 `--instance-probe <lock>` 子进程抢锁，返回退出码：0 拿到，3 别人持有
+    private static func probe(_ lock: URL) -> Int32 {
+        guard let pid = spawn(["--instance-probe", lock.path], stdin: nil, stdout: nil) else { return -1 }
+        var status: Int32 = 0
+        waitpid(pid, &status, 0)
+        return (status & 0x7f) == 0 ? (status >> 8) & 0xff : -1
+    }
+
+    private static func spawn(_ args: [String], stdin: Int32?, stdout: Int32?) -> pid_t? {
+        guard let exe = Bundle.main.executablePath else { return nil }
+        var actions: posix_spawn_file_actions_t?
+        posix_spawn_file_actions_init(&actions)
+        defer { posix_spawn_file_actions_destroy(&actions) }
+        if let stdin { posix_spawn_file_actions_adddup2(&actions, stdin, 0) }
+        if let stdout { posix_spawn_file_actions_adddup2(&actions, stdout, 1) }
+        let argv = ([exe] + args).map { strdup($0) } + [nil]
+        defer { argv.forEach { free($0) } }
+        var pid: pid_t = 0
+        return posix_spawn(&pid, exe, &actions, nil, argv, environ) == 0 ? pid : nil
     }
 }

@@ -1,445 +1,446 @@
 import AppKit
 import SwiftUI
 
-// MARK: - 设置页（通用 / 出口守卫 / 通知 / 关于）
+// 设置窗口：照 prototype/settings-spec.md，按 macOS 系统设置的布局，只用原生控件。
+// 每个开关直接绑定 ConfigStore，改了立刻写盘，不在视图里缓存配置值。
 
-enum SettingsSection: Int, CaseIterable, Identifiable {
-    case general, exitGuard, notifications, about
-    var id: Int { rawValue }
+enum SettingsPane: String, CaseIterable, Identifiable {
+    case general, notch, exitGuard, block, notifications, agents, dundun, about
+    var id: Self { self }
+
+    /// 侧边栏分组，组与组之间空一行
+    static let groups: [[SettingsPane]] = [[.general, .notch], [.exitGuard, .block],
+                                           [.notifications, .agents, .dundun], [.about]]
+
     var title: String {
         switch self {
         case .general: return "通用"
+        case .notch: return "刘海与外观"
         case .exitGuard: return "出口守卫"
+        case .block: return "拦截与防火墙"
         case .notifications: return "通知"
+        case .agents: return "Agent"
+        case .dundun: return "盾盾"
         case .about: return "关于"
         }
     }
-}
 
-struct SettingsPage: View {
-    @ObservedObject var state: AppState
-    @ObservedObject var store: ConfigStore
-    @State private var section: SettingsSection = .general
-    @State private var forward = true
-    @Namespace private var ns
-
-    var body: some View {
-        VStack(spacing: 10) {
-            HStack(spacing: 0) {
-                ForEach(SettingsSection.allCases) { s in
-                    Button { select(s) } label: {
-                        Text(s.title)
-                            .font(NK.caption.weight(.medium))
-                            .foregroundStyle(section == s ? Color.primary : Color.secondary)
-                            .padding(.vertical, 5)
-                            .frame(maxWidth: .infinity)
-                            .background {
-                                if section == s {
-                                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                        .fill(Color.primary.opacity(0.1))
-                                        .matchedGeometryEffect(id: "settings-pill", in: ns)
-                                }
-                            }
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(PressableStyle())
-                }
-            }
-            .padding(2)
-            .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.primary.opacity(0.04)))
-
-            ZStack(alignment: .top) {
-                ScrollView(showsIndicators: false) {
-                    content(section).padding(.bottom, 6)
-                }
-                .id(section)
-                .transition(.asymmetric(
-                    insertion: .offset(x: forward ? 30 : -30).combined(with: .opacity),
-                    removal: .offset(x: forward ? -30 : 30).combined(with: .opacity)))
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .clipped()
+    var symbol: String {
+        switch self {
+        case .general: return "gearshape.fill"
+        case .notch: return "rectangle.topthird.inset.filled"
+        case .exitGuard: return "shield.lefthalf.filled"
+        case .block: return "hand.raised.fill"
+        case .notifications: return "bell.badge.fill"
+        case .agents: return "terminal.fill"
+        case .dundun: return "face.smiling.inverse"
+        case .about: return "info.circle.fill"
         }
     }
 
-    private func select(_ s: SettingsSection) {
-        guard s != section else { return }
-        forward = s.rawValue > section.rawValue
-        DispatchQueue.main.async { withAnimation(Motion.page) { section = s } }
+    var color: Color {
+        switch self {
+        case .general: return .gray
+        case .notch: return .blue
+        case .exitGuard: return .green
+        case .block: return .red
+        case .notifications: return .red
+        case .agents: return .indigo
+        case .dundun: return .orange
+        case .about: return .gray
+        }
+    }
+}
+
+/// 关掉窗口后 SwiftUI 视图会卸载，选中的页和白名单输入框里的半截地址放这里
+@MainActor
+final class SettingsModel: ObservableObject {
+    @Published var pane: SettingsPane = .general
+    @Published var allowDraft = ""
+}
+
+struct SettingsView: View {
+    @ObservedObject var model: SettingsModel
+    @ObservedObject var state: AppState
+    @ObservedObject var store: ConfigStore
+
+    var body: some View {
+        NavigationSplitView {
+            List(selection: Binding(get: { model.pane }, set: { if let p = $0 { model.pane = p } })) {
+                Button { model.pane = .exitGuard } label: { StatusCard(presentation: state.presentation) }
+                    .buttonStyle(.plain)
+                ForEach(SettingsPane.groups, id: \.self) { group in
+                    Section {
+                        ForEach(group) { p in
+                            Label { Text(p.title) } icon: { SettingsIcon(symbol: p.symbol, color: p.color) }
+                                .tag(p)
+                        }
+                    }
+                }
+            }
+            .toolbar(removing: .sidebarToggle)
+            .navigationSplitViewColumnWidth(215)
+        } detail: {
+            detail
+                .formStyle(.grouped)
+                .navigationTitle(model.pane.title)
+        }
+        .preferredColorScheme(.dark)
     }
 
     @ViewBuilder
-    private func content(_ s: SettingsSection) -> some View {
-        switch s {
-        case .general: GeneralSettings(store: store)
-        case .exitGuard: ExitGuardSettings(state: state, store: store)
-        case .notifications: NotificationSettings(store: store)
-        case .about: AboutSettings(state: state, store: store)
+    private var detail: some View {
+        switch model.pane {
+        case .general: GeneralPane(store: store)
+        case .notch: NotchPane(store: store)
+        case .exitGuard: ExitGuardPane(model: model, state: state, store: store)
+        case .block: BlockPane()
+        case .notifications: NotificationsPane(store: store)
+        case .agents: AgentsPane(store: store)
+        case .dundun: DundunPane(store: store)
+        case .about: AboutPane(store: store)
         }
     }
 }
 
-// MARK: 通用
-
-struct GeneralSettings: View {
-    @ObservedObject var store: ConfigStore
-    @State private var loginText = LoginItem.statusText
-    @State private var loginOn = LoginItem.isEnabled || LoginItem.status == .requiresApproval
-    @State private var loginError: String?
+/// 系统设置式图标：20×20 圆角 5 的色块，白色符号
+struct SettingsIcon: View {
+    let symbol: String
+    let color: Color
 
     var body: some View {
-        VStack(spacing: NK.groupSpacing) {
-            SettingsGroup("启动") {
-                SettingsRow("开机自动启动", subtitle: loginError ?? loginText, symbol: "power",
-                            subtitleTint: loginError != nil ? .red : nil) {
-                    Toggle("", isOn: Binding(get: { loginOn }, set: setLogin))
-                        .labelsHidden().toggleStyle(.switch).controlSize(.mini)
-                }
-                if LoginItem.status == .requiresApproval {
-                    RowDivider()
-                    SettingsRow("打开「登录项」设置", symbol: "gearshape") {
-                        Button("打开") { LoginItem.openSettings() }.controlSize(.small)
-                    }
-                }
-            }
-            SettingsGroup("外观") {
-                SettingsRow("菜单栏图标", symbol: "menubar.rectangle") {
-                    Picker("", selection: $store.config.iconStyle) {
-                        ForEach(IconStyle.allCases) { Text($0.title).tag($0) }
-                    }
-                    .labelsHidden().pickerStyle(.menu).fixedSize()
-                }
-                RowDivider()
-                SettingsRow("面板材质", subtitle: PanelMaterial.liquidGlassAvailable ? nil : "液态玻璃需要 macOS 26",
-                            symbol: "square.on.square") {
-                    Picker("", selection: $store.config.panelMaterial) {
-                        ForEach(PanelMaterial.allCases) { Text($0.title).tag($0) }
-                    }
-                    .labelsHidden().pickerStyle(.menu).fixedSize()
-                    .disabled(!PanelMaterial.liquidGlassAvailable)
-                }
-                RowDivider()
-                SettingsRow("提示音", subtitle: "红卡 Basso · 绿卡 Glass", symbol: "speaker.wave.2") {
-                    MiniToggle(isOn: $store.config.soundEnabled)
-                }
-            }
-            SettingsGroup("刘海") {
-                SettingsRow("悬停刘海展开", subtitle: "显示出口和活跃会话；与 Vibe Island 同时开启会重叠",
-                            symbol: "rectangle.topthird.inset.filled") {
-                    MiniToggle(isOn: $store.config.hoverExpand)
+        RoundedRectangle(cornerRadius: 5, style: .continuous)
+            .fill(color.gradient)
+            .frame(width: 20, height: 20)
+            .overlay(Image(systemName: symbol).font(.system(size: 12, weight: .semibold)).foregroundStyle(.white))
+    }
+}
+
+/// 侧边栏顶部的状态卡，点它跳到「出口守卫」
+private struct StatusCard: View {
+    let presentation: GuardPresentation
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Mascot(state: presentation.mascotState, size: 32)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Notchkeeper").font(.system(size: 13, weight: .semibold))
+                HStack(spacing: 5) {
+                    GuardDot(presentation: presentation, size: 6)
+                    Text(presentation.title).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
                 }
             }
         }
-        .onAppear(perform: refreshLogin)
+        .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+        .contentShape(Rectangle())
+    }
+}
+
+// MARK: - 通用
+
+private struct GeneralPane: View {
+    @ObservedObject var store: ConfigStore
+    @State private var loginError: String?
+    @State private var confirmQuit = false
+
+    var body: some View {
+        Form {
+            Section("启动") {
+                // 登录项开关读的是系统状态（SMAppService），不是本地副本
+                Toggle(isOn: Binding(get: { LoginItem.isEnabled || LoginItem.status == .requiresApproval },
+                                     set: setLogin)) {
+                    Text("登录时打开")
+                    Text(loginError ?? LoginItem.statusText)
+                }
+                if LoginItem.status == .requiresApproval {
+                    LabeledContent("在系统设置中批准") {
+                        Button("打开…") { LoginItem.openSettings() }.controlSize(.small)
+                    }
+                }
+            }
+            Section {
+                HStack {
+                    Spacer()
+                    Button("退出 Notchkeeper…") { confirmQuit = true }
+                }
+            } footer: {
+                Text("退出后刘海和卡片提示会停止，后台守卫照常运行；要停守卫请用卸载脚本。")
+            }
+        }
+        .confirmationDialog("退出 Notchkeeper？", isPresented: $confirmQuit) {
+            Button("退出", role: .destructive) { NSApp.terminate(nil) }
+        } message: {
+            Text("退出后刘海和卡片提示会停止，后台守卫照常运行；要停守卫请用卸载脚本。")
+        }
     }
 
     private func setLogin(_ on: Bool) {
-        let err = LoginItem.set(on)
-        loginError = err.map { "失败：\($0)" }
-        store.config.launchAtLogin = on
-        refreshLogin()
-    }
-
-    private func refreshLogin() {
-        withAnimation(.easeOut(duration: 0.2)) {
-            loginText = LoginItem.statusText
-            loginOn = LoginItem.isEnabled || LoginItem.status == .requiresApproval
-        }
+        loginError = LoginItem.set(on)
+        store.config.launchAtLogin = LoginItem.isEnabled
     }
 }
 
-// MARK: 出口守卫
+// MARK: - 刘海与外观
 
-struct ExitGuardSettings: View {
-    @ObservedObject var state: AppState
+private struct NotchPane: View {
     @ObservedObject var store: ConfigStore
 
     var body: some View {
-        VStack(spacing: NK.groupSpacing) {
-            VStack(alignment: .leading, spacing: 6) {
-                SectionTitle("允许的出口 IPv4")
-                AllowListEditor(state: state)
+        Form {
+            Section("刘海") {
+                Toggle(isOn: $store.config.hoverExpand) {
+                    Text("鼠标悬停时展开")
+                    Text("显示出口状态和活跃会话")
+                }
             }
-            SettingsGroup("检测") {
-                SettingsRow("检查间隔", subtitle: "通用 IP 回显服务（ipify / ipinfo / ifconfig.me）", symbol: "timer") {
-                    Stepper(value: $store.config.checkIntervalSeconds, in: 5...300, step: 5) {
-                        Text("\(store.config.checkIntervalSeconds) 秒")
-                            .font(NK.mono).monospacedDigit().frame(minWidth: 44, alignment: .trailing)
+            Section("动态效果") {
+                LabeledContent {
+                    Button("打开辅助功能设置…") {
+                        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.universalaccess?Seeing_Display")!)
                     }
                     .controlSize(.small)
-                }
-                RowDivider()
-                SettingsRow("出口异常自动弹红卡", symbol: "exclamationmark.shield") {
-                    MiniToggle(isOn: $store.config.autoAlert)
-                }
-                RowDivider()
-                SettingsRow("红卡常驻", subtitle: store.config.alertPersistent ? "直到出口恢复或手动关闭" : "和绿卡一样自动收起",
-                            symbol: "pin") {
-                    MiniToggle(isOn: $store.config.alertPersistent)
+                } label: {
+                    Text("减弱动态效果：跟随系统")
+                    Text(NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? "系统已开启" : "系统未开启")
                 }
             }
         }
     }
 }
 
-struct AllowListEditor: View {
+// MARK: - 出口守卫
+
+private struct ExitGuardPane: View {
+    @ObservedObject var model: SettingsModel
     @ObservedObject var state: AppState
-    @ObservedObject var store = ConfigStore.shared
-    @State private var draft = ""
+    @ObservedObject var store: ConfigStore
     @State private var invalid = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            ForEach(store.config.allowlist, id: \.self) { ip in
-                AllowRow(ip: ip, isCurrent: ip == state.exitIP) {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { state.removeAllowed(ip) }
+        let p = state.presentation
+        Form {
+            Section("当前状态") {
+                LabeledContent("状态") {
+                    HStack(spacing: 6) {
+                        GuardDot(presentation: p, size: 6)
+                        Text(p.title)
+                    }
                 }
-                .transition(.asymmetric(insertion: .move(edge: .top).combined(with: .opacity),
-                                        removal: .scale(scale: 0.9).combined(with: .opacity)))
-            }
-            HStack(spacing: 8) {
-                TextField("新增，例如 203.0.113.10", text: $draft)
-                    .textFieldStyle(.plain)
-                    .font(NK.mono)
-                    .padding(.horizontal, 12).padding(.vertical, 8)
-                    .background(RoundedRectangle(cornerRadius: NK.radiusSmall, style: .continuous)
-                        .strokeBorder(invalid ? Color.red.opacity(0.7) : Color.primary.opacity(0.12)))
-                    .onSubmit(add)
-                Button(action: add) {
-                    Image(systemName: "plus").font(.system(size: 12, weight: .bold))
-                        .frame(width: 34, height: 32)
-                        .background(RoundedRectangle(cornerRadius: NK.radiusSmall, style: .continuous)
-                            .fill(Color.accentColor.opacity(0.2)))
+                // 和刘海展开后的出口是同一个值（GuardStateReader 的 egressIP），完整显示，可选中拷贝
+                LabeledContent("当前出口") {
+                    Text(state.display.egressIP ?? "—")
+                        .monospacedDigit()
+                        .foregroundStyle(p.tone == .mismatch ? AnyShapeStyle(p.color) : AnyShapeStyle(.secondary))
+                        .textSelection(.enabled)
                 }
-                .buttonStyle(PressableStyle())
+                // guardd 最后一次写文件的时间；守卫不响应时它会停在过去，正好说明问题
+                LabeledContent("上次检查") {
+                    if let d = state.display.checkedAt { Text("\(d, style: .relative)前") } else { Text("—") }
+                }
             }
-            .offset(x: invalid ? -4 : 0)
-            if invalid {
-                Text("不是合法的 IPv4，或已在列表中").font(NK.footnote).foregroundStyle(.red).transition(.opacity)
+            Section {
+                ForEach(store.config.allowlist, id: \.self) { ip in
+                    LabeledContent {
+                        Button { state.removeAllowed(ip) } label: { Image(systemName: "minus.circle") }
+                            .buttonStyle(.borderless)
+                            .help("移除 \(ip)")
+                    } label: {
+                        Text(ip).monospacedDigit()
+                        if ip == state.display.egressIP { Text("当前出口") }
+                    }
+                }
+                HStack {
+                    TextField("新增", text: $model.allowDraft, prompt: Text("例如 203.0.113.10"))
+                        .onSubmit(add)
+                        .onChange(of: model.allowDraft) { invalid = false }
+                    Button("添加", action: add).disabled(model.allowDraft.isEmpty)
+                }
+            } header: {
+                Text("允许的出口 IPv4")
+            } footer: {
+                if invalid {
+                    Text("不是有效的 IPv4 地址，或已在列表里。").foregroundStyle(.red)
+                } else if store.config.allowlist.isEmpty {
+                    Text("列表为空时守卫无法判断出口是否正确，只能显示「暂时查不到出口」（没走隧道仍会报不合规）。")
+                }
+            }
+            Section("提示") {
+                Toggle("出口不合规时弹出红卡", isOn: $store.config.autoAlert)
+                Toggle("红卡一直保留，直到恢复", isOn: $store.config.alertPersistent)
             }
         }
     }
 
     private func add() {
-        let ok = withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { state.addAllowed(draft) }
-        if ok {
-            draft = ""
-            withAnimation { invalid = false }
-        } else {
-            withAnimation(.spring(response: 0.2, dampingFraction: 0.3)) { invalid = true }
-        }
+        if state.addAllowed(model.allowDraft) { model.allowDraft = "" } else { invalid = true }
     }
 }
 
-// MARK: 通知
+// MARK: - 拦截与防火墙（未启用，全部不可操作）
 
-struct NotificationSettings: View {
+private struct BlockPane: View {
+    var body: some View {
+        Form {
+            Section("拦截") {
+                Toggle(isOn: .constant(false)) {
+                    Text("出口异常时结束 Claude")
+                    Text("等待启用")
+                }
+                .disabled(true)
+            }
+            Section {
+                LabeledContent {
+                    Button("安装…") {}.controlSize(.small)
+                } label: {
+                    Text("防火墙保护")
+                    Text("未安装")
+                }
+            } footer: {
+                Text("安装后，没走 utun 隧道的流量会被系统防火墙直接拦下。")
+            }
+            Section("拦截记录") {
+                Text("暂无拦截记录").foregroundStyle(.secondary)
+            }
+        }
+        .disabled(true)
+    }
+}
+
+// MARK: - 通知
+
+private struct NotificationsPane: View {
     @ObservedObject var store: ConfigStore
 
     var body: some View {
-        VStack(spacing: NK.groupSpacing) {
-            SettingsGroup("完成卡片") {
-                SettingsRow("自动收起", symbol: "timer") {
-                    HStack(spacing: 8) {
+        Form {
+            Section {
+                LabeledContent("完成卡显示时长") {
+                    HStack {
                         Slider(value: $store.config.cardAutoDismissSeconds, in: 2...10, step: 1)
-                            .controlSize(.mini).frame(width: 96)
-                        Text("\(Int(store.config.cardAutoDismissSeconds)) 秒")
-                            .font(NK.mono).monospacedDigit().frame(width: 34, alignment: .trailing)
+                            .labelsHidden()
+                        Text("\(Int(store.config.cardAutoDismissSeconds)) 秒").monospacedDigit()
                     }
                 }
-                RowDivider()
-                SettingsRow("宿主 App 在前台时不提示", subtitle: "例如正在看着终端 / 编辑器时", symbol: "macwindow") {
-                    MiniToggle(isOn: $store.config.suppressWhenHostFrontmost)
-                }
+                Toggle("对应应用在最前面时不弹卡", isOn: $store.config.suppressWhenHostFrontmost)
+            } header: {
+                Text("卡片")
+            } footer: {
+                Text("出错卡多显示 4 秒。")
             }
-            VStack(alignment: .leading, spacing: 6) {
-                SectionTitle("Agent")
-                VStack(spacing: 0) {
-                    ForEach(Array(AgentKind.allCases.enumerated()), id: \.element) { i, a in
-                        if i > 0 { RowDivider() }
-                        AgentRow(agent: a, isOn: Binding(
-                            get: { store.config.agentEnabled(a) },
-                            set: { store.config.agents[a.rawValue] = $0 }))
-                    }
+            Section("声音") {
+                Toggle(isOn: $store.config.soundEnabled) {
+                    Text("提示音")
+                    Text("完成 Glass · 出错 Funk · 出口不合规 Basso")
                 }
-                .groupCard()
-                Text("每个 agent 只接 1 个“回合结束”钩子，子 agent、hook 续跑、手动中断都不会提示。钩子下一阶段安装；目前开关只保存偏好。")
-                    .font(NK.footnote).foregroundStyle(.tertiary).fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 4)
             }
         }
     }
 }
 
-struct AgentRow: View {
-    let agent: AgentKind
-    @Binding var isOn: Bool
-    @State private var hover = false
+// MARK: - Agent
+
+private struct AgentsPane: View {
+    @ObservedObject var store: ConfigStore
+    private static let primary: [AgentKind] = [.claudeCode, .grokBot]
 
     var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: agent.symbol)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(agent.tint)
-                .frame(width: 24, height: 24)
-                .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(agent.tint.opacity(0.15)))
-            VStack(alignment: .leading, spacing: 1) {
-                Text(agent.displayName).font(NK.body.weight(.medium))
-                HStack(spacing: 4) {
-                    Image(systemName: "circle.dashed").font(.system(size: 9))
-                    Text("未接入 · \(agent.hookMechanism)")
-                    Image(systemName: "info.circle").font(.system(size: 9))
-                        .help(agent.passiveSessionSupport
-                              ? "悬停刘海的会话列表已能被动读取它的会话；完成提示下一阶段接入。"
-                              : "完成提示下一阶段接入（只需 1 个钩子）。")
+        Form {
+            Section {
+                ForEach(Self.primary) { row($0) }
+                DisclosureGroup("更多 Agent") {
+                    ForEach(AgentKind.allCases.filter { !Self.primary.contains($0) }) { row($0) }
                 }
-                .font(NK.footnote).foregroundStyle(.secondary)
+            } footer: {
+                Text("子 agent、被 hook 续上的回合、手动中断都不会提醒。")
             }
-            Spacer()
-            if agent.passiveSessionSupport {
-                Text("会话可见").font(.system(size: 9, weight: .medium)).foregroundStyle(.green)
-                    .padding(.horizontal, 6).padding(.vertical, 2)
-                    .background(Capsule().fill(Color.green.opacity(0.12)))
-            }
-            MiniToggle(isOn: $isOn)
         }
-        .padding(.horizontal, 12).padding(.vertical, 7)
-        .background(Color.primary.opacity(hover ? 0.04 : 0))
-        .onHover { h in withAnimation(.easeOut(duration: 0.12)) { hover = h } }
+    }
+
+    /// 没接入的 agent 开关固定关着且灰掉：不出现「看着开着、其实什么都不做」的开关
+    @ViewBuilder
+    private func row(_ a: AgentKind) -> some View {
+        let label = Label {
+            Text(a.displayName)
+            Text(a.passiveSessionSupport ? "已接入 · 监听会话文件" : "未接入")
+        } icon: {
+            SettingsIcon(symbol: a.symbol, color: a.tint)
+        }
+        if a.passiveSessionSupport {
+            Toggle(isOn: Binding(get: { store.config.agentEnabled(a) },
+                                 set: { store.config.agents[a.rawValue] = $0 })) { label }
+        } else {
+            Toggle(isOn: .constant(false)) { label }.disabled(true)
+        }
     }
 }
 
-// MARK: 关于
+// MARK: - 盾盾
 
-struct AboutSettings: View {
-    @ObservedObject var state: AppState
+private struct DundunPane: View {
     @ObservedObject var store: ConfigStore
 
-    private var version: String {
-        let i = Bundle.main.infoDictionary
-        return "\(i?["CFBundleShortVersionString"] as? String ?? "0.2.0") (\(i?["CFBundleVersion"] as? String ?? "?"))"
+    var body: some View {
+        Form {
+            Section {
+                VStack(spacing: 6) {
+                    Mascot(state: .idle, size: 54)
+                    Text("盾盾").font(.system(size: 13, weight: .semibold))
+                }
+                .frame(maxWidth: .infinity)
+            }
+            Section("心情") {
+                Toggle(isOn: $store.config.dundunFeelsTheMac) {
+                    Text("感知 Mac 状态")
+                    Text("CPU、温度、内存、电量会影响盾盾的表情。")
+                }
+            }
+        }
     }
+}
+
+// MARK: - 关于
+
+private struct AboutPane: View {
+    @ObservedObject var store: ConfigStore
 
     var body: some View {
-        VStack(spacing: NK.groupSpacing) {
-            VStack(spacing: 6) {
-                Mascot(mood: .happy, size: 54)
-                Text("Notchkeeper").font(NK.title)
-                Text("版本 \(version) · ad-hoc 本机签名").font(NK.caption).foregroundStyle(.secondary)
-                Text("盯住出口 IP，在刘海里提示编程助手的进度。")
-                    .font(NK.caption).foregroundStyle(.tertiary)
+        Form {
+            Section {
+                VStack(spacing: 6) {
+                    Mascot(state: .idle, size: 64, emote: .beaming)
+                    Text("Notchkeeper").font(.title3.weight(.semibold))
+                    Text("版本 \(version)（本机签名）").foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
             }
-            .frame(maxWidth: .infinity).padding(.vertical, 10)
-
-            SettingsGroup("文件") {
-                SettingsRow("配置文件", subtitle: tilde(store.url.path), symbol: "doc.text") {
-                    HStack(spacing: 6) {
+            Section("文件") {
+                LabeledContent {
+                    HStack {
                         Button("打开") { store.openFile() }
-                        Button("显示") { store.revealInFinder() }
+                        Button("在访达中显示") { store.revealInFinder() }
                     }
                     .controlSize(.small)
+                } label: {
+                    Text("配置文件")
+                    Text(tilde(store.url.path))
                 }
-                RowDivider()
-                SettingsRow("日志", subtitle: tilde(Log.url.path), symbol: "text.alignleft") {
-                    Button("显示") { NSWorkspace.shared.activateFileViewerSelecting([Log.url]) }.controlSize(.small)
+                LabeledContent {
+                    Button("在访达中显示") { NSWorkspace.shared.activateFileViewerSelecting([Log.url]) }
+                        .controlSize(.small)
+                } label: {
+                    Text("日志")
+                    Text(tilde(Log.url.path))
                 }
             }
-            Text("配置文件改动会自动热加载。界面与吉祥物为原创占位，未使用任何第三方品牌素材。")
-                .font(NK.footnote).foregroundStyle(.tertiary).multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
+            Section("致谢") {
+                Text("改编自 Coucou（MIT），仅供自用")
+            }
         }
     }
 
-    private func tilde(_ p: String) -> String {
-        p.replacingOccurrences(of: FileManager.default.homeDirectoryForCurrentUser.path, with: "~")
-    }
-}
-
-// MARK: - 通用设置组件
-
-struct SectionTitle: View {
-    let text: String
-    init(_ text: String) { self.text = text }
-    var body: some View {
-        Text(text).font(NK.caption.weight(.medium)).foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, alignment: .leading).padding(.leading, 4)
-    }
-}
-
-struct SettingsGroup<Content: View>: View {
-    let title: String?
-    @ViewBuilder let content: Content
-    init(_ title: String? = nil, @ViewBuilder content: () -> Content) {
-        self.title = title
-        self.content = content()
-    }
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            if let title { SectionTitle(title) }
-            VStack(spacing: 0) { content }.groupCard()
-        }
-    }
-}
-
-struct SettingsRow<Trailing: View>: View {
-    let title: String
-    var subtitle: String?
-    var symbol: String?
-    var subtitleTint: Color?
-    @ViewBuilder let trailing: Trailing
-    @State private var hover = false
-
-    init(_ title: String, subtitle: String? = nil, symbol: String? = nil, subtitleTint: Color? = nil,
-         @ViewBuilder trailing: () -> Trailing) {
-        self.title = title
-        self.subtitle = subtitle
-        self.symbol = symbol
-        self.subtitleTint = subtitleTint
-        self.trailing = trailing()
+    private var version: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.2.0"
     }
 
-    var body: some View {
-        HStack(spacing: 10) {
-            if let symbol {
-                Image(systemName: symbol).font(.system(size: 12)).foregroundStyle(.secondary).frame(width: 18)
-            }
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title).font(NK.body)
-                if let subtitle {
-                    Text(subtitle).font(NK.footnote)
-                        .foregroundStyle(subtitleTint.map { AnyShapeStyle($0) } ?? AnyShapeStyle(.secondary))
-                        .lineLimit(2).truncationMode(.middle)
-                        .contentTransition(.opacity)
-                }
-            }
-            Spacer(minLength: 8)
-            trailing
-        }
-        .padding(.horizontal, 12).padding(.vertical, 8)
-        .frame(minHeight: 38)
-        .background(Color.primary.opacity(hover ? 0.04 : 0))
-        .onHover { h in withAnimation(.easeOut(duration: 0.12)) { hover = h } }
-    }
-}
-
-struct RowDivider: View {
-    var body: some View {
-        Rectangle().fill(Color.primary.opacity(0.07)).frame(height: 1).padding(.leading, 40)
-    }
-}
-
-struct MiniToggle: View {
-    @Binding var isOn: Bool
-    var body: some View {
-        Toggle("", isOn: $isOn).labelsHidden().toggleStyle(.switch).controlSize(.mini)
-    }
-}
-
-extension View {
-    func groupCard() -> some View {
-        self
-            .background(RoundedRectangle(cornerRadius: NK.radius, style: .continuous).fill(Color.primary.opacity(0.05)))
-            .overlay(RoundedRectangle(cornerRadius: NK.radius, style: .continuous).strokeBorder(Color.primary.opacity(0.06)))
-            .clipShape(RoundedRectangle(cornerRadius: NK.radius, style: .continuous))
-    }
+    private func tilde(_ p: String) -> String { (p as NSString).abbreviatingWithTildeInPath }
 }

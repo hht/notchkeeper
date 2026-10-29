@@ -2,26 +2,64 @@ import AppKit
 import SwiftUI
 
 struct NotchCard: Identifiable, Equatable {
+    enum Kind { case done, alert, recovered }
     let id = UUID()
+    var kind: Kind
     var title: String
     var detail: String
-    var symbol: String
     var tint: Color
     var persistent: Bool
-    var mood: MascotMood = .idle
-    var isAlert = false
 
-    static func exitAlert(ip: String?) -> NotchCard {
-        NotchCard(title: "出口异常",
-                  detail: ip.map { "当前出口 \($0) 不在允许列表" } ?? "当前出口不在允许列表",
-                  symbol: "exclamationmark.shield.fill", tint: .red, persistent: true, mood: .worried, isAlert: true)
+    /// 出口红卡。是否常驻由设置「红卡一直保留，直到恢复」决定，show 时覆盖
+    static func exitAlert(detail: String = GuardPresentation.violatedDetail) -> NotchCard {
+        NotchCard(kind: .alert, title: GuardPresentation.violatedTitle, detail: detail,
+                  tint: Color(cgColor: DundunConst.red), persistent: true)
     }
     static func taskDone(title: String = "✅ 任务完成", detail: String = "演示：编程助手已完成任务") -> NotchCard {
-        NotchCard(title: title, detail: detail, symbol: "checkmark.seal.fill", tint: .green, persistent: false, mood: .happy)
+        NotchCard(kind: .done, title: title, detail: detail, tint: .green, persistent: false)
     }
     static var recovered: NotchCard {
-        NotchCard(title: "出口已恢复", detail: "当前出口回到允许列表", symbol: "checkmark.shield.fill",
-                  tint: .green, persistent: false, mood: .happy)
+        NotchCard(kind: .recovered, title: "出口已恢复", detail: "流量重新全部走 utun 隧道", tint: .green, persistent: false)
+    }
+    /// 恢复卡固定 4 秒，不跟「卡片停留」设置走（Emily 规格）
+    static let recoveredSeconds: TimeInterval = 4
+
+    /// 红卡上是红盾盾；完成卡、恢复卡上开心一下
+    var mascotState: DundunState { kind == .alert ? .guardViolated : .idle }
+    var mascotEmote: MascotEmote { kind == .alert ? .none : .cheer }
+}
+
+/// 临时卡片的倒计时：鼠标停在卡片上时暂停，移开后从剩下的时间继续
+struct CardCountdown: Equatable {
+    let total: TimeInterval
+    private var remainingAtResume: TimeInterval
+    /// nil 表示暂停中
+    private var resumedAt: Date?
+
+    init(total: TimeInterval, now: Date) {
+        self.total = total
+        remainingAtResume = total
+        resumedAt = now
+    }
+
+    var isPaused: Bool { resumedAt == nil }
+
+    func remaining(at now: Date) -> TimeInterval {
+        guard let r = resumedAt else { return remainingAtResume }
+        return max(0, remainingAtResume - now.timeIntervalSince(r))
+    }
+
+    func fraction(at now: Date) -> Double { total > 0 ? remaining(at: now) / total : 0 }
+
+    mutating func pause(at now: Date) {
+        guard !isPaused else { return }
+        remainingAtResume = remaining(at: now)
+        resumedAt = nil
+    }
+
+    mutating func resume(at now: Date) {
+        guard isPaused else { return }
+        resumedAt = now
     }
 }
 
@@ -33,7 +71,7 @@ final class NotchModel: ObservableObject {
     @Published var expanded = false      // 卡片是否展开
     @Published var hovering = false      // 鼠标悬停展开的“岛”
     @Published var notchSize: CGSize = CGSize(width: 190, height: 32)
-    @Published var cardDuration: TimeInterval = 4
+    @Published var countdown: CardCountdown?
 
     var mode: NotchMode {
         if expanded, card != nil { return .card }
@@ -64,7 +102,7 @@ enum NotchLayout {
 }
 
 /// 刘海区域的透明窗口。收起时黑色形状与刘海重合（看不见），展开时从刘海里弹出。
-/// 悬停检测不放任何拦截点击的窗口：用全局 / 本地 mouseMoved 监听判断鼠标是否在刘海热区里，
+/// 收起时窗口不接收鼠标：悬停和刘海上的点击都靠全局监听判断鼠标是否在刘海热区里，
 /// 所以不会抢焦点，也不会挡住别处的点击。
 @MainActor
 final class NotchController {
@@ -81,8 +119,14 @@ final class NotchController {
     private let window: NSPanel
     private let model = NotchModel()
     private let state = AppState.shared
-    private var dismissWork: DispatchWorkItem?
+    private let config: @MainActor () -> NKConfig
+    private let playSound: (String) -> Void
+    private let onScreen: Bool
+    private var countdownWork: DispatchWorkItem?
+    /// 出口红卡（正在显示，或被临时卡片暂时盖住）
     private var pendingAlert: NotchCard?
+    /// 这次违规弹过红卡（之后被关掉、断网、守卫不响应都不清），回到 healthy 时据此弹恢复卡
+    private var violationAlerted = false
     private(set) var hasNotch = false
 
     private var moveMonitors: [Any] = []
@@ -92,7 +136,20 @@ final class NotchController {
     private var leaveWork: DispatchWorkItem?
     private var screenFrame: NSRect = .zero
 
-    init() {
+    /// 齿轮按钮：打开设置
+    var onOpenSettings: () -> Void = {}
+    /// 在刘海或展开的形状上右键时弹出
+    var contextMenu: NSMenu?
+    /// 红卡没等到 healthy 就收起（用户点 ×，或非常驻红卡到时）：记作用户关掉了这一次违规
+    var onAlertDismissed: () -> Void = {}
+
+    /// - onScreen: false 时窗口不上屏、不装鼠标监听、不出声（`--selftest` 驱动真实控制器用）
+    init(config: (@MainActor () -> NKConfig)? = nil,
+         playSound: @escaping (String) -> Void = { NSSound(named: $0)?.play() },
+         onScreen: Bool = true) {
+        self.config = config ?? { ConfigStore.shared.config }
+        self.playSound = playSound
+        self.onScreen = onScreen
         window = NSPanel(contentRect: NSRect(origin: .zero, size: Self.windowSize),
                          styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         window.isOpaque = false
@@ -106,6 +163,9 @@ final class NotchController {
 
         let host = FirstMouseHostingView(rootView: NotchRoot(model: model, state: state, onDismiss: { [weak self] in
             self?.dismissCurrent()
+        }, onSettings: { [weak self] in
+            self?.setHovering(false)
+            self?.onOpenSettings()
         }))
         host.sizingOptions = []
         host.frame = NSRect(origin: .zero, size: Self.windowSize)
@@ -119,8 +179,8 @@ final class NotchController {
                                             options: [.activeAlways, .mouseMoved, .mouseEnteredAndExited, .inVisibleRect],
                                             owner: tracker, userInfo: nil))
         position()
-        window.orderFrontRegardless()
-        installMouseMonitors()
+        orderFront()
+        if onScreen { installMouseMonitors() }
 
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
                                                object: nil, queue: .main) { [weak self] _ in
@@ -150,15 +210,30 @@ final class NotchController {
 
     // MARK: 卡片
 
-    func show(_ input: NotchCard) {
-        let cfg = ConfigStore.shared.config
+    private func orderFront() { if onScreen { window.orderFrontRegardless() } }
+
+    /// 现在看得见的卡片（收起动画里的不算）
+    var visibleCard: NotchCard? { model.expanded ? model.card : nil }
+    var countdown: CardCountdown? { model.countdown }
+
+    /// - sound: false 时不响（守卫不响应时保留的红卡不再响 Basso）
+    func show(_ input: NotchCard, sound: Bool = true) {
+        // 恢复卡不叠第二张
+        if input.kind == .recovered, visibleCard?.kind == .recovered { return }
+        let cfg = config()
         var card = input
-        if card.isAlert { card.persistent = cfg.alertPersistent }
-        model.cardDuration = cfg.cardAutoDismissSeconds
-        dismissWork?.cancel()
-        if card.persistent { pendingAlert = card }
-        if cfg.soundEnabled { NSSound(named: card.isAlert ? "Basso" : "Glass")?.play() }
-        window.orderFrontRegardless()
+        if card.kind == .alert {
+            card.persistent = cfg.alertPersistent
+            pendingAlert = card
+        }
+        if sound, cfg.soundEnabled { playSound(card.kind == .alert ? "Basso" : "Glass") }
+        present(card)
+    }
+
+    private func present(_ card: NotchCard) {
+        countdownWork?.cancel()
+        model.countdown = nil
+        orderFront()
         if model.mode != .closed {
             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { model.card = card; model.expanded = true }
         } else {
@@ -167,37 +242,82 @@ final class NotchController {
         }
         updateMouseCapture()
         if !card.persistent {
-            let id = card.id
-            let work = DispatchWorkItem { [weak self] in
-                guard let self, self.model.card?.id == id else { return }
-                self.dismissCurrent()
-            }
-            dismissWork = work
-            DispatchQueue.main.asyncAfter(deadline: .now() + cfg.cardAutoDismissSeconds, execute: work)
+            let total = card.kind == .recovered ? NotchCard.recoveredSeconds : config().cardAutoDismissSeconds
+            model.countdown = CardCountdown(total: total, now: Date())
+            scheduleCountdown()
+            if onScreen { setCardHover(model.mode == .card && shapeRect.contains(NSEvent.mouseLocation)) }
         }
     }
 
-    /// 关闭当前卡片；临时卡片关掉后，如果还有常驻红卡就恢复红卡
+    private func scheduleCountdown() {
+        countdownWork?.cancel()
+        guard let c = model.countdown, !c.isPaused, let id = model.card?.id else { return }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.model.card?.id == id else { return }
+            self.dismissCurrent()
+        }
+        countdownWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + c.remaining(at: Date()), execute: work)
+    }
+
+    /// 鼠标在卡片上：倒计时暂停；移开：从剩下的时间继续
+    func setCardHover(_ over: Bool) {
+        guard var c = model.countdown, over != c.isPaused else { return }
+        if over {
+            c.pause(at: Date())
+            countdownWork?.cancel()
+            model.countdown = c
+        } else {
+            c.resume(at: Date())
+            model.countdown = c
+            scheduleCountdown()
+        }
+    }
+
+    /// 关闭当前卡片（× 或倒计时到）。红卡关掉算用户关掉这一次违规；
+    /// 临时卡片关掉后，如果还有红卡就恢复红卡
     func dismissCurrent() {
-        dismissWork?.cancel()
+        countdownWork?.cancel()
+        model.countdown = nil
         guard let current = model.card else { return }
-        if current.persistent {
+        if current.kind == .alert {
             pendingAlert = nil
+            collapse()
+            onAlertDismissed()
         } else if let alert = pendingAlert {
-            withAnimation(.spring(response: 0.38, dampingFraction: 0.8)) { model.card = alert }
+            present(alert)
+        } else {
+            collapse()
+        }
+    }
+
+    /// 每读一次守卫状态调用一次。`old` 是这次读之前的显示，只用来判断「之前是不是违规」
+    func guardChanged(to new: GuardPresentation) {
+        if new.clearsAlert {
+            // 只有弹过红卡的那次违规回到 healthy 才弹恢复卡：中间断网、守卫不响应、用户关掉红卡都算同一次
+            let alertOnScreen = visibleCard?.kind == .alert
+            pendingAlert = nil
+            if violationAlerted {
+                violationAlerted = false
+                show(.recovered)
+            } else if alertOnScreen {
+                // 没有对应违规的红卡（scripts/demo.sh alert）：读到 healthy 照样撤掉
+                countdownWork?.cancel()
+                model.countdown = nil
+                collapse()
+            }
             return
         }
-        collapse()
-    }
-
-    /// 出口恢复：撤掉红卡，可选弹一张短暂的“已恢复”
-    func clearAlert(showRecovered: Bool) {
-        let hadAlert = pendingAlert != nil
-        pendingAlert = nil
-        if showRecovered && (hadAlert || model.card?.persistent == true) {
-            show(.recovered)
-        } else if model.card?.persistent == true {
-            collapse()
+        guard let alert = new.alert, config().autoAlert else { return }
+        violationAlerted = true
+        if var shown = pendingAlert {
+            // 红卡已经在：只换副标题，不重弹、不重响
+            guard shown.detail != alert.detail else { return }
+            shown.detail = alert.detail
+            pendingAlert = shown
+            if model.card?.id == shown.id { model.card = shown }
+        } else {
+            show(.exitAlert(detail: alert.detail), sound: alert.sounds)
         }
     }
 
@@ -219,11 +339,43 @@ final class NotchController {
         }
     }
 
-    /// 鼠标位置监听常驻：卡片的点击穿透也靠它，所以不随「悬停展开」开关装卸
+    /// 鼠标监听常驻：卡片的点击穿透也靠它，所以不随「悬停展开」开关装卸。
+    /// 收起时点击发给的是别的 App，只有全局监听看得到；展开后窗口接收鼠标，点击改由本地监听接住。
+    /// @see https://developer.apple.com/documentation/appkit/nsevent/addlocalmonitorforevents(matching:handler:)
     private func installMouseMonitors() {
         if let g = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged], handler: { _ in
             Task { @MainActor in self.mouseMoved() }
         }) { moveMonitors.append(g) }
+        if let g = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown], handler: { e in
+            let right = e.type == .rightMouseDown
+            Task { @MainActor in _ = self.mouseDown(right: right) }
+        }) { moveMonitors.append(g) }
+        if let l = NSEvent.addLocalMonitorForEvents(matching: .rightMouseDown, handler: { e in
+            self.mouseDown(right: true) ? nil : e
+        }) { moveMonitors.append(l) }
+    }
+
+    /// 点刘海展开；在刘海或展开的形状上右键弹出菜单。返回 true 表示事件已处理
+    private func mouseDown(right: Bool) -> Bool {
+        let p = NSEvent.mouseLocation
+        let onShape = triggerRect.contains(p) || (model.mode != .closed && shapeRect.contains(p))
+        guard onShape else { return false }
+        if right {
+            guard let menu = contextMenu else { return false }
+            menu.popUp(positioning: nil, at: p, in: nil)
+            return true
+        }
+        guard model.mode == .closed else { return false }
+        hoverIntent?.cancel(); hoverIntent = nil
+        setHovering(true)
+        return true
+    }
+
+    /// 刘海本体在屏幕上的位置（盾盾 DundunDirector 贴着它走）
+    var anchorRect: NSRect {
+        let h = NotchLayout.topInset(model.notchSize)
+        let w = model.notchSize.width
+        return NSRect(x: screenFrame.midX - w / 2, y: screenFrame.maxY - h, width: w, height: h)
     }
 
     /// 窗口收不收鼠标、在哪一层只由这里决定：鼠标落在当前看得见的形状里才接收，
@@ -263,8 +415,9 @@ final class NotchController {
 
     private func mouseMoved() {
         updateMouseCapture()
-        guard hoverEnabled else { return }
         let p = NSEvent.mouseLocation
+        setCardHover(model.mode == .card && shapeRect.contains(p))
+        // 点击展开的岛不受「悬停展开」开关影响，离开时照样收起
         if model.hovering {
             if visibleRect.contains(p) || triggerRect.contains(p) {
                 leaveWork?.cancel(); leaveWork = nil
@@ -273,7 +426,7 @@ final class NotchController {
                 leaveWork = w
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: w)
             }
-        } else if triggerRect.contains(p) {
+        } else if hoverEnabled, triggerRect.contains(p) {
             guard hoverIntent == nil else { return }
             let w = DispatchWorkItem { [weak self] in
                 guard let self else { return }
@@ -292,7 +445,7 @@ final class NotchController {
         guard model.hovering != on else { return }
         if on {
             state.scanSessions()
-            window.orderFrontRegardless()
+            orderFront()
             withAnimation(Motion.notchOpen) { model.hovering = true }
             updateMouseCapture()
         } else {
@@ -343,6 +496,7 @@ struct NotchRoot: View {
     @ObservedObject var model: NotchModel
     @ObservedObject var state: AppState
     let onDismiss: () -> Void
+    let onSettings: () -> Void
 
     var body: some View {
         let mode = model.mode
@@ -358,6 +512,14 @@ struct NotchRoot: View {
                 .fill(Color.black)
                 .frame(width: size.width, height: size.height)
                 .overlay(alignment: .top) { content(mode, inset: t) }
+                .overlay(alignment: .topTrailing) {
+                    if mode == .dashboard {
+                        NotchGearButton(action: onSettings)
+                            .padding(.top, 12)
+                            .padding(.trailing, t + 12)
+                            .transition(Self.contentTransition)
+                    }
+                }
                 .overlay {
                     // 卡片描边从两侧往下由淡到实，底边最亮；其余形态是一条很淡的白线
                     NotchShape(topRadius: t, bottomRadius: b, closed: false)
@@ -379,7 +541,7 @@ struct NotchRoot: View {
         switch mode {
         case .card:
             if let card = model.card {
-                NotchCardView(card: card, duration: model.cardDuration, onDismiss: onDismiss)
+                NotchCardView(card: card, countdown: model.countdown, onDismiss: onDismiss)
                     .id(card.id)
                     .padding(.top, top)
                     .padding(.horizontal, inset)
@@ -408,21 +570,21 @@ struct NotchDashboard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
-                Mascot(mood: state.status.mood, size: 30)
+                let p = state.presentation
+                Mascot(state: p.mascotState, size: 30)
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
-                        Circle().fill(state.status.color).frame(width: 7, height: 7)
-                            .shadow(color: state.status.color.opacity(0.8), radius: 3)
-                        Text(state.status.title).font(.system(size: 13, weight: .semibold)).foregroundStyle(.white)
+                        GuardDot(presentation: p, glow: true)
+                        Text(p.title).font(.system(size: 13, weight: .semibold)).foregroundStyle(.white).lineLimit(1)
                     }
-                    Text(state.exitIP.map { "出口 \($0)" } ?? "出口 —")
+                    Text("出口 \(state.display.egressIP ?? "—")")
                         .font(.system(size: 11, weight: .medium, design: .monospaced))
-                        .foregroundStyle(state.status == .unhealthy ? Color.red.opacity(0.9) : .white.opacity(0.6))
+                        .foregroundStyle(p.ipColor)
                 }
                 Spacer(minLength: 8)
                 VStack(alignment: .trailing, spacing: 2) {
                     Text("进程").font(.system(size: 9, weight: .medium)).foregroundStyle(.white.opacity(0.35))
-                    Text("claude \(state.processes.claude) · codex \(state.processes.codex)")
+                    Text("claude \(state.processes.claude)")
                         .font(.system(size: 10, design: .monospaced)).foregroundStyle(.white.opacity(0.55))
                 }
             }
@@ -447,6 +609,29 @@ struct NotchDashboard: View {
         }
         .padding(.horizontal, 20)
         .padding(.bottom, 12)
+    }
+}
+
+/// 展开岛右上角的设置入口（Emily 规格：13pt 常规字重，白 55%，悬停白 90% + 白 10% 圆底 + 转 30°）
+struct NotchGearButton: View {
+    let action: () -> Void
+    @State private var hover = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "gearshape")
+                .font(.system(size: 13, weight: .regular))
+                .foregroundStyle(.white.opacity(hover ? 0.9 : 0.55))
+                .rotationEffect(.degrees(hover && !reduceMotion ? 30 : 0))
+                .frame(width: 24, height: 24)
+                .background(Circle().fill(.white.opacity(hover ? 0.1 : 0)))
+                .contentShape(Circle())
+        }
+        .buttonStyle(PressableStyle(pressedScale: 0.92))
+        .onHover { h in withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) { hover = h } }
+        .help("设置")
+        .accessibilityLabel("设置")
     }
 }
 
@@ -519,15 +704,14 @@ struct StatePill: View {
 
 struct NotchCardView: View {
     let card: NotchCard
-    let duration: TimeInterval
+    /// nil：常驻卡片，不画进度条
+    let countdown: CardCountdown?
     let onDismiss: () -> Void
-    @State private var progress: CGFloat = 1
 
     var body: some View {
         VStack(spacing: 8) {
             HStack(spacing: 12) {
-                // 吉祥物插槽（占位，原创角色稍后替换）
-                Mascot(mood: card.mood, size: 38)
+                Mascot(state: card.mascotState, size: 38, emote: card.mascotEmote)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(card.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(.white)
                     Text(card.detail).font(.system(size: 12)).foregroundStyle(.white.opacity(0.65)).lineLimit(1)
@@ -542,22 +726,23 @@ struct NotchCardView: View {
                 }
                 .buttonStyle(PressableStyle())
             }
-            if !card.persistent {
-                GeometryReader { g in
-                    Capsule().fill(Color.white.opacity(0.1))
-                        .overlay(alignment: .leading) {
-                            Capsule().fill(card.tint.opacity(0.85)).frame(width: g.size.width * progress)
-                        }
+            if let countdown {
+                // 进度条直接从倒计时算，暂停时 TimelineView 停止刷新
+                // @see https://developer.apple.com/documentation/swiftui/timelineviewdefaultcontext
+                // @see https://developer.apple.com/documentation/swiftui/timelineschedule/animation(minimuminterval:paused:)
+                TimelineView(.animation(paused: countdown.isPaused)) { ctx in
+                    GeometryReader { g in
+                        Capsule().fill(Color.white.opacity(0.1))
+                            .overlay(alignment: .leading) {
+                                Capsule().fill(card.tint.opacity(0.85))
+                                    .frame(width: g.size.width * countdown.fraction(at: ctx.date))
+                            }
+                    }
                 }
                 .frame(height: 3)
             }
         }
         .padding(.horizontal, 18)
         .padding(.bottom, 10)
-        .onAppear {
-            guard !card.persistent else { return }
-            progress = 1
-            withAnimation(.linear(duration: duration)) { progress = 0 }
-        }
     }
 }

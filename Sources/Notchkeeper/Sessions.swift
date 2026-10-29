@@ -16,7 +16,6 @@ struct AgentSession: Identifiable, Equatable {
 
 struct ProcessCounts: Equatable {
     var claude = 0
-    var codex = 0
 
     static func current() -> ProcessCounts {
         var r = ProcessCounts()
@@ -30,7 +29,6 @@ struct ProcessCounts: Equatable {
             if proc_name(pid, &buf, UInt32(buf.count)) > 0 {
                 let name = String(cString: buf)
                 if name == "claude" { r.claude += 1 }      // CLI（桌面 App 名为 "Claude"，不计入）
-                else if name == "codex" { r.codex += 1 }
             }
         }
         return r

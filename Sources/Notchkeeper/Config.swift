@@ -1,44 +1,21 @@
 import AppKit
 import Combine
 
-enum IconStyle: String, Codable, CaseIterable, Identifiable {
-    case filled, outline, mono
-    var id: String { rawValue }
-    var title: String {
-        switch self {
-        case .filled: return "彩色实心"
-        case .outline: return "彩色描边"
-        case .mono: return "单色"
-        }
-    }
-}
-
-enum PanelMaterial: String, Codable, CaseIterable, Identifiable {
-    case liquidGlass, frosted
-    var id: String { rawValue }
-    var title: String { self == .liquidGlass ? "液态玻璃" : "毛玻璃" }
-    static var liquidGlassAvailable: Bool {
-        if #available(macOS 26.0, *) { return true }
-        return false
-    }
-}
-
 /// 持久化到 ~/Library/Application Support/Notchkeeper/config.json。
 /// 解码时缺失的字段一律用默认值，手动改坏一个字段不会丢掉整份配置。
 struct NKConfig: Codable, Equatable {
     // 通用
     var launchAtLogin = false
-    var iconStyle: IconStyle = .filled
     var soundEnabled = true
-    var panelMaterial: PanelMaterial = PanelMaterial.liquidGlassAvailable ? .liquidGlass : .frosted
     var hoverExpand = true
+    var dundunFeelsTheMac = true
     // 出口守卫
-    var allowlist: [String] = ["216.36.90.150", "216.36.90.116"]
-    var checkIntervalSeconds = 15
+    // 不内置任何真实出口：空列表时 guardd 判不了出口（unknown），设置页会提示
+    var allowlist: [String] = []
     var autoAlert = true
     var alertPersistent = true
     // 通知
-    var cardAutoDismissSeconds = 4.0
+    var cardAutoDismissSeconds = 6.0
     var suppressWhenHostFrontmost = true
     var agents: [String: Bool] = Dictionary(uniqueKeysWithValues: AgentKind.allCases.map { ($0.rawValue, true) })
 
@@ -51,15 +28,13 @@ struct NKConfig: Codable, Equatable {
             (try? c.decodeIfPresent(T.self, forKey: key)) ?? def
         }
         launchAtLogin = v(.launchAtLogin, d.launchAtLogin)
-        iconStyle = v(.iconStyle, d.iconStyle)
         soundEnabled = v(.soundEnabled, d.soundEnabled)
-        panelMaterial = v(.panelMaterial, d.panelMaterial)
         hoverExpand = v(.hoverExpand, d.hoverExpand)
+        dundunFeelsTheMac = v(.dundunFeelsTheMac, d.dundunFeelsTheMac)
         allowlist = v(.allowlist, d.allowlist)
-        checkIntervalSeconds = min(300, max(5, v(.checkIntervalSeconds, d.checkIntervalSeconds)))
         autoAlert = v(.autoAlert, d.autoAlert)
         alertPersistent = v(.alertPersistent, d.alertPersistent)
-        cardAutoDismissSeconds = min(15, max(2, v(.cardAutoDismissSeconds, d.cardAutoDismissSeconds)))
+        cardAutoDismissSeconds = min(10, max(2, v(.cardAutoDismissSeconds, d.cardAutoDismissSeconds)))
         suppressWhenHostFrontmost = v(.suppressWhenHostFrontmost, d.suppressWhenHostFrontmost)
         agents = d.agents.merging(v(.agents, [String: Bool]())) { _, new in new }
     }
@@ -137,7 +112,7 @@ final class ConfigStore: ObservableObject {
         lastMTime = m
         guard let data = try? Data(contentsOf: url), data != lastData else { return }
         guard let c = try? JSONDecoder().decode(NKConfig.self, from: data) else {
-            AppState.shared.addLog("配置文件 JSON 格式错误，保留当前设置", .warn)
+            Log.write("配置文件 JSON 格式错误，保留当前设置")
             return
         }
         lastData = data
@@ -145,7 +120,7 @@ final class ConfigStore: ObservableObject {
             applyingExternal = true
             config = c
             applyingExternal = false
-            AppState.shared.addLog("已热加载配置文件")
+            Log.write("已热加载配置文件")
         }
     }
 
