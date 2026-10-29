@@ -72,7 +72,7 @@ Haitao 本机自用的 macOS 刘海应用。SwiftPM 构建，SwiftUI + AppKit，
 
 | 什么时候 | 读哪份 |
 |---|---|
-| 开工前、换会话 | `HANDOFF.md`（已定决策、进度、待办）、`README.md`（运行、安装、模块） |
+| 开工前、换会话 | `HANDOFF.md`（接下来的步骤、还没写进文档的决定、待办）、`README.md`（运行、安装、模块） |
 | 守卫信号、判定、`guard-state.json`、怎么画 | `docs/egress-guard.md` |
 | 会话怎么读、什么时候算回合结束、什么时候响声音 | `docs/agent-integration.md` |
 | 防火墙规则、开关、恢复 | `docs/firewall.md` |
@@ -106,7 +106,7 @@ Haitao 本机自用的 macOS 刘海应用。SwiftPM 构建，SwiftUI + AppKit，
 
 - commit / push 要用户本轮明示。amend、force-push、改 git 配置都不做。只暂存本次改动涉及的文件，不用 `git add` 整个目录。
 - **删除优先审查**：提交前对 diff 逐行问「删掉会坏什么」，答不出的删掉或内联。汇报时列出删了什么、改了什么、有争议但保留的行及理由。
-- 每次提交前更新 `HANDOFF.md` 的进度与待办，随同一提交。
+- 每次提交前更新 `HANDOFF.md`，随同一提交：做完的删掉（历史看 `git log`），只留接下来要做的和待办。
 - **独立审查**：派一个新的 [`reviewer`](.claude/agents/reviewer.md) 子 agent（不用 fork，只读），给它改动和相关文档，让它审这次的 diff。必须修的问题包括：结论错、丢数据、永远卡住、安全问题、违反硬规则、可能断网。修完再审一轮，至多两轮；仍有问题就停下，交用户定。
 - 一个提交只做一件能独立看懂的事，相关测试放在同一个提交里；重构与功能、修复分开。
 - 格式（Conventional Commits）：

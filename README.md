@@ -85,7 +85,7 @@ NOTCHKEEPER_LIVE_PROBES=1 swift test --filter LiveProbes   # 真机只读冒烟�
 ## 文档
 
 - `CLAUDE.md`：本仓规则
-- `HANDOFF.md`：已定决策、进度、待办
+- `HANDOFF.md`：接下来的步骤、还没写进文档的决定、待办
 - `docs/egress-guard.md`：守卫的信号、判定、状态文件、怎么画
 - `docs/firewall.md`：防火墙（未实现）
 - `docs/mascot.md`：盾盾的造型数据与动效
