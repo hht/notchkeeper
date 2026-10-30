@@ -7,7 +7,7 @@ private func file(_ overrides: [String: Any?] = [:]) -> Data {
     var json: [String: Any] = [
         "pid": 31301, "sessionId": "5d0c7c2e-0000-4000-8000-000000000000", "cwd": "/Users/u/Documents/Projects/notchkeeper",
         "startedAt": 1793296492153, "procStart": "Thu Oct 29 17:54:51 2026", "version": "2.1.296", "peerProtocol": 1,
-        "kind": "interactive", "entrypoint": "cli", "pidDomain": "darwin", "name": "不该被读的名字",
+        "kind": "interactive", "entrypoint": "cli", "pidDomain": "darwin", "name": "不该被读的名字", "nameSource": "user",
         "status": "busy", "statusUpdatedAt": 1793304005799, "updatedAt": 1793304005799,
     ]
     for (k, v) in overrides { json[k] = v }
@@ -20,7 +20,7 @@ private let procStart = Date(timeIntervalSince1970: 1_793_296_491)
 @Suite struct SessionFileParsing {
     @Test func busyCLISession() throws {
         #expect(try SessionFile.parse(file()) == Session(
-            pid: 31301, processStart: procStart, project: "notchkeeper",
+            pid: 31301, processStart: procStart, cwd: "/Users/u/Documents/Projects/notchkeeper",
             state: .working, stateSince: Date(timeIntervalSince1970: 1_793_304_005.799)))
     }
 }

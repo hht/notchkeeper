@@ -6,7 +6,7 @@ private let t0 = Date(timeIntervalSince1970: 1_800_000_000)
 
 /// pid 1 的会话在 `t0 + at` 秒进入 `state`
 private func session(_ state: AgentState, at: TimeInterval = 0, pid: Int32 = 1, started: TimeInterval = -3600) -> Session {
-    Session(pid: pid, processStart: t0.addingTimeInterval(started), project: "p\(pid)", state: state, stateSince: t0.addingTimeInterval(at))
+    Session(pid: pid, processStart: t0.addingTimeInterval(started), cwd: "/p\(pid)", state: state, stateSince: t0.addingTimeInterval(at))
 }
 
 /// 依次喂进去（每份在它的 stateSince 读到），返回每一步的事件
@@ -18,7 +18,7 @@ private func feed(_ board: inout AgentBoard, _ sessions: Session...) -> [AgentEv
     @Test func workingThenStoppedEndsTurn() {
         var board = AgentBoard()
         #expect(feed(&board, session(.stopped), session(.working, at: 1), session(.stopped, at: 9))
-                == [nil, nil, .turnEnded(project: "p1")])
+                == [nil, nil, .turnEnded(pid: 1)])
     }
 
     /// 经过需要你介入再回到工作中，还是同一个回合
@@ -26,28 +26,28 @@ private func feed(_ board: inout AgentBoard, _ sessions: Session...) -> [AgentEv
         var board = AgentBoard()
         #expect(feed(&board, session(.stopped), session(.working, at: 1), session(.needsYou(.approval), at: 2),
                      session(.needsYou(.approval), at: 2), session(.working, at: 5), session(.stopped, at: 9))
-                == [nil, nil, .needsYou(.approval, project: "p1"), nil, nil, .turnEnded(project: "p1")])
+                == [nil, nil, .needsYou(.approval, pid: 1), nil, nil, .turnEnded(pid: 1)])
     }
 
     /// 在批准框按 Esc：从需要你介入直接变成已停止，也是回合结束（「实测」3）
     @Test func stoppingWhileNeedingYouEndsTurn() {
         var board = AgentBoard()
         #expect(feed(&board, session(.stopped), session(.working, at: 1), session(.needsYou(.question), at: 2), session(.stopped, at: 3))
-                == [nil, nil, .needsYou(.question, project: "p1"), .turnEnded(project: "p1")])
+                == [nil, nil, .needsYou(.question, pid: 1), .turnEnded(pid: 1)])
     }
 
     /// 回合从进入工作中算起：空闲时弹出的对话框要提醒，但关掉它不是回合结束
     @Test func dialogWhileStoppedIsNotATurn() {
         var board = AgentBoard()
         #expect(feed(&board, session(.stopped), session(.needsYou(.question), at: 1), session(.stopped, at: 2))
-                == [nil, .needsYou(.question, project: "p1"), nil])
+                == [nil, .needsYou(.question, pid: 1), nil])
     }
 
     /// 从等你批准换成等你回答，还在需要你介入里，不再响
     @Test func switchingNeedDoesNotPingAgain() {
         var board = AgentBoard()
         #expect(feed(&board, session(.stopped), session(.needsYou(.approval), at: 1), session(.needsYou(.question), at: 2))
-                == [nil, .needsYou(.approval, project: "p1"), nil])
+                == [nil, .needsYou(.approval, pid: 1), nil])
     }
 }
 
@@ -55,16 +55,16 @@ private func feed(_ board: inout AgentBoard, _ sessions: Session...) -> [AgentEv
 @Suite struct PickingUpMidTurn {
     @Test func workingAtFirstSightIsATurn() {
         var board = AgentBoard()
-        #expect(feed(&board, session(.working), session(.stopped, at: 5)) == [nil, .turnEnded(project: "p1")])
+        #expect(feed(&board, session(.working), session(.stopped, at: 5)) == [nil, .turnEnded(pid: 1)])
     }
 
     /// 已经在等你：照常算回合，但不补响 Ping（用户 10-29）
     @Test func needingYouAtFirstSightDoesNotPing() {
         var board = AgentBoard()
         #expect(feed(&board, session(.needsYou(.approval)), session(.working, at: 3), session(.stopped, at: 5))
-                == [nil, nil, .turnEnded(project: "p1")])
+                == [nil, nil, .turnEnded(pid: 1)])
         var direct = AgentBoard()
-        #expect(feed(&direct, session(.needsYou(.question)), session(.stopped, at: 5)) == [nil, .turnEnded(project: "p1")])
+        #expect(feed(&direct, session(.needsYou(.question)), session(.stopped, at: 5)) == [nil, .turnEnded(pid: 1)])
     }
 
     /// 回合开始取文件里的 `statusUpdatedAt`，不是 App 读到的时刻

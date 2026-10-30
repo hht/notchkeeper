@@ -765,7 +765,7 @@ struct SessionRow: View {
                     .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color(white: 0.62).opacity(0.18)))
                     .help("Claude Code")
                     .accessibilityLabel("Claude Code")
-                Text(session.project).font(.system(size: 12.5, weight: .semibold)).lineLimit(1)
+                Text(URL(fileURLWithPath: session.cwd).lastPathComponent).font(.system(size: 12.5, weight: .semibold)).lineLimit(1)
                     .foregroundStyle(Color.white)
                 Spacer(minLength: 6)
                 StatePill(state: session.state)

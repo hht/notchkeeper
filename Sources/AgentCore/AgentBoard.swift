@@ -3,9 +3,9 @@ import Foundation
 /// 该提醒的事（docs/agent-integration.md「提醒」）
 public enum AgentEvent: Equatable, Sendable {
     /// 回合中变成已停止：完成卡 + Glass
-    case turnEnded(project: String)
+    case turnEnded(pid: Int32)
     /// 进入需要你介入：介入卡 + Ping。在里面从一类换成另一类不再发
-    case needsYou(AgentState.Need, project: String)
+    case needsYou(AgentState.Need, pid: Int32)
 }
 
 /// 所有会话合起来，此刻 agent 这一档该画什么。按优先级从低到高排（docs/mascot.md §2「优先级」）
@@ -41,12 +41,12 @@ public struct AgentBoard: Sendable {
             if turnStart == nil { turnStart = session.stateSince }
         case .stopped:
             if turnStart != nil {
-                event = .turnEnded(project: session.project)
+                event = .turnEnded(pid: session.pid)
                 finishedUntil = now.addingTimeInterval(Self.finishedFor)
             }
             turnStart = nil
         case .needsYou(let need):
-            if case .needsYou = old.session.state {} else { event = .needsYou(need, project: session.project) }
+            if case .needsYou = old.session.state {} else { event = .needsYou(need, pid: session.pid) }
         }
         tracked[session.pid] = (session, turnStart)
         return event
