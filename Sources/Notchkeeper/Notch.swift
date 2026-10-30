@@ -101,8 +101,34 @@ final class NotchModel: ObservableObject {
 /// 三种形态的尺寸，视图和悬停命中测试共用
 enum NotchLayout {
     static let cardWidth: CGFloat = 400
-    static let dashWidth: CGFloat = 440
-    static let rowHeight: CGFloat = 34
+    /// 展开面板黑底宽 = iOS 灵动岛展开态宽 408（HIG Live Activities；Mac 菜单栏里的 Live Activity 用同一套尺寸）。
+    /// 形状两侧还各有一截往外翻的顶角（`openFlare`），不算黑底
+    static let dashWidth: CGFloat = 408
+    /// 展开（面板、卡片）时形状顶角往外翻的宽度（NotchShape 的 topRadius）
+    static let openFlare: CGFloat = 14
+    /// 黑底四周边距 14（HIG Live Activities：Lock Screen 标准边距）
+    static let dashMargin: CGFloat = 14
+    static let listRadius: CGFloat = 14
+    /// 展开（面板、卡片）时形状的底角；收起时 8
+    static let openBottomRadius: CGFloat = 28
+    /// 会话容器四周留 4
+    static let listInset: CGFloat = 4
+    static let rowHeight: CGFloat = 38
+    static let rowPadding: CGFloat = 10
+    static let rowIcon: CGFloat = 24
+    /// 行内容离黑底左右边：会话图标左缘、时间右缘、底栏文字左缘、齿轮右缘、右上徽章右缘都在这条线上（docs/ui.md「面板布局」）
+    static let contentInset = dashMargin + listInset + rowPadding
+    /// 左上的盾盾和右上的徽章：等大（HIG：leading / trailing 大小相近，左右平衡），和刘海下的标题 + IP 两行一样高；
+    /// 盾盾身体中心和会话图标中心在同一条竖线上
+    static let dashCorner: CGFloat = 32
+    /// 盾盾和徽章上缘离面板顶 8：紧贴刘海两侧，不留「额头」
+    static let dashCornerTop: CGFloat = 8
+    /// 刘海正下方的状态区（标题 + IP）的高度
+    static let dashStatusHeight: CGFloat = 42
+    static let footerHeight: CGFloat = 30
+    /// 状态区和会话容器之间、底栏和面板底之间
+    static let listGap: CGFloat = 10
+    static let footerBottom: CGFloat = 4
     /// 会话列表最多露出几行，再多就在列表里滚动（用户 10-29：开的会话多了面板不能无限变长）
     static let maxRows = 5
 
@@ -115,7 +141,7 @@ enum NotchLayout {
     static let earCanvasInset: CGFloat = 6
     /// 画布里身体中心的纵坐标；身体中心对齐 notchSize.height / 2，所以 32pt 刘海时画布上缘在 -0.5
     static let earBodyCenterY: CGFloat = 16.5
-    /// 左耳盾盾的身体直径（docs/mascot.md §1：20pt 版）
+    /// 左耳盾盾的身体直径（docs/mascot.md §1）：面板里那只缩到这么大
     static let earMascotSize: CGFloat = 20
     /// 右耳指示的中心离形状右边 17.5（docs/mascot.md §1）
     static let earDotInset: CGFloat = 17.5
@@ -136,6 +162,8 @@ enum NotchLayout {
     static func hasEars(_ notch: CGSize) -> Bool { notch.height > 0 }
 
     static func topInset(_ notch: CGSize) -> CGFloat { max(notch.height, 24) }
+    /// 面板内容从刘海下沿起；没有刘海的屏幕按 32 留出菜单栏
+    static func dashTop(_ notch: CGSize) -> CGFloat { max(notch.height, 32) }
 
     static func size(_ mode: NotchMode, notch: CGSize, rows: Int) -> CGSize {
         switch mode {
@@ -144,8 +172,8 @@ enum NotchLayout {
         case .card: return CGSize(width: cardWidth, height: topInset(notch) + 72)
         case .dashboard:
             let n = min(rows, maxRows)
-            let list = n == 0 ? 36 : CGFloat(n) * rowHeight
-            return CGSize(width: dashWidth, height: topInset(notch) + 75 + list)
+            let list = (n == 0 ? rowHeight : CGFloat(n) * rowHeight) + 2 * listInset
+            return CGSize(width: dashWidth + 2 * openFlare, height: dashTop(notch) + dashStatusHeight + listGap + list + footerHeight + footerBottom)
         }
     }
 }
@@ -575,12 +603,15 @@ struct NotchRoot: View {
     let onDismiss: () -> Void
     let onSettings: () -> Void
 
+    @ObservedObject private var director = MascotDirector.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         let mode = model.mode
         let size = NotchLayout.size(mode, notch: model.notchSize, rows: state.sessions.count)
         let open = mode != .closed
-        let t: CGFloat = open ? 14 : NotchLayout.closedFlare
-        let b: CGFloat = mode == .dashboard ? 26 : (open ? 28 : 8)
+        let t: CGFloat = open ? NotchLayout.openFlare : NotchLayout.closedFlare
+        let b: CGFloat = open ? NotchLayout.openBottomRadius : 8
         let shape = NotchShape(topRadius: t, bottomRadius: b)
         let glow: Color = mode == .card ? (model.card?.tint ?? .clear) : .white
 
@@ -589,14 +620,7 @@ struct NotchRoot: View {
                 .fill(Color.black)
                 .frame(width: size.width, height: size.height)
                 .overlay(alignment: .top) { content(mode, inset: t) }
-                .overlay(alignment: .topTrailing) {
-                    if mode == .dashboard {
-                        NotchGearButton(action: onSettings)
-                            .padding(.top, 12)
-                            .padding(.trailing, t + 12)
-                            .transition(Self.contentTransition)
-                    }
-                }
+                .overlay(alignment: .topLeading) { corners(mode, size: size, flare: t) }
                 .overlay {
                     // 卡片描边从两侧往下由淡到实，底边最亮；其余形态是一条很淡的白线
                     NotchShape(topRadius: t, bottomRadius: b, closed: false)
@@ -612,6 +636,57 @@ struct NotchRoot: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
+    /// 左上的盾盾、右上的指示：收起和展开是**同一个视图**，只按形态改位置和缩放，
+    /// 跟着形状的同一个弹簧走（HIG Live Activities：「Maintain the relative placement of elements」，
+    /// 展开态是收起态放大，元素不移除再进场）。布局尺寸固定、只动 position / scaleEffect，
+    /// 嵌进来的 Core Animation 视图在 macOS 14 上也会被逐帧插值（10-29 实测）。
+    /// 减弱动态效果时不飞：换形态就换一个新视图，旧的原地淡出、新的在新位置淡入（docs/mascot.md §5）。
+    /// 卡片形态时淡出，卡片自己画盾盾；透明的那些停掉动画
+    @ViewBuilder
+    private func corners(_ mode: NotchMode, size: CGSize, flare: CGFloat) -> some View {
+        if NotchLayout.hasEars(model.notchSize) || mode == .dashboard {
+            let open = mode == .dashboard
+            let notch = model.notchSize
+            let c = NotchLayout.dashCorner
+            let ears = NotchLayout.ears(notch: notch, flare: flare)
+            let top = NotchLayout.dashCornerTop + c / 2
+            let left = flare + NotchLayout.contentInset + NotchLayout.rowIcon / 2
+            let right = size.width - flare - NotchLayout.contentInset - c / 2
+            let look = overrides.mascot(real: state.look)
+            // 右边跟着左边实际画的造型走（犯困时左耳睡着，右耳就不亮）
+            let shown = overrides.look != nil ? look : look.shown(drowsy: director.drowsy)
+            ZStack(alignment: .topLeading) {
+                // 告示（sign）永远在右边：盾盾只管表情，收起、展开都不画告示
+                MascotView(look: look, size: c, hidesSigns: true, playing: mode != .card)
+                    .environment(\.mascotLiteral, overrides.look != nil)
+                    .scaleEffect(open ? 1 : NotchLayout.earMascotSize / c)
+                    .position(open ? CGPoint(x: left, y: top) : ears.bodyCenter)
+                    .id(reduceMotion && open)
+                    .transition(.opacity)
+                ZStack {
+                    EarIndicatorView(indicator: .for(shown, probeFailed: state.presentation.probeFailed && overrides.look == nil),
+                                     size: CGSize(width: NotchLayout.earWidth, height: notch.height),
+                                     // 外面已经把这一组的中心放在离右边 earDotInset 处，这里以自身中心为准，不再偏一次
+                                     center: CGPoint(x: NotchLayout.earWidth / 2, y: notch.height / 2),
+                                     playing: mode == .closed)
+                        .frame(width: NotchLayout.earWidth, height: notch.height)
+                        .opacity(open ? 0 : 1)
+                    GuardBadge(presentation: state.presentation, size: c)
+                        .opacity(open ? 1 : 0)
+                        .scaleEffect(open || reduceMotion ? 1 : 0.4)
+                }
+                .frame(width: c, height: c)
+                .position(open ? CGPoint(x: right, y: top)
+                               : CGPoint(x: size.width - NotchLayout.earDotInset, y: notch.height / 2))
+                .id(reduceMotion && open)
+                .transition(.opacity)
+            }
+            .frame(width: size.width, height: size.height, alignment: .topLeading)
+            .opacity(mode == .card ? 0 : 1)
+            .allowsHitTesting(false)
+        }
+    }
+
     @ViewBuilder
     private func content(_ mode: NotchMode, inset: CGFloat) -> some View {
         let top = NotchLayout.topInset(model.notchSize) - 2
@@ -622,109 +697,147 @@ struct NotchRoot: View {
                     .id(card.id)
                     .padding(.top, top)
                     .padding(.horizontal, inset)
-                    .transition(Self.contentTransition)
+                    .transition(Self.contentTransition(reduceMotion))
             }
         case .dashboard:
-            NotchDashboard(state: state, overrides: overrides)
+            NotchDashboard(state: state, onSettings: onSettings)
                 .frame(width: NotchLayout.dashWidth)
-                .padding(.top, top)
-                .transition(Self.contentTransition)
+                .padding(.top, NotchLayout.dashTop(model.notchSize))
+                .transition(Self.contentTransition(reduceMotion))
         case .closed:
-            if NotchLayout.hasEars(model.notchSize) {
-                NotchEars(look: overrides.mascot(real: state.look), forced: overrides.look != nil,
-                          probeFailed: state.presentation.probeFailed, notch: model.notchSize, flare: inset)
+            EmptyView()
+        }
+    }
+
+    /// 内容在形状长开之后进场：模糊变清晰 + 从 0.96 放大 + 淡入，稍等 0.06s 让形状先走（DynamicNotchKit 的 blur + scale + opacity，
+    /// boring.notch 的 `.smooth(0.35)`）；退场只淡出、更快（CLAUDE.md：进场稍慢、退场稍快）。减弱动态效果只淡入淡出
+    static func contentTransition(_ reduceMotion: Bool) -> AnyTransition {
+        let fadeOut = AnyTransition.opacity.animation(.easeIn(duration: 0.1))
+        if reduceMotion { return .asymmetric(insertion: .opacity.animation(.easeOut(duration: 0.2)), removal: fadeOut) }
+        return .asymmetric(
+            insertion: .modifier(active: Unfocus(amount: 1), identity: Unfocus(amount: 0))
+                .animation(.smooth(duration: 0.35).delay(0.06)),
+            removal: fadeOut)
+    }
+}
+
+/// 进场用：模糊 8pt、缩到 0.96（锚在顶部）、透明
+private struct Unfocus: ViewModifier {
+    let amount: CGFloat
+    func body(content: Content) -> some View {
+        content
+            .blur(radius: 8 * amount)
+            .scaleEffect(1 - 0.04 * amount, anchor: .top)
+            .opacity(1 - amount)
+    }
+}
+
+/// 右上的出口状态徽章：和左上的盾盾等大。颜色 + 图标 + 文案三者一起表达状态（CLAUDE.md「状态 = 颜色 + 图标 + 文案」），
+/// 文案在刘海下方的标题
+struct GuardBadge: View {
+    let presentation: GuardPresentation
+    let size: CGFloat
+
+    private var symbol: String {
+        switch presentation.tone {
+        case .healthy: return "checkmark.shield.fill"
+        case .mismatch: return "exclamationmark.triangle.fill"
+        case .violated: return "xmark.shield.fill"
+        case .unknown:
+            switch presentation.look {
+            case .offline: return "wifi.slash"
+            case .stale: return "hourglass"
+            default: return "questionmark"
             }
         }
     }
 
-    static let contentTransition = AnyTransition.asymmetric(
-        insertion: .opacity.combined(with: .scale(scale: 0.92, anchor: .top))
-            .animation(.spring(response: 0.4, dampingFraction: 0.8).delay(0.08)),
-        removal: .opacity.animation(.easeIn(duration: 0.1)))
-}
-
-/// 收起时的两只耳朵（docs/mascot.md §1、§2）。纯黑、无描边无阴影，
-/// 底色就是 NotchRoot 的黑形状。坐标见 `NotchLayout.ears`：左耳身体圆心 x = 外翻 + 6 + 14、y = H/2；
-/// 右耳指示中心 x = W − 17.5。点击和悬停由 NotchController 的热区处理。
-struct NotchEars: View {
-    let look: Look
-    let forced: Bool
-    /// 探针没结果：右耳灰环（强制显示时不看真实状态）
-    let probeFailed: Bool
-    let notch: CGSize
-    let flare: CGFloat
-
-    @ObservedObject private var director = MascotDirector.shared
-
-    /// 右耳跟着左耳实际画的造型走（犯困时左耳睡着，右耳就不亮）
-    private var shown: Look { forced ? look : look.shown(drowsy: director.drowsy) }
-
     var body: some View {
-        let e = NotchLayout.ears(notch: notch, flare: flare)
-        let w = notch.width + 2 * NotchLayout.earWidth
-        ZStack(alignment: .topLeading) {
-            MascotView(look: look, size: NotchLayout.earMascotSize, hidesSigns: true)
-                .environment(\.mascotLiteral, forced)
-                .position(e.bodyCenter)
-            RightEarView(indicator: .for(shown, probeFailed: probeFailed && !forced), height: notch.height)
-                .frame(width: NotchLayout.earWidth, height: notch.height)
-                .position(x: w - NotchLayout.earWidth / 2, y: notch.height / 2)
-        }
-        .frame(width: w, height: notch.height, alignment: .topLeading)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .allowsHitTesting(false)
+        let c = presentation.color
+        Circle()
+            .fill(c.opacity(0.16))
+            .overlay(Image(systemName: symbol).font(.system(size: size * 0.42, weight: .semibold)).foregroundStyle(c))
+            .frame(width: size, height: size)
+            .accessibilityElement()
+            .accessibilityLabel(presentation.title)
     }
 }
 
-/// 悬停展开内容：出口 + 活跃会话。只显示项目名 / agent / 状态 / 时间，不显示任何对话内容。
+/// 悬停展开的内容：刘海正下方的出口状态、会话列表、底栏（检查时间 + 设置）。左上的盾盾和右上的徽章在 NotchRoot。
+/// 只显示路径 / 状态 / 时间，不显示任何对话内容。
 struct NotchDashboard: View {
     @ObservedObject var state: AppState
-    @ObservedObject var overrides: NotchOverrides
+    let onSettings: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 10) {
-                let p = state.presentation
-                MascotView(look: overrides.mascot(real: state.look), size: 40)
-                    .environment(\.mascotLiteral, overrides.look != nil)
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 6) {
-                        GuardDot(presentation: p, glow: true)
-                        Text(p.title).font(.system(size: 13, weight: .semibold)).foregroundStyle(.white).lineLimit(1)
-                    }
-                    Text("出口 \(state.display.egressIP ?? "—")")
-                        .font(.system(size: 11, weight: .medium, design: .monospaced))
-                        .foregroundStyle(p.ipColor)
-                }
-                Spacer(minLength: 8)
+        let p = state.presentation
+        let m = NotchLayout.dashMargin
+        VStack(spacing: 0) {
+            // 刘海正下方（灵动岛的 center 区）：标题用中等以上字重（HIG Live Activities），圆体配圆润的盾盾（HIG Typography）
+            VStack(spacing: 2) {
+                Text(p.title)
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                Text(state.display.egressIP ?? "—")
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .foregroundStyle(p.ipColor)
             }
-            .frame(height: 40)
+            // 两侧让开盾盾和徽章
+            .padding(.horizontal, NotchLayout.contentInset + NotchLayout.rowIcon / 2 + NotchLayout.dashCorner / 2 + 6)
+            .frame(height: NotchLayout.dashStatusHeight)
 
-            Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1)
+            SessionList(sessions: state.sessions)
+                .padding(.top, NotchLayout.listGap)
+                .padding(.horizontal, m)
 
-            if state.sessions.isEmpty {
-                HStack(spacing: 6) {
-                    Image(systemName: "moon.zzz").font(.system(size: 11))
-                    Text("没有看到正在运行的 Claude Code").font(.system(size: 12))
+            HStack(spacing: 6) {
+                TimelineView(.periodic(from: .now, by: 1)) { _ in
+                    Text(checkedText)
+                        .font(.system(size: 10.5, weight: .medium).monospacedDigit())
+                        .foregroundStyle(.white.opacity(0.4))
                 }
-                .foregroundStyle(.white.opacity(0.45))
-                .frame(maxWidth: .infinity, minHeight: 36)
+                Spacer()
+                NotchGearButton(action: onSettings)
+                    .padding(.trailing, -5) // 齿轮的点击框 24、图形约 14：让图形右缘落在右对齐线上
+            }
+            .padding(.horizontal, NotchLayout.contentInset)
+            .frame(height: NotchLayout.footerHeight)
+        }
+    }
+
+    /// 守卫数据新不新鲜：「未知」也要看得出来（CLAUDE.md 准则 5）
+    private var checkedText: String {
+        guard let at = state.display.checkedAt else { return String(localized: "出口还没检查过") }
+        return String(localized: "出口检查于 \(at.formatted(.relative(presentation: .numeric, unitsStyle: .abbreviated)))")
+    }
+}
+
+/// 会话列表：内嵌的圆角容器（HIG Live Activities：用内嵌圆角容器分隔内容）。最多露出 maxRows 行，多的在里面滚
+struct SessionList: View {
+    let sessions: [Session]
+
+    var body: some View {
+        Group {
+            if sessions.isEmpty {
+                Text("没有看到正在运行的 Claude Code")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.4))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: NotchLayout.rowHeight)
             } else {
-                // 最多露出 maxRows 行，多的在里面滚，面板不再变长
                 ScrollView(.vertical) {
                     VStack(spacing: 0) {
-                        ForEach(state.sessions, id: \.pid) { s in
-                            SessionRow(session: s).frame(height: NotchLayout.rowHeight)
-                        }
+                        ForEach(sessions, id: \.pid) { SessionRow(session: $0) }
                     }
                 }
                 .scrollBounceBehavior(.basedOnSize)
                 .environment(\.colorScheme, .dark) // 系统亮色、滚动条设成「始终」时，别在黑底上画浅色槽
-                .frame(height: CGFloat(min(state.sessions.count, NotchLayout.maxRows)) * NotchLayout.rowHeight)
+                .frame(height: CGFloat(min(sessions.count, NotchLayout.maxRows)) * NotchLayout.rowHeight)
             }
         }
-        .padding(.horizontal, 20)
-        .padding(.bottom, 12)
+        .padding(NotchLayout.listInset)
+        .background(RoundedRectangle(cornerRadius: NotchLayout.listRadius, style: .continuous).fill(.white.opacity(0.06)))
     }
 }
 
@@ -751,82 +864,66 @@ struct NotchGearButton: View {
     }
 }
 
+/// 一行会话：agent 的标志、路径、状态指示、状态变化距今。已停止的整行变暗。
+/// 状态只用指示表达，不写字（用户 10-29）；状态名留给悬停提示和旁白
 struct SessionRow: View {
     let session: Session
 
+    /// 工作中和右耳一样是三蓝点；需要你介入用盾盾这两个造型自己的装饰（带 ? 的气泡、举起的手），比一个点好认；已停止不画
+    private var indicator: EarIndicator {
+        switch session.state {
+        case .working: return .dots
+        case .needsYou(.question): return .decoration(.question)
+        case .needsYou(.approval): return .decoration(.approval)
+        case .stopped: return .none
+        }
+    }
+
+    private var stateTitle: String {
+        switch session.state {
+        case .working: return String(localized: "工作中")
+        case .needsYou(.question): return String(localized: "等你回答")
+        case .needsYou(.approval): return String(localized: "等你批准")
+        case .stopped: return String(localized: "已停止")
+        }
+    }
+
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { _ in
-            HStack(spacing: 10) {
-                // 是哪个 agent 只靠行首图标表示，不另写一行字（用户 10-29）；图标用通用图形，不用品牌标志
-                Image(systemName: "apple.terminal")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Color(white: 0.62))
-                    .frame(width: 22, height: 22)
-                    .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color(white: 0.62).opacity(0.18)))
-                    .help("Claude Code")
-                    .accessibilityLabel("Claude Code")
-                Text(URL(fileURLWithPath: session.cwd).lastPathComponent).font(.system(size: 12.5, weight: .semibold)).lineLimit(1)
-                    .foregroundStyle(Color.white)
-                Spacer(minLength: 6)
-                StatePill(state: session.state)
-                // 状态变化距今，系统相对时间格式（docs/ui.md「面板布局」）
-                // TimelineView 每秒重算一次 body，按当时的现在算
+        let path = (session.cwd as NSString).abbreviatingWithTildeInPath
+        HStack(spacing: 10) {
+            // 是哪个 agent 只靠行首的厂商标志表示（用户 10-29）
+            ClaudeMark()
+                .fill(ClaudeMark.color)
+                .frame(width: 15, height: 15)
+                .frame(width: NotchLayout.rowIcon, height: NotchLayout.rowIcon)
+                .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(.white.opacity(0.08)))
+                .help("Claude Code")
+                .accessibilityLabel("Claude Code")
+            // 太长从前面截成「…」，留住最后几段（用户 10-29）
+            Text(path)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .truncationMode(.head)
+                .help(path)
+            Spacer(minLength: 8)
+            EarIndicatorView(indicator: indicator, size: CGSize(width: 20, height: 20), center: CGPoint(x: 13, y: 10))
+                .frame(width: 20, height: 20)
+                .contentShape(Rectangle())
+                .help(stateTitle)
+            // TimelineView 每秒重算一次 body，按当时的现在算
+            TimelineView(.periodic(from: .now, by: 1)) { _ in
                 Text(session.stateSince.formatted(.relative(presentation: .numeric, unitsStyle: .abbreviated)))
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(Color.white.opacity(0.6))
-                    .frame(minWidth: 58, alignment: .trailing)
+                    .font(.system(size: 11, weight: .medium).monospacedDigit())
+                    .foregroundStyle(.white.opacity(0.4))
             }
+            .frame(width: 66, alignment: .trailing)
         }
-    }
-}
-
-/// 会话状态胶囊。颜色和右耳指示的点同一份（`RGB.working` 等）；
-/// 绿色留给出口正常（CLAUDE.md「状态 = 颜色 + 图标 + 文案」），这里不用
-struct StatePill: View {
-    let state: AgentState
-    @State private var pulse = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    private var working: Bool { state == .working }
-    /// 减弱动态效果时不脉动（CLAUDE.md「界面准则·动效」）；写在修饰符里，设置中途改了也马上生效
-    private var pulsing: Bool { working && pulse && !reduceMotion }
-
-    private var tint: Color {
-        switch state {
-        case .working: return Color(cgColor: RGB.working.cg)
-        case .needsYou(.question): return Color(cgColor: RGB.question.cg)
-        case .needsYou(.approval): return Color(cgColor: RGB.approval.cg)
-        case .stopped: return Color(cgColor: RGB.grey.cg)
-        }
-    }
-
-    private var title: LocalizedStringKey {
-        switch state {
-        case .working: return "工作中"
-        case .needsYou(.question): return "等你回答"
-        case .needsYou(.approval): return "等你批准"
-        case .stopped: return "已停止"
-        }
-    }
-
-    var body: some View {
-        HStack(spacing: 4) {
-            Circle()
-                .fill(tint)
-                .frame(width: 6, height: 6)
-                .scaleEffect(pulsing ? 1.35 : 1)
-                .opacity(pulsing ? 0.55 : 1)
-            Text(title).font(.system(size: 10, weight: .medium))
-        }
-        .foregroundStyle(state == .stopped ? Color.white.opacity(0.5) : tint)
-        .padding(.horizontal, 7).padding(.vertical, 3)
-        .background(Capsule().fill(tint.opacity(0.14)))
-        .onAppear { if working { startPulse() } }
-        .onChange(of: working) { _, now in if now { startPulse() } else { pulse = false } }
-    }
-
-    private func startPulse() {
-        withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) { pulse = true }
+        .padding(.horizontal, NotchLayout.rowPadding)
+        .frame(height: NotchLayout.rowHeight)
+        .opacity(session.state == .stopped ? 0.55 : 1)
+        .accessibilityElement(children: .combine)
+        .accessibilityValue(stateTitle)
     }
 }
 

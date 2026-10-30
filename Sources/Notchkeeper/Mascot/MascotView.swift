@@ -13,6 +13,8 @@ struct MascotView: View {
     var cheers = false
     /// 收起态的左耳：sign 装饰挪到右耳，这里不画
     var hidesSigns = false
+    /// false：此刻透明、看不见，停掉动画（CLAUDE.md「看不见就不调度」）
+    var playing = true
 
     static let cheerFor: TimeInterval = 5.2
 
@@ -41,7 +43,7 @@ struct MascotView: View {
         Color.clear
             .frame(width: size, height: size)
             .overlay(alignment: .topLeading) {
-                MascotLayer(look: shown, size: c.size, unit: c.unit, reduceMotion: reduceMotion, hidesSigns: hidesSigns)
+                MascotLayer(look: shown, size: c.size, unit: c.unit, reduceMotion: reduceMotion, hidesSigns: hidesSigns, playing: playing)
                     .frame(width: c.frame.width, height: c.frame.height)
                     .offset(x: c.frame.minX, y: c.frame.minY)
                     .allowsHitTesting(false)
@@ -65,12 +67,16 @@ private struct MascotLayer: NSViewRepresentable {
     let unit: CGFloat
     let reduceMotion: Bool
     let hidesSigns: Bool
+    let playing: Bool
 
     func makeNSView(context: Context) -> MascotFigureView {
-        MascotFigureView(look: look, size: size, unit: unit, reduceMotion: reduceMotion, entrance: true, hidesSigns: hidesSigns)
+        let v = MascotFigureView(look: look, size: size, unit: unit, reduceMotion: reduceMotion, entrance: true, hidesSigns: hidesSigns)
+        v.playing = playing
+        return v
     }
 
     func updateNSView(_ v: MascotFigureView, context: Context) {
+        v.playing = playing
         v.setReduceMotion(reduceMotion)
         v.setLook(look)
     }

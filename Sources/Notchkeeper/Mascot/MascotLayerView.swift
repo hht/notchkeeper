@@ -5,13 +5,17 @@ import MascotCore
 /// 盾盾和右耳共用的两件事：此刻看不看得见；把 MascotCore 的 `Track` 提交成 Core Animation 动画。
 /// 不知道画的是什么（子类搭图层树、给出 `Part` 对应哪一层）。
 ///
-/// 看得见 = 在窗口里、窗口没收起也没被完全挡住、没熄屏也没锁屏（docs/mascot.md §5「渲染」）。
+/// 看得见 = 外面说在画（`playing`）、在窗口里、窗口没收起也没被完全挡住、没熄屏也没锁屏（docs/mascot.md §5「渲染」）。
 /// 窗口收起后 SwiftUI 不会移除里面的视图，所以要自己看窗口的遮挡状态。看不见时撤掉全部动画，
 /// 静止值都在模型层上，回来时重新挂循环就行。
 /// @see https://developer.apple.com/documentation/appkit/nswindow/occlusionstate-swift.property
 @MainActor
 class MascotLayerView: NSView {
     private(set) var active = false
+    /// 外面说它此刻画不画出来：SwiftUI 把它设成透明时窗口的遮挡状态看不出来，要外面告诉
+    var playing = true {
+        didSet { if playing != oldValue { refreshActive() } }
+    }
     private var serial = 0
     /// 挂着的循环：哪一层、键、编排、起播的媒体时间。撤的时候按编排算出循环自己叠了多少
     private var loops: [(layer: CALayer, key: String, track: Track, begin: CFTimeInterval)] = []
@@ -65,7 +69,7 @@ class MascotLayerView: NSView {
     }
 
     func refreshActive() {
-        let on = window?.occlusionState.contains(.visible) == true && !MascotDirector.shared.paused
+        let on = playing && window?.occlusionState.contains(.visible) == true && !MascotDirector.shared.paused
         guard on != active else { return }
         active = on
         if !on {

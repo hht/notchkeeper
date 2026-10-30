@@ -25,7 +25,7 @@
     6. **恢复卡排队**：违规恢复时，恢复卡照普通临时卡进队列，不顶掉正在放的 agent 卡。
     7. **盾盾**：卡片上的盾盾画这张卡自己的造型（agent 卡画 finished / question / approval，红卡画 danger）。收起态的优先级不变，仍是守卫 > agent（`docs/mascot.md` §2）：插队时刘海是卡片形态，耳朵本来就看不见。防火墙守住（shielded）时同样适用。
   - 第 4 步做 `NotchCore` 的卡片队列时写进文档，要改：CLAUDE.md 硬规则「红卡显示与否，只看当前状态和 `dismissedViolationSince`」（卡片队列成了第三个输入，**改硬规则要用户明确确认**）、CLAUDE.md 界面准则「红卡一直留到恢复」、`docs/egress-guard.md` 红卡规则、`docs/agent-integration.md`「提醒」。
-- **展开面板布局**：agent 出了三版草稿（10-29，`/tmp/nk-proto/abc.png` 和渲染脚本 `panel.swift`，ImageRenderer 渲染；用户选定前别删，重启丢了就照下面的网格重新渲染），等用户选：A 现结构按网格对齐；B 灵动岛四区，状态居中；C 灵动岛四区，左盾盾、右「状态短名胶囊 + 齿轮」（跟着右耳）、刘海下一行出口详情。agent 推荐 C（HIG：expanded 是 compact 的放大版，元素相对位置不变；盾盾从左耳几乎原地长大；最矮）。三版共用网格：外边距 16pt，会话图标 28pt 圆角 10（和面板底角 26 同心），图标中心对盾盾身体中心，齿轮右缘对时间列右缘。选定后写进 `docs/ui.md`「面板布局」。
+- **只接 Claude Code**（用户 10-29）：Grok Bot 不做（对话在服务器上，本机只有 `desktop-status.json` 的 pid / signedIn 和 `~/.grokbot/local-exec-daemon.json` 的 `inflightCount`，分不出会话和状态）；Grok CLI（`~/.grok/active_sessions.json`）也不做。
 
 ## 开发计划（agent 制定，10-29）
 
@@ -33,19 +33,19 @@
 
 | 步 | 内容 | 产出 / 验收 | 状态 |
 |---|---|---|---|
-| 4 | **App 外壳重写**：<br>• `NotchCore`：GuardPresentation、CardQueue、HoverMachine、MascotResolver、配置解码（`Tests/NotchkeeperTests` 里的测试跟着挪）<br>• 面板网格重排（`docs/ui.md`「面板布局」，先出草稿）、展开时盾盾从左耳缓动到面板、接上「晕」<br>• 接上完成卡、需要介入卡和声音<br>• 亮色模式、多语言的基础设施，所有新文案走 String Catalog<br>• 精简设置页（加「在系统设置中更改语言…」按钮；设置窗口去掉强制暗色）<br>• `demo.sh` 的通知只在 DEBUG 构建里监听<br>• 刘海视图只订阅 `presentation` | 测试；亮暗 × 中英截图；CPU 验收 | 待做 |
+| 4 | **App 外壳重写**：<br>• `NotchCore`：GuardPresentation、CardQueue、HoverMachine、MascotResolver、配置解码（`Tests/NotchkeeperTests` 里的测试跟着挪）<br>• 接上「晕」<br>• 接上完成卡、需要介入卡和声音<br>• 亮色模式、多语言的基础设施，所有新文案走 String Catalog<br>• 精简设置页（加「在系统设置中更改语言…」按钮；设置窗口去掉强制暗色）<br>• `demo.sh` 的通知只在 DEBUG 构建里监听<br>• 刘海视图只订阅 `presentation` | 测试；亮暗 × 中英截图；CPU 验收 | 待做 |
 | 5 | **防火墙**：root 实测 → 恢复脚本并实测 → 试运行和自动回滚 → 规则、LaunchDaemon、安装脚本、App 开关；shielded 造型接线 | 按全局 Contract「高影响」档收工 | 待做 |
 
-## 面板布局的现状（第 4 步改，规则见 `docs/ui.md`）
+## 面板还没实测的
 
-用户 10-29 原话：「展开的时候，我们的盾盾需要缓动到正确位置；现在这个布局两侧都没对齐。」代码在 `Sources/Notchkeeper/Notch.swift` 的 `NotchDashboard`、`SessionRow`、`StatePill`、`NotchGearButton`。原因：
+版式已定（`docs/ui.md`「面板布局」），下面几处只在代码里推过、没在实机上看：
 
-- 盾盾的图层画布 80 × 68pt 含右上装饰区，身体圆左缘离画布左边 16pt，而 HStack 按画布排。
-- 标题文字起点 = 画布宽 80 + 间距 10，会话行文字起点 = 图标 22 + 间距 10，两列不在一条线上；会话图标 22pt 和盾盾身体 40pt 的中心对不上。
-- 盾盾的 ▲ 装饰顶到面板上沿。
-- 齿轮单独在右上角，右缘和时间列不齐；时间列只有 `minWidth: 58`，不是固定宽，英文「12 min. ago」约 75pt，会把胶囊往左推。
-- 行首图标的 `.help` 悬停提示在 App 不在前台时可能不出现（`NSWindow.allowsToolTipsWhenApplicationIsInactive` 默认 false，推断，未实测）；齿轮的 `.help("设置")` 同理。
-- 盾盾缓动的实现可以考虑把它提到 NotchRoot 这一层作为唯一一只，按展开进度插值位置和缩放，或者用 `matchedGeometryEffect`。它是 CA 图层视图，补间时不要重建图层。
+- **减弱动态效果**：盾盾和徽章换形态时应该原地淡出、新位置淡入，不飞（`NotchRoot.corners` 的 `.id(reduceMotion && open)`）。要切系统设置，先问用户。
+- **悬停提示**：会话行和齿轮的 `.help` 在 App 不在前台时可能不出现（`NSWindow.allowsToolTipsWhenApplicationIsInactive` 默认 false，推断）。
+- **英文时间列**：固定宽 66，英文「12 min. ago」约 75pt，可能被截（推断）。
+- 滚出可视区的会话行，三蓝点循环照跑（量小，暂不管）。
+- **装饰顶出面板上沿**（推断）：32pt 盾盾上缘离面板顶 8，finished 的大星最高点约在 −0.8pt、闪烁还放大 0.18，sleeping 的 Z 上浮也可能碰到，会被形状裁掉一点。实机看 finished / sleeping。
+- **删 small 尺寸**（单独一个 refactor 提交）：左耳改成面板盾盾缩小后，App 里没有 ≤ 24pt 的 `MascotView` 了。`MascotView` 的 `.small` 分支、`Size.small` 和 `decoration(.small)` 的数据只剩测试在用；`NotchLayout` 的 `earCanvas`、`earCanvasInset`、`earBodyCenterY`、`Ears.canvas` 只为算一个 `bodyCenter`。
 
 ## 工作方法备忘
 
@@ -85,4 +85,3 @@
   - `NotchController` 里的卡片队列、悬停状态机、布局几何、`GuardPresentation` 的判定进 `NotchCore`；红卡「关掉的是哪一次」现在分在 `AppState.dismissedViolationSince` 和 `NotchController.pendingAlert/violationAlerted` 两处，合成一个 owner；`Notch.swift:366` 用 `asyncAfter(0.5)` 等收起动画；`NKConfig` 去前缀；`ConfigStore` 每秒轮询，看不见时也在跑。
   - **删 `--selftest` 丢掉的覆盖，在 `NotchCore` 里用 swift test 补回**（原文 `git show d8a28dd:Sources/Notchkeeper/AgentEvents.swift`，约 50 条）：违规 → unknown → healthy 撤红卡；关掉的同一次违规不再弹、新的一次照弹；stale / clockSkew 且 lastVerdict 是 violated 时保留红卡、不响 Basso；非常驻红卡到时不重弹；恢复卡只在弹过红卡后出现；`GuardPresentation` 各状态的颜色和文案。
   - `config.json` 里的 `launchAtLogin`、`suppressWhenHostFrontmost`、`agents` 三个键下次存盘时会被去掉（没有消费者）。以后要做「按 agent 开关」从默认值重来。
-- **Grok Bot**：只能识别「有新回复 / 等你回复」，做不做还没定。

@@ -55,7 +55,7 @@ Haitao 本机自用的 macOS 刘海应用。SwiftPM 构建，SwiftUI + AppKit，
 - **只读元数据，不读对话内容。** 会话文件只取判定需要的字段；日志和界面不出现消息正文、工具参数和输出。
 - **除防火墙外不碰网络与 shell 环境。** 不改 `~/.zshrc`，不改系统网络设置。「打开 Clash」只是打开 App。出口探测只请求第三方服务（如 ipinfo.io），不碰 Claude / Anthropic 的域名。guardd 是用户级 LaunchAgent，不要 sudo。
 - **密钥不打印，日志不记 IP。** 界面上完整显示出口 IP（Haitao 2026-10-28）。测试与文档里的 IP 用 `198.51.100.x`。
-- **品牌**：盾盾是原创角色（Haitao 2026-10-29），造型与动效以 `docs/mascot.md` 为准。不用 Grok、Codex、Coucou、Mochi 等别家的名字、形象和音效。过渡期：现有从 Coucou（MIT）移植来的代码，在第 4 步重写删掉之前，保留原 MIT 声明和设置页致谢。
+- **品牌**：盾盾是原创角色（Haitao 2026-10-29），造型与动效以 `docs/mascot.md` 为准。盾盾不用 Grok、Codex、Coucou、Mochi 等别家的名字、形象和音效；面板会话行可以用 agent 厂商自己的标志标明是哪家的会话（Haitao 2026-10-29）。过渡期：现有从 Coucou（MIT）移植来的代码，在第 4 步重写删掉之前，保留原 MIT 声明和设置页致谢。
 - **看不见就不调度。** 窗口收起、被遮挡、熄屏、锁屏时，停掉所有动画和计时器。性能验收数字以 `docs/mascot.md` 为准。
 
 ## 界面准则

@@ -3,24 +3,29 @@ import SwiftUI
 import QuartzCore
 import MascotCore
 
-/// 收起态右耳的指示（docs/mascot.md §2「右耳指示」）：44 宽、刘海高，指示的中心在 (44 − 17.5, H/2)
-struct RightEarView: NSViewRepresentable {
+/// 右耳指示（docs/mascot.md §2「右耳指示」）：收起态的右耳，面板里每个会话行的状态也用它画（docs/ui.md「面板布局」）。
+/// `center` 是指示的中心：三蓝点的圆心在它左边 8、3 和右边 2；7pt 的点、装饰的外框都以它为中心
+struct EarIndicatorView: NSViewRepresentable {
     let indicator: EarIndicator
-    let height: CGFloat
+    let size: CGSize
+    let center: CGPoint
+    /// false：此刻透明、看不见，停掉动画
+    var playing = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func makeNSView(context: Context) -> EarLayerView {
-        let w = NotchLayout.earWidth
-        return EarLayerView(size: CGSize(width: w, height: height), center: CGPoint(x: w - NotchLayout.earDotInset, y: height / 2),
-                            indicator: indicator, reduceMotion: reduceMotion)
+        let v = EarLayerView(size: size, center: center, indicator: indicator, reduceMotion: reduceMotion)
+        v.playing = playing
+        return v
     }
 
     func updateNSView(_ v: EarLayerView, context: Context) {
+        v.playing = playing
         v.set(indicator, reduceMotion: reduceMotion)
     }
 }
 
-/// 右耳图层：点、三蓝点、灰环，或者 sign 造型的装饰图标（和 40pt 盾盾右上角的一样大、一样动）。
+/// 右耳图层：点、三蓝点、灰环，或者某个造型的装饰（和 40pt 盾盾右上角的一样大、一样动）。
 /// 换指示时和盾盾换装饰一样：旧的缩小淡出，新的弹出
 @MainActor
 final class EarLayerView: MascotLayerView {
@@ -59,7 +64,7 @@ final class EarLayerView: MascotLayerView {
     }
 
     override var unit: CGFloat {
-        if case .sign = indicator { return 2 }
+        if case .decoration = indicator { return 2 }
         return 1
     }
 
@@ -67,11 +72,11 @@ final class EarLayerView: MascotLayerView {
         if on { startLoops(loops) }
     }
 
-    /// sign 只要装饰的节奏（右耳没有身体和头）
+    /// 装饰只要装饰的节奏（这里没有身体和头）
     private var loops: [Track] {
         switch indicator {
         case .dots: return Choreography.earDots(reduceMotion: reduceMotion)
-        case .sign(let look):
+        case .decoration(let look):
             return Choreography.loop(look, size: .large, reduceMotion: reduceMotion).filter {
                 if case .decoPart = $0.part { return true } else { return false }
             }
@@ -101,7 +106,7 @@ final class EarLayerView: MascotLayerView {
         case .ring:
             // 7pt 外径、1pt 描边
             parts = [circle(center, diameter: 7, .stroke(1), .grey)]
-        case .sign(let look):
+        case .decoration(let look):
             // 装饰外框的中心对准右耳中心，1 画布单位 = 2pt
             parts = look.decoration(.large)
             let box = parts.map { $0.spec.path.boundingBoxOfPath }.reduce(CGRect.null) { $0.union($1) }

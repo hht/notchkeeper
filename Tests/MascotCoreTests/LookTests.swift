@@ -98,8 +98,8 @@ private let deg = Double.pi / 180
         (Look.idle, false, EarIndicator.none), (.idle, true, .ring),
         (.thinking, false, .dots), (.working, false, .dots), (.longTurn, false, .dots), (.working, true, .ring),
         (.question, false, .dot(RGB(0x3CC8DC))), (.approval, false, .dot(RGB(0xB5E04A))), (.approval, true, .ring),
-        (.danger, false, .sign(.danger)), (.danger, true, .sign(.danger)), (.offline, false, .sign(.offline)),
-        (.error, false, .sign(.error)), (.finished, false, .none), (.sleeping, false, .none),
+        (.danger, false, .decoration(.danger)), (.danger, true, .decoration(.danger)), (.offline, false, .decoration(.offline)),
+        (.error, false, .decoration(.error)), (.finished, false, .none), (.sleeping, false, .none),
     ])
     func indicator(_ look: Look, _ probeFailed: Bool, _ expected: EarIndicator) {
         #expect(EarIndicator.for(look, probeFailed: probeFailed) == expected)
