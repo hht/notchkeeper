@@ -20,8 +20,6 @@ public struct CardCountdown: Equatable, Sendable {
         return max(0, remainingAtResume - now.timeIntervalSince(r))
     }
 
-    public func fraction(at now: Date) -> Double { total > 0 ? remaining(at: now) / total : 0 }
-
     public mutating func pause(at now: Date) {
         guard !isPaused else { return }
         remainingAtResume = remaining(at: now)

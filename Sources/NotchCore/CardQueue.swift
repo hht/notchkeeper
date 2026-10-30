@@ -18,11 +18,14 @@ public struct CardQueue<Card: Equatable & Sendable>: Sendable {
         public var key: Key?
         /// 放多久（「卡片停留」设置；恢复卡固定 4 秒）
         public var seconds: TimeInterval
+        /// 说的是此刻的状态（介入卡）：同一个会话来了新卡、或被 `withdraw`，排着的、正在放的都作废
+        public var lapses: Bool
 
-        public init(card: Card, key: Key?, seconds: TimeInterval) {
+        public init(card: Card, key: Key?, seconds: TimeInterval, lapses: Bool = false) {
             self.card = card
             self.key = key
             self.seconds = seconds
+            self.lapses = lapses
         }
     }
 
@@ -60,8 +63,13 @@ public struct CardQueue<Card: Equatable & Sendable>: Sendable {
     private var alert: Bool?
     private var stage: Stage?
     private var waiting: [Entry] = []
-    /// 台面上这张卡的倒计时；nil 表示一直放着（常驻红卡放完第一次之后）
+    /// 台面上这张卡的倒计时；nil 表示一直放着（常驻红卡放完第一次之后）。鼠标停在卡上或看不见时暂停
     public private(set) var countdown: CardCountdown?
+    public private(set) var hovering = false
+    /// 熄屏或锁屏：新卡不放、不响，倒计时停住
+    private var away = false
+    /// 看不见时挂上的红卡，回来再响
+    private var alertSoundDue = false
 
     public init() {}
 
@@ -80,16 +88,26 @@ public struct CardQueue<Card: Equatable & Sendable>: Sendable {
     }
 
     public mutating func post(_ notice: Notice, now: Date) -> Change {
+        if case .notice(let e) = stage, e.notice.lapses, let key = notice.key, e.notice.key == key {
+            // 正在放的介入卡被同一个会话的新卡顶掉
+            waiting.removeAll { $0.notice.key == key }
+            waiting.insert(Entry(notice: notice), at: 0)
+            return next(now)
+        }
         if let key = notice.key, let i = waiting.firstIndex(where: { $0.notice.key == key }) {
             waiting[i] = Entry(notice: notice)
         } else {
             waiting.append(Entry(notice: notice))
         }
-        // 空着，或常驻红卡已经放过第一次：马上盖上去；否则等台面上这张放完
+        return yieldable ? next(now) : Change()
+    }
+
+    /// 台面可以让给排着的卡：空着，或常驻红卡已经放过第一次；否则等台面上这张放完
+    private var yieldable: Bool {
         switch stage {
-        case nil: return next(now)
-        case .alert where countdown == nil: return next(now)
-        default: return Change()
+        case nil: return true
+        case .alert: return countdown == nil
+        case .notice: return false
         }
     }
 
@@ -102,12 +120,15 @@ public struct CardQueue<Card: Equatable & Sendable>: Sendable {
         waiting.removeAll { $0.notice.key == .recovered }
         stage = .alert
         countdown = CardCountdown(total: seconds, now: now)
-        return Change(sound: sound)
+        syncCountdown(now)
+        alertSoundDue = sound && away
+        return Change(sound: sound && !away)
     }
 
     /// 红卡不该挂了（回到 healthy，或别处记下关掉了这一次）
     public mutating func clearAlert(now: Date) -> Change {
         alert = nil
+        alertSoundDue = false
         guard case .alert = stage else { return Change() }
         return next(now)
     }
@@ -118,6 +139,7 @@ public struct CardQueue<Card: Equatable & Sendable>: Sendable {
         case .notice: return next(now)
         case .alert:
             alert = nil
+            alertSoundDue = false
             var change = next(now)
             change.alertDismissed = true
             return change
@@ -142,20 +164,47 @@ public struct CardQueue<Card: Equatable & Sendable>: Sendable {
         }
     }
 
-    /// 鼠标停在卡上：倒计时暂停
-    public mutating func pause(now: Date) { countdown?.pause(at: now) }
+    /// 这个会话不再需要你介入：撤掉它的介入卡，排着的、正在放的都撤
+    public mutating func withdraw(_ key: Key, now: Date) -> Change {
+        waiting.removeAll { $0.notice.key == key && $0.notice.lapses }
+        guard case .notice(let e) = stage, e.notice.key == key, e.notice.lapses else { return Change() }
+        return next(now)
+    }
 
-    /// 鼠标移开：从剩下的时间继续
-    public mutating func resume(now: Date) { countdown?.resume(at: now) }
+    /// 鼠标停在卡上：倒计时暂停；移开从剩下的时间继续
+    public mutating func setHovering(_ on: Bool, now: Date) -> Change {
+        hovering = on
+        syncCountdown(now)
+        return Change()
+    }
+
+    /// 熄屏或锁屏（docs/ui.md「卡片」8）：台面上的卡停住，新卡排着不放、不响；回来接着放，欠着的红卡声音这时响
+    public mutating func setAway(_ on: Bool, now: Date) -> Change {
+        guard on != away else { return Change() }
+        away = on
+        if on {
+            syncCountdown(now)
+            return Change()
+        }
+        if yieldable, !waiting.isEmpty { return next(now) }
+        syncCountdown(now)
+        defer { alertSoundDue = false }
+        return Change(sound: alertSoundDue)
+    }
+
+    private mutating func syncCountdown(_ now: Date) {
+        if hovering || away { countdown?.pause(at: now) } else { countdown?.resume(at: now) }
+    }
 
     /// 台面上这张放完了：放队首的临时卡；队列空了回到挂着的红卡（一直放着、不再响）；都没有就收起
     private mutating func next(_ now: Date) -> Change {
-        if !waiting.isEmpty {
+        if !waiting.isEmpty, !away {
             var e = waiting.removeFirst()
             let sound = !e.sounded
             e.sounded = true
             stage = .notice(e)
             countdown = CardCountdown(total: e.notice.seconds, now: now)
+            syncCountdown(now)
             return Change(sound: sound)
         }
         stage = alert == nil ? nil : .alert

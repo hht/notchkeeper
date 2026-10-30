@@ -29,8 +29,8 @@ final class AppState: ObservableObject {
 
     /// 每次读完都调用（不论有没有变化），参数是这次读到的显示
     var onPresentation: ((GuardPresentation) -> Void)?
-    /// 回合结束、进入需要你介入（AgentCore 判定），带上这个会话
-    var onAgentEvent: ((AgentEvent, Session) -> Void)?
+    /// AgentCore 判定的事件，连同同一次更新的会话列表
+    var onAgentEvents: (([AgentEvent], [Session]) -> Void)?
     /// 订阅 guard-state 显示流的长任务；`stopWatchingGuard()` / deinit 取消，流随之结束、监听关掉
     private var guardTask: Task<Void, Never>?
     private var agentWatcher: AgentWatcher?
@@ -79,19 +79,13 @@ final class AppState: ObservableObject {
         if update.activity != agentActivity { agentActivity = update.activity }
         if update.sessions != sessions { sessions = update.sessions }
         for event in update.events {
-            let pid: Int32
             switch event {
-            case .turnEnded(let p):
-                pid = p
-                Log.write("agent：回合结束（pid \(p)）")
-            case .needsYou(let need, let p):
-                pid = p
-                Log.write("agent：需要你介入，\(need)（pid \(p)）")
+            case .turnEnded(let pid): Log.write("agent：回合结束（pid \(pid)）")
+            case .needsYou(let need, let pid): Log.write("agent：需要你介入，\(need)（pid \(pid)）")
+            case .needsYouEnded(let pid): Log.write("agent：介入结束（pid \(pid)）")
             }
-            // 事件和会话列表出自同一次更新：发事件的会话一定在列表里
-            guard let session = update.sessions.first(where: { $0.pid == pid }) else { preconditionFailure("事件的会话不在列表里") }
-            onAgentEvent?(event, session)
         }
+        if !update.events.isEmpty { onAgentEvents?(update.events, update.sessions) }
     }
 
     /// 用户关掉了红卡（或非常驻红卡到时收起）。只在违规还挂着时记下，演示红卡关掉不算

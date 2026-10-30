@@ -21,12 +21,12 @@ private func feed(_ board: inout AgentBoard, _ sessions: Session...) -> [AgentEv
                 == [nil, nil, .turnEnded(pid: 1)])
     }
 
-    /// 经过需要你介入再回到工作中，还是同一个回合
+    /// 经过需要你介入再回到工作中，还是同一个回合；回到工作中时介入结束（介入卡要撤）
     @Test func needsYouInsideTurnPingsOnce() {
         var board = AgentBoard()
         #expect(feed(&board, session(.stopped), session(.working, at: 1), session(.needsYou(.approval), at: 2),
                      session(.needsYou(.approval), at: 2), session(.working, at: 5), session(.stopped, at: 9))
-                == [nil, nil, .needsYou(.approval, pid: 1), nil, nil, .turnEnded(pid: 1)])
+                == [nil, nil, .needsYou(.approval, pid: 1), nil, .needsYouEnded(pid: 1), .turnEnded(pid: 1)])
     }
 
     /// 在批准框按 Esc：从需要你介入直接变成已停止，也是回合结束（「实测」3）
@@ -36,11 +36,11 @@ private func feed(_ board: inout AgentBoard, _ sessions: Session...) -> [AgentEv
                 == [nil, nil, .needsYou(.question, pid: 1), .turnEnded(pid: 1)])
     }
 
-    /// 回合从进入工作中算起：空闲时弹出的对话框要提醒，但关掉它不是回合结束
+    /// 回合从进入工作中算起：空闲时弹出的对话框要提醒，关掉它不是回合结束，是介入结束（介入卡要撤）
     @Test func dialogWhileStoppedIsNotATurn() {
         var board = AgentBoard()
         #expect(feed(&board, session(.stopped), session(.needsYou(.question), at: 1), session(.stopped, at: 2))
-                == [nil, .needsYou(.question, pid: 1), nil])
+                == [nil, .needsYou(.question, pid: 1), .needsYouEnded(pid: 1)])
     }
 
     /// 从等你批准换成等你回答，还在需要你介入里，不再响
@@ -62,7 +62,7 @@ private func feed(_ board: inout AgentBoard, _ sessions: Session...) -> [AgentEv
     @Test func needingYouAtFirstSightDoesNotPing() {
         var board = AgentBoard()
         #expect(feed(&board, session(.needsYou(.approval)), session(.working, at: 3), session(.stopped, at: 5))
-                == [nil, nil, .turnEnded(pid: 1)])
+                == [nil, .needsYouEnded(pid: 1), .turnEnded(pid: 1)])
         var direct = AgentBoard()
         #expect(feed(&direct, session(.needsYou(.question)), session(.stopped, at: 5)) == [nil, .turnEnded(pid: 1)])
     }
@@ -191,3 +191,27 @@ private func feed(_ board: inout AgentBoard, _ sessions: Session...) -> [AgentEv
         #expect(board.sessions.map(\.pid) == [2, 9])
     }
 }
+
+/// 介入结束：需要你介入的会话回到工作中或进程没了（docs/ubiquitous-language.md）；变成已停止算回合结束
+@Suite struct NeedsYouEnds {
+    @Test func processGoneWhileNeedingYouEndsNeed() {
+        var board = AgentBoard()
+        _ = feed(&board, session(.working), session(.needsYou(.question), at: 1))
+        #expect(board.remove(pid: 1) == .needsYouEnded(pid: 1))
+    }
+
+    @Test func processGoneOtherwiseSaysNothing() {
+        var board = AgentBoard()
+        _ = feed(&board, session(.working))
+        #expect(board.remove(pid: 1) == nil)
+        #expect(board.remove(pid: 1) == nil)
+    }
+
+    /// pid 被复用：旧进程正在需要你介入，就是介入结束
+    @Test func reusedPidEndsOldNeed() {
+        var board = AgentBoard()
+        _ = feed(&board, session(.working), session(.needsYou(.approval), at: 1))
+        #expect(board.update(session(.working, at: 5, started: 4), at: t0.addingTimeInterval(5)) == .needsYouEnded(pid: 1))
+    }
+}
+

@@ -89,8 +89,7 @@ final class AgentWatcher: @unchecked Sendable {
             directorySource = nil
             fileSources.values.forEach { $0.cancel() }
             fileSources.removeAll()
-            for pid in exitSources.keys { forget(pid) }
-            publish(events: [])
+            publish(events: exitSources.keys.compactMap(forget))
             return
         }
         let now = Date()
@@ -118,7 +117,7 @@ final class AgentWatcher: @unchecked Sendable {
             present.insert(session.pid)
             if let event = board.update(session, at: now) { events.append(event) }
         }
-        for pid in exitSources.keys where !present.contains(pid) { forget(pid) }
+        events += exitSources.keys.filter { !present.contains($0) }.compactMap(forget)
         publish(events: events)
     }
 
@@ -141,16 +140,17 @@ final class AgentWatcher: @unchecked Sendable {
         guard exitSources[pid] == nil else { return }
         let source = DispatchSource.makeProcessSource(identifier: pid, eventMask: .exit, queue: queue)
         source.setEventHandler { [weak self] in
-            self?.forget(pid)
-            self?.publish(events: [])
+            guard let self else { return }
+            self.publish(events: [self.forget(pid)].compactMap { $0 })
         }
         exitSources[pid] = source
         source.activate()
     }
 
-    private func forget(_ pid: Int32) {
+    /// 不再看这个进程；它正在需要你介入时返回介入结束
+    private func forget(_ pid: Int32) -> AgentEvent? {
         exitSources.removeValue(forKey: pid)?.cancel()
-        board.remove(pid: pid)
+        return board.remove(pid: pid)
     }
 
     private func publish(events: [AgentEvent]) {

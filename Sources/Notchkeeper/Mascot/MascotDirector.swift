@@ -39,6 +39,8 @@ final class MascotDirector: ObservableObject {
     @Published private(set) var drowsy = false
     /// 熄屏或锁屏。没有视图读它，所以不发布：每只盾盾由 `set(asleep:locked:)` 逐个通知
     private(set) var paused = false
+    /// 熄屏或锁屏变了：卡片队列跟着停、跟着放（docs/ui.md「卡片」8）
+    var onPausedChange: ((Bool) -> Void)?
 
     static let nearDistance: CGFloat = 150
     static let drowsyAfter: TimeInterval = 120
@@ -95,6 +97,7 @@ final class MascotDirector: ObservableObject {
         guard p != paused else { return }
         paused = p
         views.forEach { $0.view?.refreshActive() }
+        onPausedChange?(p)
     }
 
     private func checkDrowsy(mouse: NSPoint, now: Date) {

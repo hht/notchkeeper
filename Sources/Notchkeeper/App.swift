@@ -32,8 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         state.onPresentation = { [weak self] in self?.notch.guardChanged(to: $0) }
         notch.onAlertDismissed = { [weak self] in self?.state.dismissViolation() }
-        // 同一个会话还没放的旧卡被替换（docs/ui.md「卡片」2）
-        state.onAgentEvent = { [weak self] in self?.notch.post(.agent($0, cwd: $1.cwd), key: .session($1.pid)) }
+        state.onAgentEvents = { [weak self] in self?.notch.agentEvents($0, sessions: $1) }
 
         DistributedNotificationCenter.default().addObserver(
             self, selector: #selector(handleCardNotification(_:)),
@@ -49,6 +48,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             .store(in: &cancellables)
 
+        MascotDirector.shared.onPausedChange = { [weak self] in self?.notch.setScreenAway($0) }
         MascotDirector.shared.start(notchRect: { [weak self] in self?.notch.anchorRect ?? .zero })
         state.start()
         watchSIGTERM()
@@ -174,7 +174,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             notch.raiseAlert(card, sound: true)
             Log.write("外部触发：异常卡片")
         } else {
-            notch.post(NotchCard(title: title ?? "✅ 任务完成", detail: detail ?? "任务已完成", tint: ClaudeMark.color,
+            notch.post(NotchCard(title: title ?? "✅ 任务完成", detail: detail ?? "任务已完成", tint: NotchCard.doneTint,
                                  look: .finished, sound: "Glass"), key: nil)
             Log.write("外部触发：完成卡片")
         }

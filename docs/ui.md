@@ -9,7 +9,7 @@
 - 依据：HIG Live Activities 的「Choosing colors」一节写，"Live Activities in the Dynamic Island use a black opaque background"，而且灵动岛的背景色不能自定义（<https://developer.apple.com/design/human-interface-guidelines/live-activities>）。boring.notch、NotchDrop、DynamicNotchKit、Atoll 四个开源刘海 App 也都把贴刘海的面板写死成黑底。
 - 刘海窗口设窗口级 `appearance = NSAppearance(named: .darkAqua)`，照 boring.notch 的 `BoringNotchSkyLightWindow`。光写死黑底白字不够：面板里的系统控件、`.primary` / `.secondary`、SF Symbols 分层色、tooltip 会跟着窗口的外观走（<https://developer.apple.com/documentation/appkit/nsappearancecustomization/appearance>）。
 - 设置窗口不设外观，也不用 `preferredColorScheme`，直接跟随系统。不设 `NSApp.appearance`：Apple 说只在设计必需时才改整个 App 的外观（<https://developer.apple.com/documentation/appkit/choosing-a-specific-appearance-for-your-macos-app>）。
-- 不加 key line：黑面板和卡片只用阴影，不加描边。
+- 黑面板和卡片用黑色阴影。展开面板的边缘是一条很淡的白线（不透明度 0.08）；卡片边缘是表达倒计时的流星，常驻红卡和减弱动态效果时换成一条很淡的同色细边（照灵动岛的 `keylineTint`），见「卡片」。
 - **设置页里的盾盾放在黑底圆角「舞台」上**。盾盾的配色是按黑底设计的：亮色下身体顶色对白底只有约 1.2:1，睡着的 Z 只有 1.7:1，几乎看不见。用舞台的话，造型数据不用分亮暗。
 - 设置页的状态点（`GuardDot`）是表达信息的图形，在亮、暗两种底上都要满足 3:1（WCAG 1.4.11，<https://www.w3.org/WAI/WCAG22/Understanding/non-text-contrast.html>）。
 
@@ -61,13 +61,21 @@
 
 1. **一个队列**：所有临时卡进同一个先进先出队列，一次放一张。理由：一个设置管所有临时卡；两个会话同时结束，也不会一张顶掉另一张。
 2. **同一个会话只留最新**：队列里还没放的、同一个会话的旧卡，被它后来的卡原地替换（例如还没轮到介入卡就已经回合结束，只放完成卡）。恢复卡同理，同时只排一张。理由：只有最新状态有用，队列不会无限变长。
+   - **介入卡过期就撤**（agent 推荐，用户 10-29 同意）：介入卡说的是「此刻在等你」。这个会话一不再需要你介入，它的介入卡不论排着还是正在放都撤掉：回到工作中（你批准了）、进程没了、空闲时弹出的对话框关掉了，直接撤；回合里变成已停止（你拒绝了），回合结束的完成卡马上顶替它。完成卡、恢复卡说的是已经发生的事，不撤。
 3. **声音跟着卡响**：卡放出来那一刻才响，不在事件到达时响；被打断后重放的卡不再响。理由：`Basso`、`Glass`、`Ping` 永远不叠，听到的和看到的一一对应。
 4. **违规开始插到最前**：新违规开始（红卡 + `Basso`）时，正在放的临时卡回到队首；红卡先完整放一次「卡片停留」，再接着放队列。理由：违规刚发生的那一刻最要紧，被打断的提醒也不丢。
 5. **之后盖在红卡上**：红卡放过第一次之后，新来的临时卡直接盖在红卡上，放完回到红卡。
 6. **介入卡也自动收回**（用户 10-29）：不常驻。之后还在等你，靠收起态的盾盾造型（question / approval）和右耳的点提示。
 7. **盾盾**：卡片上的盾盾就是左耳（或面板左上）那只，跟着形状的弹簧飞到卡片左侧，到了换成这张卡自己的造型：完成卡和恢复卡 finished，介入卡 question / approval，红卡 danger（带告示 !!）。卡收起时飞回左耳，造型回到收起态的优先级（`docs/mascot.md` §2、§5）。用户 10-29：卡片的盾盾也要从原来的位置缓动过来。
+8. **看不见就不放**（agent 推荐，用户 10-29 同意；CLAUDE.md「看不见就不调度」）：熄屏或锁屏时，台面上的卡停住倒计时，新来的临时卡排着不放、不响，亮屏解锁后接着放。新违规照样把红卡挂上台面（状态要对），但 `Basso` 等回来再响；离开期间已经恢复的，回来不补响。理由：离开电脑时来的卡挨个放完、挨个响，回来什么都看不到。
 
-- **颜色**（卡的光晕和进度条）：完成卡用 Claude 的橙色 `#D97757`，介入卡用等你回答青 / 等你批准青柠，恢复卡绿，红卡红。绿色只给出口正常。
+- **边缘的流星就是倒计时**（用户 10-29 定稿）：两颗流星从顶部左右两端沿边匀速流到底边中间，位置始终对应剩余时间：卡片弹出那一刻倒计时开始，流星在约 0.35 秒后（形状快长好、圆角对得上时）淡入，汇合的那一刻卡片收起。只走一趟，不循环。没有进度条，也没有底轨。
+  - 流星的形状：清晰的实体头（直径约 4.4pt 的亮核，往后 16pt 收成水滴，前白后卡片色），外面一层淡光团，后面一条 200pt 长、越往后越淡的 1.5pt 细尾巴，只在靠近头的 80pt 有一层模糊柔光。流星压在卡片边缘正中，光往里外两边晕开；拐弯时贴着圆弧走。
+  - 悬停、熄屏锁屏时卡片停住，流星停在原处；卡片一开始收起，流星立刻撤掉，不淡出。
+  - 常驻红卡没有倒计时、或开了减弱动态效果：不画流星，只画一条很淡的同色细边。
+  - 做法照 Magic UI 的 Border Beam（渐变色块沿边跑、只露边框一圈），全部交给 Core Animation（`CardEdge.swift`）。<https://magicui.design/docs/components/border-beam>
+  - 中间试过、用户否掉的：底部进度条（加流光也不行）、沿边整圈亮边往中间退、Apple Intelligence 式彩色泛光、循环播放的流光、只有光晕没有实体头的流星。
+- **颜色**（流星和细边）：完成卡低饱和银白，介入卡等你回答青 / 等你批准青柠，恢复卡绿，红卡红。绿色只给出口正常；Claude 橙在黑底上晕开发红，不用。卡片外圈阴影一律黑色。
 - **文案**：标题说谁怎么了（「Claude Code 做完了」「Claude Code 在等你回答」「Claude Code 在等你批准」），副标题是会话的路径（同会话行，`~` 缩写）。
 - 依据：HIG Live Activities，提醒「light up the screen and by default play the notification sound」，多个活动时常驻的那个不被挤掉（<https://developer.apple.com/design/human-interface-guidelines/live-activities>）；仓里原有的「常驻红卡 + 临时卡插在上面、放完回到红卡」。
 

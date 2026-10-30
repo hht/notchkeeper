@@ -1,6 +1,6 @@
 # agent 状态：从哪读、什么时候提醒
 
-Notchkeeper 只关心 Claude Code 的三件事：**工作中、已停止、需要你介入**。本文定从哪读、怎么判、什么时候响声音。判定由 `AgentCore`（第 3 步新建）负责，配固定测试；读文件、监听目录、查进程在 App 外层。
+Notchkeeper 只关心 Claude Code 的三件事：**工作中、已停止、需要你介入**。只接 Claude Code（用户 10-29）：Grok Bot 的对话在服务器上，本机只有 `desktop-status.json`（pid、是否登录）和 `~/.grokbot/local-exec-daemon.json`（`inflightCount`），分不出会话和状态；Grok CLI（`~/.grok/active_sessions.json`）也不接。本文定从哪读、怎么判、什么时候响声音。判定由 `AgentCore`（第 3 步新建）负责，配固定测试；读文件、监听目录、查进程在 App 外层。
 
 ## 来源：`~/.claude/sessions/<pid>.json`
 
@@ -52,6 +52,7 @@ Notchkeeper 只关心 Claude Code 的三件事：**工作中、已停止、需�
 |---|---|---|
 | 回合结束 | 完成卡，按设置自动收回 | `Glass` |
 | 进入需要你介入 | 介入卡，按设置自动收回（用户 10-29），也可以手动关 | `Ping` |
+| 不再需要你介入：回到工作中、进程没了、不在回合里时变成已停止 | 撤掉这个会话的介入卡（排着的、正在放的都撤，`docs/ui.md`「卡片」2） | 无 |
 | 进入工作中 | 无 | 无：是你自己开的头 |
 
 - 卡片什么时候放、和红卡怎么让，见 `docs/ui.md`「卡片」：所有临时卡排一个队，声音在卡放出来时才响。

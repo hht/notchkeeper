@@ -6,6 +6,9 @@ public enum AgentEvent: Equatable, Sendable {
     case turnEnded(pid: Int32)
     /// 进入需要你介入：介入卡 + Ping。在里面从一类换成另一类不再发
     case needsYou(AgentState.Need, pid: Int32)
+    /// 不再需要你介入：回到工作中、进程没了（含 pid 被复用），或不在回合里时变成已停止（空闲时弹的对话框关掉）。
+    /// 回合里变成已停止发的是 `turnEnded`。这个会话的介入卡要撤
+    case needsYouEnded(pid: Int32)
 }
 
 /// 所有会话合起来，此刻 agent 这一档该画什么。按优先级从低到高排（docs/mascot.md §2「优先级」）
@@ -30,8 +33,11 @@ public struct AgentBoard: Sendable {
 
     public mutating func update(_ session: Session, at now: Date) -> AgentEvent? {
         guard let old = tracked[session.pid], old.session.processStart == session.processStart else {
-            // 第一次看到这个进程（含 pid 被复用）就是中途接手：已经在回合里就以进入这个状态的时刻作回合开始，不补发事件（用户 10-29）
+            // 第一次看到这个进程（含 pid 被复用）就是中途接手：已经在回合里就以进入这个状态的时刻作回合开始，不补发事件（用户 10-29）。
+            // pid 被复用时旧进程正在需要你介入，就是旧进程的介入结束
+            let replaced = tracked[session.pid]
             tracked[session.pid] = (session, session.state == .stopped ? nil : session.stateSince)
+            if case .needsYou? = replaced?.session.state { return .needsYouEnded(pid: session.pid) }
             return nil
         }
         var turnStart = old.turnStart
@@ -39,10 +45,14 @@ public struct AgentBoard: Sendable {
         switch session.state {
         case .working:
             if turnStart == nil { turnStart = session.stateSince }
+            if case .needsYou = old.session.state { event = .needsYouEnded(pid: session.pid) }
         case .stopped:
             if turnStart != nil {
                 event = .turnEnded(pid: session.pid)
                 finishedUntil = now.addingTimeInterval(Self.finishedFor)
+            } else if case .needsYou = old.session.state {
+                // 不在回合里弹出的对话框关掉了
+                event = .needsYouEnded(pid: session.pid)
             }
             turnStart = nil
         case .needsYou(let need):
@@ -80,8 +90,11 @@ public struct AgentBoard: Sendable {
         return (longTurns + [finishedUntil].compactMap { $0 }).filter { $0 > now }.min()
     }
 
-    /// 进程没了（退出、pid 被复用、判不出来）：去掉，不算已停止，不提醒
-    public mutating func remove(pid: Int32) {
-        tracked[pid] = nil
+    /// 进程没了（退出、pid 被复用、判不出来）：去掉，不算已停止，不提醒回合结束；正在需要你介入就是介入结束
+    @discardableResult
+    public mutating func remove(pid: Int32) -> AgentEvent? {
+        guard let old = tracked.removeValue(forKey: pid) else { return nil }
+        if case .needsYou = old.session.state { return .needsYouEnded(pid: pid) }
+        return nil
     }
 }

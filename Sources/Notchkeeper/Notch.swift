@@ -9,7 +9,7 @@ struct NotchCard: Identifiable, Equatable {
     let id = UUID()
     var title: String
     var detail: String
-    /// 光晕和进度条的颜色
+    /// 边缘流星的颜色（docs/ui.md「卡片」）
     var tint: Color
     /// 卡上的盾盾画这张卡自己的造型
     var look: Look
@@ -26,20 +26,27 @@ struct NotchCard: Identifiable, Equatable {
     /// 恢复卡固定 4 秒，不跟「卡片停留」设置走（docs/ui.md「卡片」）
     static let recoveredSeconds: TimeInterval = 4
 
-    /// 回合结束、进入需要你介入；副标题是会话的路径，和会话行一样
-    static func agent(_ event: AgentEvent, cwd: String) -> NotchCard {
-        let path = (cwd as NSString).abbreviatingWithTildeInPath
-        switch event {
-        case .turnEnded:
-            return NotchCard(title: String(localized: "Claude Code 做完了"), detail: path, tint: ClaudeMark.color, look: .finished, sound: "Glass")
-        case .needsYou(.question, _):
-            return NotchCard(title: String(localized: "Claude Code 在等你回答"), detail: path, tint: Color(cgColor: RGB.question.cg),
+    /// 回合结束的完成卡；副标题是会话的路径，和会话行一样
+    static func turnEnded(cwd: String) -> NotchCard {
+        NotchCard(title: String(localized: "Claude Code 做完了"), detail: abbreviated(cwd), tint: Self.doneTint, look: .finished, sound: "Glass")
+    }
+
+    /// 进入需要你介入的介入卡
+    static func needsYou(_ need: AgentState.Need, cwd: String) -> NotchCard {
+        switch need {
+        case .question:
+            return NotchCard(title: String(localized: "Claude Code 在等你回答"), detail: abbreviated(cwd), tint: Color(cgColor: RGB.question.cg),
                              look: .question, sound: "Ping")
-        case .needsYou(.approval, _):
-            return NotchCard(title: String(localized: "Claude Code 在等你批准"), detail: path, tint: Color(cgColor: RGB.approval.cg),
+        case .approval:
+            return NotchCard(title: String(localized: "Claude Code 在等你批准"), detail: abbreviated(cwd), tint: Color(cgColor: RGB.approval.cg),
                              look: .approval, sound: "Ping")
         }
     }
+
+    private static func abbreviated(_ cwd: String) -> String { (cwd as NSString).abbreviatingWithTildeInPath }
+
+    /// 完成卡的流星是低饱和的银白：绿色只给出口正常，Claude 橙在黑底上晕开发红（docs/ui.md「卡片」）
+    static let doneTint = Color(white: 0.85)
 }
 
 enum NotchMode: Hashable { case closed, card, dashboard }
@@ -82,6 +89,7 @@ enum NotchLayout {
     /// 卡片内容离形状黑底左右边、第一行（盾盾 + 标题 + 副标题）的高度
     static let cardPadding: CGFloat = 18
     static let cardRowHeight: CGFloat = 38
+    static let cardBottom: CGFloat = 16
     /// 展开面板黑底宽 = iOS 灵动岛展开态宽 408（HIG Live Activities；Mac 菜单栏里的 Live Activity 用同一套尺寸）。
     /// 形状两侧还各有一截往外翻的顶角（`openFlare`），不算黑底
     static let dashWidth: CGFloat = 408
@@ -152,7 +160,7 @@ enum NotchLayout {
         switch mode {
         case .closed:
             return hasEars(notch) ? CGSize(width: notch.width + 2 * earWidth, height: notch.height) : notch
-        case .card: return CGSize(width: cardWidth, height: topInset(notch) + 72)
+        case .card: return CGSize(width: cardWidth, height: cardTop(notch) + cardRowHeight + cardBottom)
         case .dashboard:
             let n = min(rows, maxRows)
             let list = (n == 0 ? rowHeight : CGFloat(n) * rowHeight) + 2 * listInset
@@ -266,9 +274,26 @@ final class NotchController {
     private func orderFront() { window.orderFrontRegardless() }
 
     /// 临时卡进队列（docs/ui.md「卡片」）。seconds 默认是「卡片停留」设置
-    func post(_ card: NotchCard, key: CardQueue<NotchCard>.Key?, seconds: TimeInterval? = nil) {
-        let notice = CardQueue.Notice(card: card, key: key, seconds: seconds ?? ConfigStore.shared.config.cardAutoDismissSeconds)
+    func post(_ card: NotchCard, key: CardQueue<NotchCard>.Key?, seconds: TimeInterval? = nil, lapses: Bool = false) {
+        let notice = CardQueue.Notice(card: card, key: key, seconds: seconds ?? ConfigStore.shared.config.cardAutoDismissSeconds,
+                                      lapses: lapses)
         apply(queue.post(notice, now: Date()))
+    }
+
+    /// AgentCore 的事件变成卡，或撤掉过期的介入卡（docs/ui.md「卡片」2）
+    func agentEvents(_ events: [AgentEvent], sessions: [Session]) {
+        // 事件和会话列表出自同一次更新：弹卡的会话一定在列表里
+        func cwd(_ pid: Int32) -> String {
+            guard let s = sessions.first(where: { $0.pid == pid }) else { preconditionFailure("事件的会话不在列表里") }
+            return s.cwd
+        }
+        for event in events {
+            switch event {
+            case .turnEnded(let pid): post(.turnEnded(cwd: cwd(pid)), key: .session(pid))
+            case .needsYou(let need, let pid): post(.needsYou(need, cwd: cwd(pid)), key: .session(pid), lapses: true)
+            case .needsYouEnded(let pid): apply(queue.withdraw(.session(pid), now: Date()))
+            }
+        }
     }
 
     /// 新的一次违规：红卡插到最前。sound 为 false 时不响（守卫不响应时保留的红卡不再响 Basso）
@@ -294,7 +319,7 @@ final class NotchController {
         } else if model.expanded {
             collapse()
         }
-        // 常驻红卡不画进度条
+        // 常驻红卡没有倒计时：边缘不流星，只画细边（docs/ui.md「卡片」）
         model.countdown = queue.showing == .alert(persistent: true) ? nil : queue.countdown
         scheduleTick()
         if change.alertDismissed {
@@ -313,7 +338,12 @@ final class NotchController {
         }
         updateMouseCapture()
         // 卡片弹到鼠标底下：当作停在卡上，先不倒计时
-        if shapeRect.contains(NSEvent.mouseLocation) { queue.pause(now: Date()) }
+        if shapeRect.contains(NSEvent.mouseLocation) { _ = queue.setHovering(true, now: Date()) }
+    }
+
+    /// 熄屏或锁屏：台面上的卡停住，新卡不放、不响；回来接着放
+    func setScreenAway(_ away: Bool) {
+        apply(queue.setAway(away, now: Date()))
     }
 
     private func scheduleTick() {
@@ -329,9 +359,8 @@ final class NotchController {
 
     /// 鼠标在卡片上：倒计时暂停；移开：从剩下的时间继续
     func setCardHover(_ over: Bool) {
-        guard let c = queue.countdown, over != c.isPaused else { return }
-        if over { queue.pause(now: Date()) } else { queue.resume(now: Date()) }
-        apply(CardQueue.Change())
+        guard over != queue.hovering else { return }
+        apply(queue.setHovering(over, now: Date()))
     }
 
     /// 每读一次守卫状态调用一次
@@ -550,11 +579,29 @@ struct NotchShape: Shape {
         set { topRadius = newValue.first; bottomRadius = newValue.second }
     }
 
+    /// 顶角外翻和底角实际用的半径：太小的矩形里压到放得下
+    private func radii(in r: CGRect) -> (top: CGFloat, bottom: CGFloat) {
+        let t = min(topRadius, r.width / 4, r.height / 2)
+        return (t, max(0, min(bottomRadius, r.height - t, (r.width - 2 * t) / 2)))
+    }
+
+    /// 左半边：从左上外翻的顶端，沿左边、左下角走到底边中点。卡片边缘的流星沿它走，右边一颗走它的镜像
+    func leftHalf(in r: CGRect) -> Path {
+        var p = Path()
+        guard r.width > 0, r.height > 0 else { return p }
+        let (t, b) = radii(in: r)
+        p.move(to: CGPoint(x: r.minX, y: r.minY))
+        p.addQuadCurve(to: CGPoint(x: r.minX + t, y: r.minY + t), control: CGPoint(x: r.minX + t, y: r.minY))
+        p.addLine(to: CGPoint(x: r.minX + t, y: r.maxY - b))
+        p.addQuadCurve(to: CGPoint(x: r.minX + t + b, y: r.maxY), control: CGPoint(x: r.minX + t, y: r.maxY))
+        p.addLine(to: CGPoint(x: r.midX, y: r.maxY))
+        return p
+    }
+
     func path(in r: CGRect) -> Path {
         var p = Path()
         guard r.width > 0, r.height > 0 else { return p }
-        let t = min(topRadius, r.width / 4, r.height / 2)
-        let b = max(0, min(bottomRadius, r.height - t, (r.width - 2 * t) / 2))
+        let (t, b) = radii(in: r)
         p.move(to: CGPoint(x: r.minX, y: r.minY))
         p.addQuadCurve(to: CGPoint(x: r.minX + t, y: r.minY + t), control: CGPoint(x: r.minX + t, y: r.minY))
         p.addLine(to: CGPoint(x: r.minX + t, y: r.maxY - b))
@@ -585,7 +632,6 @@ struct NotchRoot: View {
         let t: CGFloat = open ? NotchLayout.openFlare : NotchLayout.closedFlare
         let b: CGFloat = open ? NotchLayout.openBottomRadius : 8
         let shape = NotchShape(topRadius: t, bottomRadius: b)
-        let glow: Color = mode == .card ? (model.card?.tint ?? .clear) : .white
 
         ZStack(alignment: .top) {
             shape
@@ -594,15 +640,26 @@ struct NotchRoot: View {
                 .overlay(alignment: .top) { content(mode, inset: t) }
                 .overlay(alignment: .topLeading) { corners(mode, size: size, flare: t) }
                 .overlay {
-                    // 卡片描边从两侧往下由淡到实，底边最亮；其余形态是一条很淡的白线
-                    NotchShape(topRadius: t, bottomRadius: b, closed: false)
-                        .stroke(mode == .card
-                                ? AnyShapeStyle(LinearGradient(colors: [glow.opacity(0.3), glow], startPoint: .top, endPoint: .bottom))
-                                : AnyShapeStyle(glow.opacity(open ? 0.08 : 0)),
-                                lineWidth: 1)
+                    // 面板是一条很淡的白线；卡片的边缘是流星，画在裁切外面（见下）
+                    if mode != .card {
+                        NotchShape(topRadius: t, bottomRadius: b, closed: false)
+                            .stroke(Color.white.opacity(open ? 0.08 : 0), lineWidth: 1)
+                    }
                 }
                 .clipShape(shape)
-                .shadow(color: (mode == .card ? glow : .black).opacity(open ? 0.3 : 0), radius: 18, y: 6)
+                .overlay {
+                    // 卡片边缘的流星就是倒计时（docs/ui.md「卡片」）：压在边缘正中，柔光往里外两边晕开，所以放在裁切外面
+                    if mode == .card, let card = model.card {
+                        // 圆角是跟着弹簧变的，流星按最终外形画：等形状快长好再淡入，免得拐角错开；
+                        // 一开始收起就立刻撤掉，不淡出，免得光团停在原处、跟不上缩回刘海的形状（灵动岛收起时也是内容先撤）
+                        CardEdge(topRadius: t, bottomRadius: b, tint: card.tint, countdown: model.countdown)
+                            // 盖满整张卡，点击交给下面的 × 和卡片
+                            .allowsHitTesting(false)
+                            .transition(.asymmetric(insertion: .opacity.animation(.easeOut(duration: 0.25).delay(0.35)),
+                                                    removal: .opacity.animation(.linear(duration: 0))))
+                    }
+                }
+                .shadow(color: .black.opacity(open ? 0.3 : 0), radius: 18, y: 6)
                 .animation(NotchSpring.page, value: state.sessions.count)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -669,7 +726,7 @@ struct NotchRoot: View {
         switch mode {
         case .card:
             if let card = model.card {
-                NotchCardView(card: card, countdown: model.countdown, onDismiss: onDismiss)
+                NotchCardView(card: card, onDismiss: onDismiss)
                     .id(card.id)
                     .padding(.top, top)
                     .padding(.horizontal, inset)
@@ -905,47 +962,27 @@ struct SessionRow: View {
 
 struct NotchCardView: View {
     let card: NotchCard
-    /// nil：常驻卡片，不画进度条
-    let countdown: CardCountdown?
     let onDismiss: () -> Void
 
     var body: some View {
-        VStack(spacing: 8) {
-            HStack(spacing: 12) {
-                // 盾盾的位置：NotchRoot 里那只飞过来（docs/ui.md「卡片」7）
-                Color.clear.frame(width: NotchLayout.dashCorner, height: NotchLayout.dashCorner)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(card.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(.white)
-                    Text(card.detail).font(.system(size: 12)).foregroundStyle(.white.opacity(0.65)).lineLimit(1)
-                }
-                Spacer(minLength: 8)
-                Button(action: onDismiss) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.white.opacity(0.75))
-                        .frame(width: 24, height: 24)
-                        .background(Circle().fill(Color.white.opacity(0.12)))
-                }
-                .buttonStyle(PressableStyle())
+        HStack(spacing: 12) {
+            // 盾盾的位置：NotchRoot 里那只飞过来（docs/ui.md「卡片」7）
+            Color.clear.frame(width: NotchLayout.dashCorner, height: NotchLayout.dashCorner)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(card.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(.white)
+                Text(card.detail).font(.system(size: 12)).foregroundStyle(.white.opacity(0.65)).lineLimit(1)
             }
-            .frame(height: NotchLayout.cardRowHeight)
-            if let countdown {
-                // 进度条直接从倒计时算，暂停时 TimelineView 停止刷新
-                // @see https://developer.apple.com/documentation/swiftui/timelineviewdefaultcontext
-                // @see https://developer.apple.com/documentation/swiftui/timelineschedule/animation(minimuminterval:paused:)
-                TimelineView(.animation(paused: countdown.isPaused)) { ctx in
-                    GeometryReader { g in
-                        Capsule().fill(Color.white.opacity(0.1))
-                            .overlay(alignment: .leading) {
-                                Capsule().fill(card.tint.opacity(0.85))
-                                    .frame(width: g.size.width * countdown.fraction(at: ctx.date))
-                            }
-                    }
-                }
-                .frame(height: 3)
+            Spacer(minLength: 8)
+            Button(action: onDismiss) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.75))
+                    .frame(width: 24, height: 24)
+                    .background(Circle().fill(Color.white.opacity(0.12)))
             }
+            .buttonStyle(PressableStyle())
         }
+        .frame(height: NotchLayout.cardRowHeight)
         .padding(.horizontal, NotchLayout.cardPadding)
-        .padding(.bottom, 10)
     }
 }
