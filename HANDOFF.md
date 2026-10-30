@@ -3,17 +3,24 @@
 最后更新：2026-10-29。本文只放接下来要做的事和还没写进文档的决定；做完的看 `git log`，已定的规则看 `CLAUDE.md` 和 `docs/*`。换会话或开工前先读本文，再读 `CLAUDE.md`。
 
 **新会话从这里开始**：
-1. `git log --oneline -5` 核对最近的提交。
-2. **第 4 步（App 外壳重写）**，内容见下表。第 3 步留给它的：
+1. `git log --oneline -5` 核对最近的提交，工作区应是干净的。
+2. **照灵动岛优化界面**（用户 10-29：「参考灵动岛的优秀设计来优化我们的 UI，可以联网搜索」）：调研草稿在 `docs/research/dynamic-island.md`（16 条对照，带出处）。先交用户定三件事：新 MacBook Pro 自带系统灵动岛（2026-10-28 发布，已核实）后我们怎么办；HIG 说 Live Activity 动画不超过 2 秒，流星倒计时要不要收敛；细边写不写进规则（这次已照实写进 CLAUDE.md）。再把对比度、卡片宽度 400→408、弹簧参数统一这几处小改按 TDD 做掉。挑中的先改正式文档再改代码。
+3. 「提醒卡待定」里剩下的几条问用户要不要做。
+4. 然后是**第 4 步**剩下的部分，见「开发计划」。第 3 步留给它的：
    - `AppState.look` 是临时的优先级合成（守卫 > agent > 空闲），晕和完整优先级进 `NotchCore` 的 MascotResolver。
    - 设置页「状态测试」的盾盾已经用 `state.look`（可能是 agent 造型），旁边文案还是 `presentation.title`，对不上。
-3. 空闲 CPU 还没在无人操作时测到干净的数，方法见「待办」。
+5. 空闲 CPU 还没在无人操作时测到干净的数，方法见「待办」。
 
 ## 还没写进文档的决定
 
-用户新定的事先记在这里，写进 `CLAUDE.md` 或 `docs/*` 后删掉。
+用户新定的事先记在这里，写进 `CLAUDE.md` 或 `docs/*` 后删掉。目前没有。
 
-- **只接 Claude Code**（用户 10-29）：Grok Bot 不做（对话在服务器上，本机只有 `desktop-status.json` 的 pid / signedIn 和 `~/.grokbot/local-exec-daemon.json` 的 `inflightCount`，分不出会话和状态）；Grok CLI（`~/.grok/active_sessions.json`）也不做。
+## 提醒卡待定（问用户，规则在 `docs/ui.md`「卡片」）
+
+1. **卡弹到不动的鼠标底下会一直停着**（早就有）：`NotchController.present` 见鼠标在卡上就当作悬停、暂停倒计时，鼠标不动就不恢复，后面的卡都排着等。可改成鼠标移进卡片才暂停。
+2. **关掉「自动弹红卡」后恢复卡可能在违规期间放出**（少见，可不管）：作废恢复卡只在 `CardQueue.raiseAlert` 里做，`autoAlert` 关着时 `guardChanged` 不调它。前提是开着时弹过红卡、之后关掉 `autoAlert`，再遇到违规 → healthy（恢复卡排在别的卡后面）→ 又违规。
+3. **提示音没人耳验过**：Glass / Ping / Basso 由 `NSSound(named:)` 在卡放出来时播；agent 只看到卡和日志。已请用户留意。
+4. **从等你回答换成等你批准不换卡**：AgentCore 在需要你介入里换类型不发事件（不再响），排着或正在放的介入卡还是旧类型的标题。
 
 ## 开发计划（agent 制定，10-29）
 
@@ -24,19 +31,24 @@
 | 4 | **App 外壳重写**：<br>• `NotchCore`（已有 CardQueue）：GuardPresentation、HoverMachine、MascotResolver、配置解码（`Tests/NotchkeeperTests` 里的测试跟着挪）<br>• 接上「晕」<br>• 亮色模式、多语言的基础设施，所有新文案走 String Catalog<br>• 精简设置页（加「在系统设置中更改语言…」按钮；设置窗口去掉强制暗色）<br>• `demo.sh` 的通知只在 DEBUG 构建里监听<br>• 刘海视图只订阅 `presentation` | 测试；亮暗 × 中英截图；CPU 验收 | 待做 |
 | 5 | **防火墙**：root 实测 → 恢复脚本并实测 → 试运行和自动回滚 → 规则、LaunchDaemon、安装脚本、App 开关；shielded 造型接线 | 按全局 Contract「高影响」档收工 | 待做 |
 
-## 面板还没实测的
+## 卡片边缘流星还没实测的
+
+规则见 `docs/ui.md`「卡片」，代码 `Sources/Notchkeeper/CardEdge.swift`。实机只看过完成卡（银白）：
+
+- 介入卡（青、青柠）、恢复卡（绿）、红卡上的颜色和亮度。
+- 常驻红卡、减弱动态效果时的那条淡细边。
+- 悬停时流星停住、移开接着走；队列里下一张卡接上时流星从头开始。
+- 流星每次 `layout` 都按新尺寸重挂动画（卡片长大的弹簧期间每帧一次），没量过 CPU。
+- 教训（10-29）：流光改了八九版，前几版凭感觉调参数都被否；查到 Magic UI Border Beam 的做法、加上实体头之后才过。界面效果先查成熟实现再动手（CLAUDE.md 准则 7）。
+
+## 面板还没实测的、可删的
 
 版式已定（`docs/ui.md`「面板布局」），下面几处只在代码里推过、没在实机上看：
 
-- **减弱动态效果**：盾盾和徽章换形态时应该原地淡出、新位置淡入，不飞（`NotchRoot.corners` 的 `.id(reduceMotion && open)`）。要切系统设置，先问用户。
+- **减弱动态效果**：盾盾和徽章换形态时应该原地淡出、新位置淡入，不飞（`NotchRoot.corners` 里盾盾的 `.id(reduceMotion ? mode : .closed)`、右边一组的 `.id(reduceMotion && open)`；卡片形态同理）。要切系统设置，先问用户。
 - **悬停提示**：会话行和齿轮的 `.help` 在 App 不在前台时可能不出现（`NSWindow.allowsToolTipsWhenApplicationIsInactive` 默认 false，推断）。
 - **英文时间列**：固定宽 66，英文「12 min. ago」约 75pt，可能被截（推断）。
 - 滚出可视区的会话行，三蓝点循环照跑（量小，暂不管）。
-- **提醒的声音没人耳验过**：Glass / Ping / Basso 由 `NSSound(named:)` 在卡放出来时播，agent 只看到了卡、日志，听不到。
-- **过期的介入卡照样放**（问用户）：`docs/ui.md`「卡片」2 只在同一个会话来新卡时替换还没放的旧卡。两种情况会放出过期的「在等你批准 / 回答」并响 Ping：正在放的介入卡不被同会话的新卡替换（批准或拒绝后照样放完，再放完成卡）；会话从需要你介入回到工作中、或进程退出时不发事件，排着的介入卡没人撤。可选：AgentCore 状态一变就撤掉该会话还没放 / 正在放的介入卡。
-- **锁屏、熄屏时卡片照样倒计时、照样响**（早就有，问用户）：字面上违反「看不见就不调度」；离开电脑时连着来的卡会挨个放完、挨个响，没人看到。`CardQueue` 已有 `pause` / `resume`，接上 `MascotDirector` 的锁屏熄屏状态就行。
-- **关掉「自动弹红卡」后恢复卡可能在违规期间放出**（少见）：作废恢复卡只在 `CardQueue.raiseAlert` 里做，`autoAlert` 关着时 `guardChanged` 不调它。前提是开着时弹过红卡、之后关掉 `autoAlert`，再遇到违规 → healthy（恢复卡排在别的卡后面）→ 又违规。
-- **卡弹到不动的鼠标底下会一直停着**（早就有）：`present` 见鼠标在卡上就暂停倒计时，鼠标不动就不恢复；现在后面的卡都排着等。
 - **装饰顶出面板上沿**（推断）：32pt 盾盾上缘离面板顶 8，finished 的大星最高点约在 −0.8pt、闪烁还放大 0.18，sleeping 的 Z 上浮也可能碰到，会被形状裁掉一点。实机看 finished / sleeping。
 - **删 small 尺寸**（单独一个 refactor 提交）：左耳改成面板盾盾缩小后，App 里没有 ≤ 24pt 的 `MascotView` 了。`MascotView` 的 `.small` 分支、`Size.small` 和 `decoration(.small)` 的数据只剩测试在用；`NotchLayout` 的 `earCanvas`、`earCanvasInset`、`earBodyCenterY`、`Ears.canvas` 只为算一个 `bodyCenter`。
 
@@ -48,11 +60,13 @@
 - 实机截图：收起态用 `screencapture -x -R <x>,0,400,44`（刘海在主屏顶部正中）；看一批造型或换造型过程，在 `/tmp` 搭一次性陈列（拷 `Sources/Notchkeeper/Mascot/*.swift` + MascotCore，`screencapture -l <windowID>` 连拍），用完删掉。几只盾盾会同时眨眼，截到一帧全是扁眼是眨眼，不是 bug。
 - App 崩了看 `~/Library/Logs/DiagnosticReports/Notchkeeper-*.ips`（JSON 第二行起，看 triggered 线程的 frames）。
 - 本机 shell 是 zsh：`for f in $files` 不按空格拆，用 `xargs`；BSD `sed` 不认 `\b`，用 `perl -pi -e`。
+- 实机悬停展开、滚动列表：没有 cliclick；在 `/tmp` 写个一次性 Swift 脚本，用 `CGEvent(mouseEventSource:mouseType: .mouseMoved…)` 把鼠标移到刘海、`CGEvent(scrollWheelEvent2Source:…)` 滚动，截完图把鼠标移回原处。弹卡用 `./scripts/demo.sh done|alert`，连拍几帧看盾盾飞行。
+- 要停在「等你批准」：提示里让它跑一条不在允许列表里的命令（如 `touch /tmp/<文件>`，`date` 在本机允许列表里不会停）；「等你回答」：让它用 AskUserQuestion 问一个是非题。
 - 提交要拆分时不能用 `git add -p`：用 `git hash-object -w` + `git update-index --cacheinfo` 暂存某个文件的一部分，再 `git checkout-index -a --prefix=/tmp/x/` 导出暂存区单独构建、测试。
 
 ## 建议用的 skill
 
-- `tdd`：`NotchCore` 的每个纯值类型都先写测试、亲眼看红。接口用语见 `codebase-design`。
+- `tdd`：提醒卡待定 1–3、`NotchCore` 的每个纯值类型都先写测试、亲眼看红。接口用语见 `codebase-design`。
 - `domain-modeling`：新词先进 `docs/ubiquitous-language.md`。
 - `diagnosing-bugs`：重测空闲 CPU 仍不达标时用。
 - `run`：启动 App、截图。
@@ -75,6 +89,6 @@
 - **旧注释**：指向已删文档的已改完；剩下「Emily 规格」「Emily 2026-10-28」几处出处说法（`Notch.swift`），第 4 步 重写时确认后改成 docs 出处。
 - **留给第 4 步重写的**：
   - 按新面板接上「点一下晕」。
-  - `NotchController` 里的卡片队列、悬停状态机、布局几何、`GuardPresentation` 的判定进 `NotchCore`；红卡「关掉的是哪一次」现在分在 `AppState.dismissedViolationSince` 和 `NotchController.violationAlerted` 两处，合成一个 owner；`NotchController.collapse()` 用 `asyncAfter(0.5)` 等收起动画；`NKConfig` 去前缀；`ConfigStore` 每秒轮询，看不见时也在跑。
-  - **删 `--selftest` 丢掉的覆盖，在 `NotchCore` 里用 swift test 补回**（原文 `git show d8a28dd:Sources/Notchkeeper/AgentEvents.swift`，约 50 条）：违规 → unknown → healthy 撤红卡；关掉的同一次违规不再弹、新的一次照弹；stale / clockSkew 且 lastVerdict 是 violated 时保留红卡、不响 Basso；非常驻红卡到时不重弹；恢复卡只在弹过红卡后出现；`GuardPresentation` 各状态的颜色和文案。
+  - 悬停状态机、布局几何、`GuardPresentation` 的判定进 `NotchCore`（卡片队列已进，`CardQueue`）；红卡「关掉的是哪一次」现在分在 `AppState.dismissedViolationSince` 和 `NotchController.violationAlerted` 两处，合成一个 owner；`NotchController.collapse()` 用 `asyncAfter(0.5)` 等收起动画；`NKConfig` 去前缀；`ConfigStore` 每秒轮询，看不见时也在跑。
+  - **删 `--selftest` 丢掉的覆盖，在 `NotchCore` 里用 swift test 补回**（原文 `git show d8a28dd:Sources/Notchkeeper/AgentEvents.swift`，约 50 条）：违规 → unknown → healthy 撤红卡；关掉的同一次违规不再弹、新的一次照弹；stale / clockSkew 且 lastVerdict 是 violated 时保留红卡、不响 Basso；恢复卡只在弹过红卡后出现；`GuardPresentation` 各状态的颜色和文案。（队列那一半——非常驻红卡到时算关掉、红卡与临时卡怎么让——已由 `Tests/NotchCoreTests/CardQueueTests.swift` 覆盖；剩下的在 `NotchController.guardChanged` 和 `GuardPresentation`。）
   - `config.json` 里的 `launchAtLogin`、`suppressWhenHostFrontmost`、`agents` 三个键下次存盘时会被去掉（没有消费者）。以后要做「按 agent 开关」从默认值重来。
