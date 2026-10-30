@@ -64,8 +64,9 @@ public enum SessionFile {
 
     private static func state(_ status: String, waitingFor: String?) throws -> AgentState {
         switch status {
-        case "busy", "shell": return .working
-        case "idle": return .stopped
+        case "busy": return .working
+        // `shell`：空闲，但后台挂着 shell 命令（docs/agent-integration.md「实测」6）
+        case "idle", "shell": return .stopped
         case "waiting": return .needsYou(approvalKinds.contains(waitingFor ?? "") ? .approval : .question)
         default: throw SessionFileError.unknownStatus(status)
         }

@@ -28,11 +28,12 @@ Notchkeeper 只关心 Claude Code 的三件事：**工作中、已停止、需�
 
 | `status` | 状态 | 造型（`docs/mascot.md` §2） |
 |---|---|---|
-| `busy`、`shell` | 工作中 | working；干了很久（见下）变 longTurn |
-| `idle` | 已停止 | 回合结束时 finished，5.2s 后按优先级回落 |
+| `busy` | 工作中 | working；干了很久（见下）变 longTurn |
+| `idle`、`shell` | 已停止 | 回合结束时 finished，5.2s 后按优先级回落 |
 | `waiting` | 需要你介入 | 照 Claude Code 自己的归类表（「实测」3）：`permission prompt`、`sandbox request`、`worker request`、`goal proposal` → approval；`input needed`、`dialog open` 和没见过的取值 → question（用户 10-29） |
 
-- **回合**（turn）：从已停止进入工作中起，到再次变成已停止止。中间的 `busy` / `shell` 来回切、经过「需要你介入」再回到工作中，都还在同一个回合里。
+- `shell` 是「空闲，但后台挂着 shell 命令」（例如 dev server），见「实测」6。10-29 版当成工作中，挂着 dev server 的会话回合永远不结束。
+- **回合**（turn）：从已停止进入工作中起，到再次变成已停止止。中间经过「需要你介入」再回到工作中，都还在同一个回合里。
 - **回合结束**（turn end）：回合中（工作中或需要你介入）变成已停止。从需要你介入直接变成已停止（例如你在批准时选了停下）也算。
 - **干了很久**：处于工作中，并且离回合开始满 10 分钟（中间等你的时间也算进去）。
 - **中途接手**（App 启动时、或第一次看到某个文件时，它已经在工作中或需要你介入）：照常算一个回合，以文件里的 `statusUpdatedAt` 作为回合开始，结束时照常提醒。已经在需要你介入的，不补弹介入卡、不补响 `Ping`：卡片只跟着事件走（`docs/ui.md`「卡片」），靠盾盾造型提示。
@@ -76,3 +77,4 @@ Notchkeeper 只关心 Claude Code 的三件事：**工作中、已停止、需�
    - 状态变化是**原地重写**同一个文件（inode 不变，目录的 mtime 也不变），只监听目录收不到；所以每份文件也要单独监听。
    - 代码里 `status` 在「主回合在跑」或「后台任务（delegated work）在跑」时都是 `busy`（推断，未实测）：回合结束的提醒会等后台任务也跑完。
    - 每份 `.json` 旁边有一份 `<pid>.<64 位十六进制>.key`（权限 600），是对等通信的凭据，不读。
+6. **`shell`**（10-30 查二进制）：`status === "idle" && 有后台 shell ? "shell" : status`，是空闲的一种。

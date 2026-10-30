@@ -30,13 +30,14 @@ private let procStart = Date(timeIntervalSince1970: 1_793_296_491)
         try SessionFile.parse(file(["status": status, "waitingFor": waitingFor]))?.state
     }
 
-    @Test func busyAndShellAreWorking() throws {
+    @Test func busyIsWorking() throws {
         #expect(try state("busy") == .working)
-        #expect(try state("shell") == .working)
     }
 
-    @Test func idleIsStopped() throws {
+    /// `shell` 是空闲、但后台挂着 shell 命令（docs/agent-integration.md「实测」6）
+    @Test func idleAndShellAreStopped() throws {
         #expect(try state("idle") == .stopped)
+        #expect(try state("shell") == .stopped)
     }
 
     /// 照 Claude Code 自己的归类表：前四个是权限类（docs/agent-integration.md「实测」3）
