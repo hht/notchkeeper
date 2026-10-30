@@ -85,12 +85,11 @@ final class NotchModel: ObservableObject {
 
 /// 三种形态的尺寸，视图和悬停命中测试共用
 enum NotchLayout {
-    static let cardWidth: CGFloat = 400
     /// 卡片内容离形状黑底左右边、第一行（盾盾 + 标题 + 副标题）的高度
     static let cardPadding: CGFloat = 18
     static let cardRowHeight: CGFloat = 38
     static let cardBottom: CGFloat = 16
-    /// 展开面板黑底宽 = iOS 灵动岛展开态宽 408（HIG Live Activities；Mac 菜单栏里的 Live Activity 用同一套尺寸）。
+    /// 展开面板和卡片的黑底宽 = iOS 灵动岛展开态宽 408（HIG Live Activities；Mac 菜单栏里的 Live Activity 用同一套尺寸）。
     /// 形状两侧还各有一截往外翻的顶角（`openFlare`），不算黑底
     static let dashWidth: CGFloat = 408
     /// 展开（面板、卡片）时形状顶角往外翻的宽度（NotchShape 的 topRadius）
@@ -120,6 +119,8 @@ enum NotchLayout {
     static let footerBottom: CGFloat = 4
     /// 会话列表最多露出几行，再多就在列表里滚动（用户 10-29：开的会话多了面板不能无限变长）
     static let maxRows = 5
+    /// 小字（时间、底栏、空列表）的白色不透明度：≤17pt 的字对比度至少 4.5:1（HIG Accessibility）
+    static let secondaryTextOpacity = 0.5
 
     /// 收起时刘海两侧各一只耳朵：左耳放盾盾，右耳放状态指示（docs/mascot.md §1）
     static let earWidth: CGFloat = 44
@@ -160,7 +161,7 @@ enum NotchLayout {
         switch mode {
         case .closed:
             return hasEars(notch) ? CGSize(width: notch.width + 2 * earWidth, height: notch.height) : notch
-        case .card: return CGSize(width: cardWidth, height: cardTop(notch) + cardRowHeight + cardBottom)
+        case .card: return CGSize(width: dashWidth + 2 * openFlare, height: cardTop(notch) + cardRowHeight + cardBottom)
         case .dashboard:
             let n = min(rows, maxRows)
             let list = (n == 0 ? rowHeight : CGFloat(n) * rowHeight) + 2 * listInset
@@ -331,7 +332,7 @@ final class NotchController {
     private func present(_ card: NotchCard) {
         orderFront()
         if model.mode != .closed {
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { model.card = card; model.expanded = true }
+            withAnimation(NotchSpring.notchOpen) { model.card = card; model.expanded = true }
         } else {
             model.card = card
             withAnimation(NotchSpring.notchOpen) { model.expanded = true }
@@ -828,7 +829,7 @@ struct NotchDashboard: View {
                 TimelineView(.periodic(from: .now, by: 1)) { _ in
                     Text(checkedText)
                         .font(.system(size: 10.5, weight: .medium).monospacedDigit())
-                        .foregroundStyle(.white.opacity(0.4))
+                        .foregroundStyle(.white.opacity(NotchLayout.secondaryTextOpacity))
                 }
                 Spacer()
                 NotchGearButton(action: onSettings)
@@ -855,7 +856,7 @@ struct SessionList: View {
             if sessions.isEmpty {
                 Text("没有看到正在运行的 Claude Code")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.4))
+                    .foregroundStyle(.white.opacity(NotchLayout.secondaryTextOpacity))
                     .frame(maxWidth: .infinity)
                     .frame(height: NotchLayout.rowHeight)
             } else {
@@ -897,7 +898,7 @@ struct NotchGearButton: View {
     }
 }
 
-/// 一行会话：agent 的标志、路径、状态指示、状态变化距今。已停止的整行变暗。
+/// 一行会话：agent 的标志、路径、状态指示、状态变化距今。已停止的标志和路径变暗，时间不暗（保住对比度）。
 /// 状态只用指示表达，不写字（用户 10-29）；状态名留给悬停提示和旁白
 struct SessionRow: View {
     let session: Session
@@ -923,6 +924,7 @@ struct SessionRow: View {
 
     var body: some View {
         let path = (session.cwd as NSString).abbreviatingWithTildeInPath
+        let dimmed = session.state == .stopped ? 0.55 : 1
         HStack(spacing: 10) {
             // 是哪个 agent 只靠行首的厂商标志表示（用户 10-29）
             ClaudeMark()
@@ -930,6 +932,7 @@ struct SessionRow: View {
                 .frame(width: 15, height: 15)
                 .frame(width: NotchLayout.rowIcon, height: NotchLayout.rowIcon)
                 .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(.white.opacity(0.08)))
+                .opacity(dimmed)
                 .help("Claude Code")
                 .accessibilityLabel("Claude Code")
             // 太长从前面截成「…」，留住最后几段（用户 10-29）
@@ -938,6 +941,7 @@ struct SessionRow: View {
                 .foregroundStyle(.white)
                 .lineLimit(1)
                 .truncationMode(.head)
+                .opacity(dimmed)
                 .help(path)
             Spacer(minLength: 8)
             EarIndicatorView(indicator: indicator, size: CGSize(width: 20, height: 20), center: CGPoint(x: 13, y: 10))
@@ -948,13 +952,12 @@ struct SessionRow: View {
             TimelineView(.periodic(from: .now, by: 1)) { _ in
                 Text(session.stateSince.formatted(.relative(presentation: .numeric, unitsStyle: .abbreviated)))
                     .font(.system(size: 11, weight: .medium).monospacedDigit())
-                    .foregroundStyle(.white.opacity(0.4))
+                    .foregroundStyle(.white.opacity(NotchLayout.secondaryTextOpacity))
             }
             .frame(width: 66, alignment: .trailing)
         }
         .padding(.horizontal, NotchLayout.rowPadding)
         .frame(height: NotchLayout.rowHeight)
-        .opacity(session.state == .stopped ? 0.55 : 1)
         .accessibilityElement(children: .combine)
         .accessibilityValue(stateTitle)
     }

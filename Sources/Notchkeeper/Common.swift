@@ -15,7 +15,7 @@ struct PressableStyle: ButtonStyle {
     }
 }
 
-/// 刘海展开、收起、翻页的 SwiftUI 弹簧
+/// 刘海展开（含弹卡）、收起、卡片放完回到面板、面板行数变化的弹簧，只在这里定义（docs/mascot.md §5「收起与展开」）
 enum NotchSpring {
     static let page = Animation.spring(response: 0.42, dampingFraction: 0.84)
     static let notchOpen = Animation.spring(response: 0.5, dampingFraction: 0.7)

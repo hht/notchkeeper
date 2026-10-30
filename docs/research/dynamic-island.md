@@ -2,6 +2,8 @@
 
 调研日期 2026-10-29，子 agent 调研的草稿，结论交用户挑选后再写进 `docs/ui.md` 等正式文档；这里不是已定规则。「Mac 上的系统灵动岛（2026-10-28 发布）」一条已核实：<https://www.macrumors.com/2026/10/28/apple-brings-dynamic-island-to-mac/>。原始资料当时缓存在 `/tmp/nk-research/raw/`（HIG 的 DocC JSON、WWDC 字幕，临时目录、已不保证存在），开源实现源码在 `/tmp/nk-research/src/`（boring.notch `23e7705`，2026-10-18；DynamicNotchKit `cd0b3e5`，2026-02-18）。
 
+**2026-10-30 用户已定**（规则已写进 `docs/ui.md`、`docs/mascot.md`）：系统灵动岛先不动（记在 `HANDOFF.md`）；流星倒计时保留；细边只写在 `docs/ui.md`；弹簧照代码现有的值统一，弹卡用展开那组；卡片和面板等宽；小字不透明度 0.4 → 0.5。更正：下文说的「卡宽 400」是连外翻顶角的总宽，黑底其实是 372，所以等宽后卡片宽了 36pt，不是 8pt。
+
 标注约定：
 - 「原文」：一手资料逐字引用。
 - 「推断」：我的推论，没有一手资料直接证实。
@@ -335,6 +337,8 @@ Apple 设计团队的公开访谈：Alan Dye 和 Craig Federighi 接受过 Axis 
 ---
 
 ## 9. 顺带发现：文档和代码不一致（没改，留给主会话处理）
+
+10-30：第 1、2 条已解决；第 3 条还没核对。
 
 1. **描边**：`CLAUDE.md`「界面准则」写「卡片只用阴影，不加描边」，`docs/ui.md`「亮色与暗色」写「不加 key line：黑面板和卡片只用阴影，不加描边」。但是：
    - `Notch.swift:644-647` 给面板画了 `white.opacity(0.08)` 的描边；
