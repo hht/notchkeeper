@@ -5,7 +5,6 @@
 **新会话从这里开始**：
 1. `git log --oneline -5` 核对最近的提交。
 2. **第 4 步（App 外壳重写）**，内容见下表。第 3 步留给它的：
-   - `AgentWatcher` 的事件（回合结束、需要你介入）现在只记日志，卡片和声音（Glass / Ping）在这一步接；每个会话的状态用 `AgentBoard.sessions`（App 里是 `AppState.sessions`）。
    - `AppState.look` 是临时的优先级合成（守卫 > agent > 空闲），晕和完整优先级进 `NotchCore` 的 MascotResolver。
    - 设置页「状态测试」的盾盾已经用 `state.look`（可能是 agent 造型），旁边文案还是 `presentation.title`，对不上。
 3. 空闲 CPU 还没在无人操作时测到干净的数，方法见「待办」。
@@ -14,17 +13,6 @@
 
 用户新定的事先记在这里，写进 `CLAUDE.md` 或 `docs/*` 后删掉。
 
-- **告警时 agent 照样报告**（用户 10-29）：即使处在告警 / 危险状态（红卡、danger 等守卫造型），agent 状态一变（回合结束、需要你介入）也要照常报告：弹对应的卡、响对应的声音（Glass / Ping），停留一小会儿（用户举例 5 秒）后回到网络状态继续显示，直到恢复。
-  - 细节由 agent 定（用户 10-29 授权）。依据：仓里现有的「常驻红卡 + 临时卡插在上面、放完回到红卡」（`Notch.swift` 的 `pendingAlert`），也是 HIG Live Activities 的做法——提醒「light up the screen and by default play the notification sound」，多个活动时常驻的那个不被挤掉（<https://developer.apple.com/design/human-interface-guidelines/live-activities>）。统一成一个模型，不为告警另写规则：
-    - **两层**：底层是「持续的状况」，同一时刻只显示最高的一张：红卡（违规还在、没被关掉）> 介入卡（有会话在需要你介入、这一次没被关掉）> 无。几个会话同时在等你：approval > question（同 `docs/mascot.md` §2），同级取最早进入的。上层是「临时卡队列」：完成卡、恢复卡，以及进入需要你介入时那一次的介入提醒。
-    1. **临时卡怎么放**：所有临时卡（不只是告警时）进同一个先进先出队列，一次放一张，每张按「卡片停留」设置倒计时（默认 6 秒，2–10 秒，鼠标停在卡上暂停；恢复卡保留现有的固定 4 秒例外，`NotchCard.recoveredSeconds`）；队列放空就回到底层那张。理由：一个设置管所有临时卡，用户想要 5 秒就拨到 5；平时两个会话同时结束也不会一张顶掉另一张。
-    2. **同一个会话只留最新**：队列里还没放的、同一个会话的旧事件被它后来的事件替换（例如还没轮到「需要你介入」就已经回合结束，只放回合结束）。理由：只有最新状态有用，队列不会无限变长。
-    3. **声音跟着卡响**：卡放出来那一刻才响它的声音，不在事件到达时响。理由：Basso、Glass、Ping 永远不叠在一起，听到的和看到的一一对应。
-    4. **需要你介入**：进入时先作为临时卡放一次（响 Ping）；之后只要还在需要你介入、上面又没有更高的底层卡，就作为底层卡留着（不再响）。红卡在时它让位，违规恢复或红卡被关掉后，如果会话还在等你，介入卡回来。介入卡被手动关掉，照红卡的 `dismissedViolationSince` 按会话记「关掉的是哪一次」（pid + 进入需要你介入的时刻），同一次不再回来，下一次进入需要你介入照常提醒。理由：漏网是持续的安全问题，不能被一张等你回答的卡长期盖住；但等你的事也不能因为恢复了就丢。
-    5. **违规开始插到最前**：新违规开始（红卡 + Basso）时，正在放的临时卡立刻让位，回到队列最前，之后从头再放、不再响（声音已经响过）；红卡先完整展示一次「卡片停留」的时间，再继续放队列。理由：违规刚发生的那一刻最要紧，被打断的提醒也不丢。
-    6. **恢复卡排队**：违规恢复时，恢复卡照普通临时卡进队列，不顶掉正在放的 agent 卡。
-    7. **盾盾**：卡片上的盾盾画这张卡自己的造型（agent 卡画 finished / question / approval，红卡画 danger）。收起态的优先级不变，仍是守卫 > agent（`docs/mascot.md` §2）：插队时刘海是卡片形态，耳朵本来就看不见。防火墙守住（shielded）时同样适用。
-  - 第 4 步做 `NotchCore` 的卡片队列时写进文档，要改：CLAUDE.md 硬规则「红卡显示与否，只看当前状态和 `dismissedViolationSince`」（卡片队列成了第三个输入，**改硬规则要用户明确确认**）、CLAUDE.md 界面准则「红卡一直留到恢复」、`docs/egress-guard.md` 红卡规则、`docs/agent-integration.md`「提醒」。
 - **只接 Claude Code**（用户 10-29）：Grok Bot 不做（对话在服务器上，本机只有 `desktop-status.json` 的 pid / signedIn 和 `~/.grokbot/local-exec-daemon.json` 的 `inflightCount`，分不出会话和状态）；Grok CLI（`~/.grok/active_sessions.json`）也不做。
 
 ## 开发计划（agent 制定，10-29）
@@ -33,7 +21,7 @@
 
 | 步 | 内容 | 产出 / 验收 | 状态 |
 |---|---|---|---|
-| 4 | **App 外壳重写**：<br>• `NotchCore`：GuardPresentation、CardQueue、HoverMachine、MascotResolver、配置解码（`Tests/NotchkeeperTests` 里的测试跟着挪）<br>• 接上「晕」<br>• 接上完成卡、需要介入卡和声音<br>• 亮色模式、多语言的基础设施，所有新文案走 String Catalog<br>• 精简设置页（加「在系统设置中更改语言…」按钮；设置窗口去掉强制暗色）<br>• `demo.sh` 的通知只在 DEBUG 构建里监听<br>• 刘海视图只订阅 `presentation` | 测试；亮暗 × 中英截图；CPU 验收 | 待做 |
+| 4 | **App 外壳重写**：<br>• `NotchCore`（已有 CardQueue）：GuardPresentation、HoverMachine、MascotResolver、配置解码（`Tests/NotchkeeperTests` 里的测试跟着挪）<br>• 接上「晕」<br>• 亮色模式、多语言的基础设施，所有新文案走 String Catalog<br>• 精简设置页（加「在系统设置中更改语言…」按钮；设置窗口去掉强制暗色）<br>• `demo.sh` 的通知只在 DEBUG 构建里监听<br>• 刘海视图只订阅 `presentation` | 测试；亮暗 × 中英截图；CPU 验收 | 待做 |
 | 5 | **防火墙**：root 实测 → 恢复脚本并实测 → 试运行和自动回滚 → 规则、LaunchDaemon、安装脚本、App 开关；shielded 造型接线 | 按全局 Contract「高影响」档收工 | 待做 |
 
 ## 面板还没实测的
@@ -44,6 +32,11 @@
 - **悬停提示**：会话行和齿轮的 `.help` 在 App 不在前台时可能不出现（`NSWindow.allowsToolTipsWhenApplicationIsInactive` 默认 false，推断）。
 - **英文时间列**：固定宽 66，英文「12 min. ago」约 75pt，可能被截（推断）。
 - 滚出可视区的会话行，三蓝点循环照跑（量小，暂不管）。
+- **提醒的声音没人耳验过**：Glass / Ping / Basso 由 `NSSound(named:)` 在卡放出来时播，agent 只看到了卡、日志，听不到。
+- **过期的介入卡照样放**（问用户）：`docs/ui.md`「卡片」2 只在同一个会话来新卡时替换还没放的旧卡。两种情况会放出过期的「在等你批准 / 回答」并响 Ping：正在放的介入卡不被同会话的新卡替换（批准或拒绝后照样放完，再放完成卡）；会话从需要你介入回到工作中、或进程退出时不发事件，排着的介入卡没人撤。可选：AgentCore 状态一变就撤掉该会话还没放 / 正在放的介入卡。
+- **锁屏、熄屏时卡片照样倒计时、照样响**（早就有，问用户）：字面上违反「看不见就不调度」；离开电脑时连着来的卡会挨个放完、挨个响，没人看到。`CardQueue` 已有 `pause` / `resume`，接上 `MascotDirector` 的锁屏熄屏状态就行。
+- **关掉「自动弹红卡」后恢复卡可能在违规期间放出**（少见）：作废恢复卡只在 `CardQueue.raiseAlert` 里做，`autoAlert` 关着时 `guardChanged` 不调它。前提是开着时弹过红卡、之后关掉 `autoAlert`，再遇到违规 → healthy（恢复卡排在别的卡后面）→ 又违规。
+- **卡弹到不动的鼠标底下会一直停着**（早就有）：`present` 见鼠标在卡上就暂停倒计时，鼠标不动就不恢复；现在后面的卡都排着等。
 - **装饰顶出面板上沿**（推断）：32pt 盾盾上缘离面板顶 8，finished 的大星最高点约在 −0.8pt、闪烁还放大 0.18，sleeping 的 Z 上浮也可能碰到，会被形状裁掉一点。实机看 finished / sleeping。
 - **删 small 尺寸**（单独一个 refactor 提交）：左耳改成面板盾盾缩小后，App 里没有 ≤ 24pt 的 `MascotView` 了。`MascotView` 的 `.small` 分支、`Size.small` 和 `decoration(.small)` 的数据只剩测试在用；`NotchLayout` 的 `earCanvas`、`earCanvasInset`、`earBodyCenterY`、`Ears.canvas` 只为算一个 `bodyCenter`。
 
@@ -82,6 +75,6 @@
 - **旧注释**：指向已删文档的已改完；剩下「Emily 规格」「Emily 2026-10-28」几处出处说法（`Notch.swift`），第 4 步 重写时确认后改成 docs 出处。
 - **留给第 4 步重写的**：
   - 按新面板接上「点一下晕」。
-  - `NotchController` 里的卡片队列、悬停状态机、布局几何、`GuardPresentation` 的判定进 `NotchCore`；红卡「关掉的是哪一次」现在分在 `AppState.dismissedViolationSince` 和 `NotchController.pendingAlert/violationAlerted` 两处，合成一个 owner；`Notch.swift:366` 用 `asyncAfter(0.5)` 等收起动画；`NKConfig` 去前缀；`ConfigStore` 每秒轮询，看不见时也在跑。
+  - `NotchController` 里的卡片队列、悬停状态机、布局几何、`GuardPresentation` 的判定进 `NotchCore`；红卡「关掉的是哪一次」现在分在 `AppState.dismissedViolationSince` 和 `NotchController.violationAlerted` 两处，合成一个 owner；`NotchController.collapse()` 用 `asyncAfter(0.5)` 等收起动画；`NKConfig` 去前缀；`ConfigStore` 每秒轮询，看不见时也在跑。
   - **删 `--selftest` 丢掉的覆盖，在 `NotchCore` 里用 swift test 补回**（原文 `git show d8a28dd:Sources/Notchkeeper/AgentEvents.swift`，约 50 条）：违规 → unknown → healthy 撤红卡；关掉的同一次违规不再弹、新的一次照弹；stale / clockSkew 且 lastVerdict 是 violated 时保留红卡、不响 Basso；非常驻红卡到时不重弹；恢复卡只在弹过红卡后出现；`GuardPresentation` 各状态的颜色和文案。
   - `config.json` 里的 `launchAtLogin`、`suppressWhenHostFrontmost`、`agents` 三个键下次存盘时会被去掉（没有消费者）。以后要做「按 agent 开关」从默认值重来。

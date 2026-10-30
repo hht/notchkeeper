@@ -7,7 +7,7 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "Notchkeeper",
-            dependencies: ["AgentCore", "GuardCore", "GuardWatch", "MascotCore"],
+            dependencies: ["AgentCore", "GuardCore", "GuardWatch", "MascotCore", "NotchCore"],
             path: "Sources/Notchkeeper",
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
@@ -31,5 +31,8 @@ let package = Package(
         // Claude Code 会话此刻在什么状态、回合什么时候结束：解析 ~/.claude/sessions/<pid>.json、跟踪回合（docs/agent-integration.md）。纯值类型，不读目录、不查进程
         .target(name: "AgentCore"),
         .testTarget(name: "AgentCoreTests", dependencies: ["AgentCore"]),
+        // 刘海此刻放哪张卡、放多久、放出来时响不响：红卡一层 + 临时卡队列（docs/ui.md「卡片」）。纯值类型，不知道卡长什么样、不放声音、不起定时器
+        .target(name: "NotchCore"),
+        .testTarget(name: "NotchCoreTests", dependencies: ["NotchCore"]),
     ]
 )

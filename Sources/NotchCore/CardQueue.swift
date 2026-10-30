@@ -1,0 +1,165 @@
+import Foundation
+
+/// 回答：刘海上此刻放哪张卡、什么时候换下一张、放出来那一刻响不响（docs/ui.md「卡片」）。
+/// 两层：红卡挂着时是底层；临时卡排一个先进先出队列，一次放一张，放完回到红卡。
+/// 纯状态机：喂事件和当前时间；不知道卡长什么样、该响哪个音，不放声音、不起定时器（App 按 `deadline` 到点调 `tick`）。
+/// 红卡该不该挂着由外面判定（当前状态 + dismissedViolationSince），这里只管它什么时候在台面上。
+public struct CardQueue<Card: Equatable & Sendable>: Sendable {
+    /// 同一个 key 还没放的旧卡，被后来的卡原地替换
+    public enum Key: Hashable, Sendable {
+        case session(Int32)
+        case recovered
+    }
+
+    /// 一张临时卡
+    public struct Notice: Equatable, Sendable {
+        public var card: Card
+        /// nil：从不替换
+        public var key: Key?
+        /// 放多久（「卡片停留」设置；恢复卡固定 4 秒）
+        public var seconds: TimeInterval
+
+        public init(card: Card, key: Key?, seconds: TimeInterval) {
+            self.card = card
+            self.key = key
+            self.seconds = seconds
+        }
+    }
+
+    public enum Showing: Equatable, Sendable {
+        case notice(Card)
+        /// persistent：「红卡一直保留，直到恢复」
+        case alert(persistent: Bool)
+    }
+
+    /// 每次输入之后 App 要做的事；台面上放什么看 `showing`
+    public struct Change: Equatable, Sendable {
+        /// 台面上这张卡刚放出来、该响它的声音
+        public var sound = false
+        /// 红卡收起了、但违规没恢复（用户点了 ×，或不常驻的红卡到时）：App 记作关掉了这一次违规
+        public var alertDismissed = false
+
+        public init(sound: Bool = false, alertDismissed: Bool = false) {
+            self.sound = sound
+            self.alertDismissed = alertDismissed
+        }
+    }
+
+    private struct Entry: Sendable {
+        var notice: Notice
+        /// 放出来过、响过（被违规打断后回到队首的卡，重放时不再响）
+        var sounded = false
+    }
+
+    private enum Stage: Sendable {
+        case notice(Entry)
+        case alert
+    }
+
+    /// 红卡挂着（不论此刻在不在台面上）时是它常不常驻；没挂着是 nil
+    private var alert: Bool?
+    private var stage: Stage?
+    private var waiting: [Entry] = []
+    /// 台面上这张卡的倒计时；nil 表示一直放着（常驻红卡放完第一次之后）
+    public private(set) var countdown: CardCountdown?
+
+    public init() {}
+
+    public var showing: Showing? {
+        switch stage {
+        case .notice(let e): return .notice(e.notice.card)
+        case .alert: return alert.map { .alert(persistent: $0) }
+        case nil: return nil
+        }
+    }
+
+    /// 台面上的卡到点要换的时刻；暂停中或一直放着时是 nil
+    public func deadline(now: Date) -> Date? {
+        guard let c = countdown, !c.isPaused else { return nil }
+        return now.addingTimeInterval(c.remaining(at: now))
+    }
+
+    public mutating func post(_ notice: Notice, now: Date) -> Change {
+        if let key = notice.key, let i = waiting.firstIndex(where: { $0.notice.key == key }) {
+            waiting[i] = Entry(notice: notice)
+        } else {
+            waiting.append(Entry(notice: notice))
+        }
+        // 空着，或常驻红卡已经放过第一次：马上盖上去；否则等台面上这张放完
+        switch stage {
+        case nil: return next(now)
+        case .alert where countdown == nil: return next(now)
+        default: return Change()
+        }
+    }
+
+    /// 新的一次违规开始：正在放的临时卡回到队首，红卡插上来先放满一次 `seconds`。
+    /// 恢复卡说的是上一次违规，不论排着还是正在放都作废
+    public mutating func raiseAlert(persistent: Bool, sound: Bool, seconds: TimeInterval, now: Date) -> Change {
+        guard alert == nil else { return Change() }
+        alert = persistent
+        if case .notice(let e) = stage { waiting.insert(e, at: 0) }
+        waiting.removeAll { $0.notice.key == .recovered }
+        stage = .alert
+        countdown = CardCountdown(total: seconds, now: now)
+        return Change(sound: sound)
+    }
+
+    /// 红卡不该挂了（回到 healthy，或别处记下关掉了这一次）
+    public mutating func clearAlert(now: Date) -> Change {
+        alert = nil
+        guard case .alert = stage else { return Change() }
+        return next(now)
+    }
+
+    /// 用户点了台面上这张卡的 ×
+    public mutating func dismiss(now: Date) -> Change {
+        switch stage {
+        case .notice: return next(now)
+        case .alert:
+            alert = nil
+            var change = next(now)
+            change.alertDismissed = true
+            return change
+        case nil: return Change()
+        }
+    }
+
+    /// 到点了：换下一张（App 按 `deadline` 调；早调了不变）
+    public mutating func tick(now: Date) -> Change {
+        guard let c = countdown, c.remaining(at: now) <= 0, let stage else { return Change() }
+        switch stage {
+        case .notice: return next(now)
+        case .alert:
+            guard let persistent = alert else { preconditionFailure("台面上是红卡，红卡一定挂着") }
+            if !persistent { return dismiss(now: now) }
+            // 常驻红卡放满第一次：有排着的就让，没有就一直放着
+            if waiting.isEmpty {
+                countdown = nil
+                return Change()
+            }
+            return next(now)
+        }
+    }
+
+    /// 鼠标停在卡上：倒计时暂停
+    public mutating func pause(now: Date) { countdown?.pause(at: now) }
+
+    /// 鼠标移开：从剩下的时间继续
+    public mutating func resume(now: Date) { countdown?.resume(at: now) }
+
+    /// 台面上这张放完了：放队首的临时卡；队列空了回到挂着的红卡（一直放着、不再响）；都没有就收起
+    private mutating func next(_ now: Date) -> Change {
+        if !waiting.isEmpty {
+            var e = waiting.removeFirst()
+            let sound = !e.sounded
+            e.sounded = true
+            stage = .notice(e)
+            countdown = CardCountdown(total: e.notice.seconds, now: now)
+            return Change(sound: sound)
+        }
+        stage = alert == nil ? nil : .alert
+        countdown = nil
+        return Change()
+    }
+}

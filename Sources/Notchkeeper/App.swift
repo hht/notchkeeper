@@ -32,6 +32,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         state.onPresentation = { [weak self] in self?.notch.guardChanged(to: $0) }
         notch.onAlertDismissed = { [weak self] in self?.state.dismissViolation() }
+        // 同一个会话还没放的旧卡被替换（docs/ui.md「卡片」2）
+        state.onAgentEvent = { [weak self] in self?.notch.post(.agent($0, cwd: $1.cwd), key: .session($1.pid)) }
 
         DistributedNotificationCenter.default().addObserver(
             self, selector: #selector(handleCardNotification(_:)),
@@ -162,19 +164,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     @objc func quit() { Self.quit(reason: "菜单里点了退出") }
 
-    /// scripts/demo.sh done|alert ["标题"] ["详情"]
+    /// scripts/demo.sh done|alert ["标题"] ["详情"]：done 走临时卡队列，alert 当一次新违规
     @objc func handleCardNotification(_ n: Notification) {
         let title = n.userInfo?["title"] as? String, detail = n.userInfo?["detail"] as? String
-        var card: NotchCard
         if n.object as? String == "alert" {
-            card = .exitAlert()
+            var card = NotchCard.exitAlert()
             if let title { card.title = title }
             if let detail { card.detail = detail }
+            notch.raiseAlert(card, sound: true)
+            Log.write("外部触发：异常卡片")
         } else {
-            card = .taskDone(title: title ?? "✅ 任务完成", detail: detail ?? "任务已完成")
+            notch.post(NotchCard(title: title ?? "✅ 任务完成", detail: detail ?? "任务已完成", tint: ClaudeMark.color,
+                                 look: .finished, sound: "Glass"), key: nil)
+            Log.write("外部触发：完成卡片")
         }
-        notch.show(card)
-        Log.write(card.kind == .alert ? "外部触发：异常卡片" : "外部触发：完成卡片")
     }
 }
 

@@ -2,69 +2,47 @@ import AgentCore
 import AppKit
 import SwiftUI
 import MascotCore
+import NotchCore
 
+/// 刘海上的一张卡长什么样、放出来时响什么（docs/ui.md「卡片」）。什么时候放由 `CardQueue` 决定
 struct NotchCard: Identifiable, Equatable {
-    enum Kind { case done, alert, recovered }
     let id = UUID()
-    var kind: Kind
     var title: String
     var detail: String
+    /// 光晕和进度条的颜色
     var tint: Color
-    var persistent: Bool
+    /// 卡上的盾盾画这张卡自己的造型
+    var look: Look
+    /// 放出来那一刻响的系统音效（docs/agent-integration.md「提醒」、docs/egress-guard.md）
+    var sound: NSSound.Name
 
-    /// 出口红卡。是否常驻由设置「红卡一直保留，直到恢复」决定，show 时覆盖
     static func exitAlert(detail: String = GuardPresentation.violatedDetail) -> NotchCard {
-        NotchCard(kind: .alert, title: GuardPresentation.violatedTitle, detail: detail,
-                  tint: Color(cgColor: RGB.red.cg), persistent: true)
-    }
-    static func taskDone(title: String, detail: String) -> NotchCard {
-        NotchCard(kind: .done, title: title, detail: detail, tint: .green, persistent: false)
+        NotchCard(title: GuardPresentation.violatedTitle, detail: detail, tint: Color(cgColor: RGB.red.cg), look: .danger, sound: "Basso")
     }
     static var recovered: NotchCard {
-        NotchCard(kind: .recovered, title: "出口已恢复", detail: "流量重新全部走 utun 隧道", tint: .green, persistent: false)
+        NotchCard(title: String(localized: "出口已恢复"), detail: String(localized: "流量重新全部走 utun 隧道"), tint: .green,
+                  look: .finished, sound: "Glass")
     }
-    /// 恢复卡固定 4 秒，不跟「卡片停留」设置走（Emily 规格）
+    /// 恢复卡固定 4 秒，不跟「卡片停留」设置走（docs/ui.md「卡片」）
     static let recoveredSeconds: TimeInterval = 4
 
-    /// 红卡上是危险的盾盾；完成卡、恢复卡上开心一下
-    var look: Look { kind == .alert ? .danger : .idle }
-}
-
-/// 临时卡片的倒计时：鼠标停在卡片上时暂停，移开后从剩下的时间继续
-struct CardCountdown: Equatable {
-    let total: TimeInterval
-    private var remainingAtResume: TimeInterval
-    /// nil 表示暂停中
-    private var resumedAt: Date?
-
-    init(total: TimeInterval, now: Date) {
-        self.total = total
-        remainingAtResume = total
-        resumedAt = now
-    }
-
-    var isPaused: Bool { resumedAt == nil }
-
-    func remaining(at now: Date) -> TimeInterval {
-        guard let r = resumedAt else { return remainingAtResume }
-        return max(0, remainingAtResume - now.timeIntervalSince(r))
-    }
-
-    func fraction(at now: Date) -> Double { total > 0 ? remaining(at: now) / total : 0 }
-
-    mutating func pause(at now: Date) {
-        guard !isPaused else { return }
-        remainingAtResume = remaining(at: now)
-        resumedAt = nil
-    }
-
-    mutating func resume(at now: Date) {
-        guard isPaused else { return }
-        resumedAt = now
+    /// 回合结束、进入需要你介入；副标题是会话的路径，和会话行一样
+    static func agent(_ event: AgentEvent, cwd: String) -> NotchCard {
+        let path = (cwd as NSString).abbreviatingWithTildeInPath
+        switch event {
+        case .turnEnded:
+            return NotchCard(title: String(localized: "Claude Code 做完了"), detail: path, tint: ClaudeMark.color, look: .finished, sound: "Glass")
+        case .needsYou(.question, _):
+            return NotchCard(title: String(localized: "Claude Code 在等你回答"), detail: path, tint: Color(cgColor: RGB.question.cg),
+                             look: .question, sound: "Ping")
+        case .needsYou(.approval, _):
+            return NotchCard(title: String(localized: "Claude Code 在等你批准"), detail: path, tint: Color(cgColor: RGB.approval.cg),
+                             look: .approval, sound: "Ping")
+        }
     }
 }
 
-enum NotchMode: Equatable { case closed, card, dashboard }
+enum NotchMode: Hashable { case closed, card, dashboard }
 
 /// 「状态测试」的覆盖（StateTest.swift）：只在内存里，只经 NotchController 改，重开 App 就没了
 @MainActor
@@ -101,6 +79,9 @@ final class NotchModel: ObservableObject {
 /// 三种形态的尺寸，视图和悬停命中测试共用
 enum NotchLayout {
     static let cardWidth: CGFloat = 400
+    /// 卡片内容离形状黑底左右边、第一行（盾盾 + 标题 + 副标题）的高度
+    static let cardPadding: CGFloat = 18
+    static let cardRowHeight: CGFloat = 38
     /// 展开面板黑底宽 = iOS 灵动岛展开态宽 408（HIG Live Activities；Mac 菜单栏里的 Live Activity 用同一套尺寸）。
     /// 形状两侧还各有一截往外翻的顶角（`openFlare`），不算黑底
     static let dashWidth: CGFloat = 408
@@ -119,7 +100,7 @@ enum NotchLayout {
     /// 行内容离黑底左右边：会话图标左缘、时间右缘、底栏文字左缘、齿轮右缘、右上徽章右缘都在这条线上（docs/ui.md「面板布局」）
     static let contentInset = dashMargin + listInset + rowPadding
     /// 左上的盾盾和右上的徽章：等大（HIG：leading / trailing 大小相近，左右平衡），和刘海下的标题 + IP 两行一样高；
-    /// 盾盾身体中心和会话图标中心在同一条竖线上
+    /// 盾盾身体中心和会话图标中心在同一条竖线上。卡片上还是这只盾盾，也是这么大
     static let dashCorner: CGFloat = 32
     /// 盾盾和徽章上缘离面板顶 8：紧贴刘海两侧，不留「额头」
     static let dashCornerTop: CGFloat = 8
@@ -164,6 +145,8 @@ enum NotchLayout {
     static func topInset(_ notch: CGSize) -> CGFloat { max(notch.height, 24) }
     /// 面板内容从刘海下沿起；没有刘海的屏幕按 32 留出菜单栏
     static func dashTop(_ notch: CGSize) -> CGFloat { max(notch.height, 32) }
+    /// 卡片内容的上沿
+    static func cardTop(_ notch: CGSize) -> CGFloat { topInset(notch) - 2 }
 
     static func size(_ mode: NotchMode, notch: CGSize, rows: Int) -> CGSize {
         switch mode {
@@ -196,9 +179,10 @@ final class NotchController {
     private let window: NSPanel
     private let model = NotchModel()
     private let state = AppState.shared
-    private var countdownWork: DispatchWorkItem?
-    /// 出口红卡（正在显示，或被临时卡片暂时盖住）
-    private var pendingAlert: NotchCard?
+    private var queue = CardQueue<NotchCard>()
+    /// 红卡的内容：挂着时台面上放它；副标题跟着守卫状态换
+    private var alertCard: NotchCard?
+    private var tickWork: DispatchWorkItem?
     /// 这次违规弹过红卡（之后被关掉、断网、守卫不响应都不清），回到 healthy 时据此弹恢复卡
     private var violationAlerted = false
     var hasNotch: Bool { NotchLayout.hasEars(model.notchSize) }
@@ -231,7 +215,9 @@ final class NotchController {
         window.animationBehavior = .none
 
         let host = FirstMouseHostingView(rootView: NotchRoot(model: model, overrides: model.overrides, state: state, onDismiss: { [weak self] in
-            self?.dismissCurrent()
+            // 点了卡片的 ×
+            guard let self else { return }
+            self.apply(self.queue.dismiss(now: Date()))
         }, onSettings: { [weak self] in
             self?.setHovering(false)
             self?.onOpenSettings()
@@ -279,26 +265,45 @@ final class NotchController {
 
     private func orderFront() { window.orderFrontRegardless() }
 
-    /// 现在看得见的卡片（收起动画里的不算）
-    var visibleCard: NotchCard? { model.expanded ? model.card : nil }
+    /// 临时卡进队列（docs/ui.md「卡片」）。seconds 默认是「卡片停留」设置
+    func post(_ card: NotchCard, key: CardQueue<NotchCard>.Key?, seconds: TimeInterval? = nil) {
+        let notice = CardQueue.Notice(card: card, key: key, seconds: seconds ?? ConfigStore.shared.config.cardAutoDismissSeconds)
+        apply(queue.post(notice, now: Date()))
+    }
 
-    /// - sound: false 时不响（守卫不响应时保留的红卡不再响 Basso）
-    func show(_ input: NotchCard, sound: Bool = true) {
-        // 恢复卡不叠第二张
-        if input.kind == .recovered, visibleCard?.kind == .recovered { return }
+    /// 新的一次违规：红卡插到最前。sound 为 false 时不响（守卫不响应时保留的红卡不再响 Basso）
+    func raiseAlert(_ card: NotchCard, sound: Bool) {
+        alertCard = card
         let cfg = ConfigStore.shared.config
-        var card = input
-        if card.kind == .alert {
-            card.persistent = cfg.alertPersistent
-            pendingAlert = card
+        apply(queue.raiseAlert(persistent: cfg.alertPersistent, sound: sound, seconds: cfg.cardAutoDismissSeconds, now: Date()))
+    }
+
+    /// 台面跟着队列走：换卡或收起、响这张卡的声音、定下一次到点
+    private func apply(_ change: CardQueue<NotchCard>.Change) {
+        let card: NotchCard?
+        switch queue.showing {
+        case .notice(let c): card = c
+        case .alert:
+            guard let a = alertCard else { preconditionFailure("红卡挂着时一定有内容") }
+            card = a
+        case nil: card = nil
         }
-        if sound, cfg.soundEnabled { NSSound(named: card.kind == .alert ? "Basso" : "Glass")?.play() }
-        present(card)
+        if let card {
+            if card.id != model.card?.id || !model.expanded { present(card) }
+            if change.sound, ConfigStore.shared.config.soundEnabled { NSSound(named: card.sound)?.play() }
+        } else if model.expanded {
+            collapse()
+        }
+        // 常驻红卡不画进度条
+        model.countdown = queue.showing == .alert(persistent: true) ? nil : queue.countdown
+        scheduleTick()
+        if change.alertDismissed {
+            alertCard = nil
+            onAlertDismissed()
+        }
     }
 
     private func present(_ card: NotchCard) {
-        countdownWork?.cancel()
-        model.countdown = nil
         orderFront()
         if model.mode != .closed {
             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { model.card = card; model.expanded = true }
@@ -307,83 +312,50 @@ final class NotchController {
             withAnimation(NotchSpring.notchOpen) { model.expanded = true }
         }
         updateMouseCapture()
-        if !card.persistent {
-            let total = card.kind == .recovered ? NotchCard.recoveredSeconds : ConfigStore.shared.config.cardAutoDismissSeconds
-            model.countdown = CardCountdown(total: total, now: Date())
-            scheduleCountdown()
-            setCardHover(model.mode == .card && shapeRect.contains(NSEvent.mouseLocation))
-        }
+        // 卡片弹到鼠标底下：当作停在卡上，先不倒计时
+        if shapeRect.contains(NSEvent.mouseLocation) { queue.pause(now: Date()) }
     }
 
-    private func scheduleCountdown() {
-        countdownWork?.cancel()
-        guard let c = model.countdown, !c.isPaused, let id = model.card?.id else { return }
+    private func scheduleTick() {
+        tickWork?.cancel()
+        guard let at = queue.deadline(now: Date()) else { return }
         let work = DispatchWorkItem { [weak self] in
-            guard let self, self.model.card?.id == id else { return }
-            self.dismissCurrent()
+            guard let self else { return }
+            self.apply(self.queue.tick(now: Date()))
         }
-        countdownWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + c.remaining(at: Date()), execute: work)
+        tickWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + max(0, at.timeIntervalSinceNow), execute: work)
     }
 
     /// 鼠标在卡片上：倒计时暂停；移开：从剩下的时间继续
     func setCardHover(_ over: Bool) {
-        guard var c = model.countdown, over != c.isPaused else { return }
-        if over {
-            c.pause(at: Date())
-            countdownWork?.cancel()
-            model.countdown = c
-        } else {
-            c.resume(at: Date())
-            model.countdown = c
-            scheduleCountdown()
-        }
+        guard let c = queue.countdown, over != c.isPaused else { return }
+        if over { queue.pause(now: Date()) } else { queue.resume(now: Date()) }
+        apply(CardQueue.Change())
     }
 
-    /// 关闭当前卡片（× 或倒计时到）。红卡关掉算用户关掉这一次违规；
-    /// 临时卡片关掉后，如果还有红卡就恢复红卡
-    func dismissCurrent() {
-        countdownWork?.cancel()
-        model.countdown = nil
-        guard let current = model.card else { return }
-        if current.kind == .alert {
-            pendingAlert = nil
-            collapse()
-            onAlertDismissed()
-        } else if let alert = pendingAlert {
-            present(alert)
-        } else {
-            collapse()
-        }
-    }
-
-    /// 每读一次守卫状态调用一次。`old` 是这次读之前的显示，只用来判断「之前是不是违规」
+    /// 每读一次守卫状态调用一次
     func guardChanged(to new: GuardPresentation) {
         if new.clearsAlert {
+            apply(queue.clearAlert(now: Date()))
+            alertCard = nil
             // 只有弹过红卡的那次违规回到 healthy 才弹恢复卡：中间断网、守卫不响应、用户关掉红卡都算同一次
-            let alertOnScreen = visibleCard?.kind == .alert
-            pendingAlert = nil
             if violationAlerted {
                 violationAlerted = false
-                show(.recovered)
-            } else if alertOnScreen {
-                // 没有对应违规的红卡（scripts/demo.sh alert）：读到 healthy 照样撤掉
-                countdownWork?.cancel()
-                model.countdown = nil
-                collapse()
+                post(.recovered, key: .recovered, seconds: NotchCard.recoveredSeconds)
             }
             return
         }
         guard let alert = new.alert, ConfigStore.shared.config.autoAlert else { return }
         violationAlerted = true
-        if var shown = pendingAlert {
-            // 红卡已经在：只换副标题，不重弹、不重响
+        if var shown = alertCard {
+            // 红卡已经挂着：只换副标题，不重弹、不重响
             guard shown.detail != alert.detail else { return }
             shown.detail = alert.detail
-            pendingAlert = shown
+            alertCard = shown
             if model.card?.id == shown.id { model.card = shown }
         } else {
-            show(.exitAlert(detail: alert.detail), sound: alert.sounds)
+            raiseAlert(.exitAlert(detail: alert.detail), sound: alert.sounds)
         }
     }
 
@@ -636,32 +608,37 @@ struct NotchRoot: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
-    /// 左上的盾盾、右上的指示：收起和展开是**同一个视图**，只按形态改位置和缩放，
+    /// 盾盾和右边的指示：收起、面板、卡片里是**同一个视图**，只按形态改位置和缩放，
     /// 跟着形状的同一个弹簧走（HIG Live Activities：「Maintain the relative placement of elements」，
     /// 展开态是收起态放大，元素不移除再进场）。布局尺寸固定、只动 position / scaleEffect，
     /// 嵌进来的 Core Animation 视图在 macOS 14 上也会被逐帧插值（10-29 实测）。
-    /// 减弱动态效果时不飞：换形态就换一个新视图，旧的原地淡出、新的在新位置淡入（docs/mascot.md §5）。
-    /// 卡片形态时淡出，卡片自己画盾盾；透明的那些停掉动画
+    /// 盾盾在左耳 → 面板左上 → 卡片左侧之间飞，到卡片上换成这张卡的造型、告示画回来（docs/ui.md「卡片」7）；
+    /// 右边的一组在卡片形态时淡出，透明时停掉动画。
+    /// 减弱动态效果时不飞：换形态就换一个新视图，旧的原地淡出、新的在新位置淡入（docs/mascot.md §5）
     @ViewBuilder
     private func corners(_ mode: NotchMode, size: CGSize, flare: CGFloat) -> some View {
-        if NotchLayout.hasEars(model.notchSize) || mode == .dashboard {
+        if NotchLayout.hasEars(model.notchSize) || mode != .closed {
             let open = mode == .dashboard
             let notch = model.notchSize
             let c = NotchLayout.dashCorner
-            let ears = NotchLayout.ears(notch: notch, flare: flare)
             let top = NotchLayout.dashCornerTop + c / 2
-            let left = flare + NotchLayout.contentInset + NotchLayout.rowIcon / 2
             let right = size.width - flare - NotchLayout.contentInset - c / 2
-            let look = overrides.mascot(real: state.look)
+            let card = mode == .card ? model.card : nil
+            let look = card?.look ?? overrides.mascot(real: state.look)
             // 右边跟着左边实际画的造型走（犯困时左耳睡着，右耳就不亮）
             let shown = overrides.look != nil ? look : look.shown(drowsy: director.drowsy)
+            let mascotAt: CGPoint = switch mode {
+            case .closed: NotchLayout.ears(notch: notch, flare: flare).bodyCenter
+            case .dashboard: CGPoint(x: flare + NotchLayout.contentInset + NotchLayout.rowIcon / 2, y: top)
+            case .card: CGPoint(x: flare + NotchLayout.cardPadding + c / 2, y: NotchLayout.cardTop(notch) + NotchLayout.cardRowHeight / 2)
+            }
             ZStack(alignment: .topLeading) {
-                // 告示（sign）永远在右边：盾盾只管表情，收起、展开都不画告示
-                MascotView(look: look, size: c, hidesSigns: true, playing: mode != .card)
-                    .environment(\.mascotLiteral, overrides.look != nil)
-                    .scaleEffect(open ? 1 : NotchLayout.earMascotSize / c)
-                    .position(open ? CGPoint(x: left, y: top) : ears.bodyCenter)
-                    .id(reduceMotion && open)
+                // 告示（sign）在右边，盾盾只管表情；卡片上没有右边，画回来
+                MascotView(look: look, size: c, hidesSigns: card == nil)
+                    .environment(\.mascotLiteral, overrides.look != nil || card != nil)
+                    .scaleEffect(mode == .closed ? NotchLayout.earMascotSize / c : 1)
+                    .position(mascotAt)
+                    .id(reduceMotion ? mode : .closed)
                     .transition(.opacity)
                 ZStack {
                     EarIndicatorView(indicator: .for(shown, probeFailed: state.presentation.probeFailed && overrides.look == nil),
@@ -670,7 +647,7 @@ struct NotchRoot: View {
                                      center: CGPoint(x: NotchLayout.earWidth / 2, y: notch.height / 2),
                                      playing: mode == .closed)
                         .frame(width: NotchLayout.earWidth, height: notch.height)
-                        .opacity(open ? 0 : 1)
+                        .opacity(mode == .closed ? 1 : 0)
                     GuardBadge(presentation: state.presentation, size: c)
                         .opacity(open ? 1 : 0)
                         .scaleEffect(open || reduceMotion ? 1 : 0.4)
@@ -682,14 +659,13 @@ struct NotchRoot: View {
                 .transition(.opacity)
             }
             .frame(width: size.width, height: size.height, alignment: .topLeading)
-            .opacity(mode == .card ? 0 : 1)
             .allowsHitTesting(false)
         }
     }
 
     @ViewBuilder
     private func content(_ mode: NotchMode, inset: CGFloat) -> some View {
-        let top = NotchLayout.topInset(model.notchSize) - 2
+        let top = NotchLayout.cardTop(model.notchSize)
         switch mode {
         case .card:
             if let card = model.card {
@@ -936,7 +912,8 @@ struct NotchCardView: View {
     var body: some View {
         VStack(spacing: 8) {
             HStack(spacing: 12) {
-                MascotView(look: card.look, size: 38, cheers: card.kind != .alert)
+                // 盾盾的位置：NotchRoot 里那只飞过来（docs/ui.md「卡片」7）
+                Color.clear.frame(width: NotchLayout.dashCorner, height: NotchLayout.dashCorner)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(card.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(.white)
                     Text(card.detail).font(.system(size: 12)).foregroundStyle(.white.opacity(0.65)).lineLimit(1)
@@ -951,6 +928,7 @@ struct NotchCardView: View {
                 }
                 .buttonStyle(PressableStyle())
             }
+            .frame(height: NotchLayout.cardRowHeight)
             if let countdown {
                 // 进度条直接从倒计时算，暂停时 TimelineView 停止刷新
                 // @see https://developer.apple.com/documentation/swiftui/timelineviewdefaultcontext
@@ -967,7 +945,7 @@ struct NotchCardView: View {
                 .frame(height: 3)
             }
         }
-        .padding(.horizontal, 18)
+        .padding(.horizontal, NotchLayout.cardPadding)
         .padding(.bottom, 10)
     }
 }

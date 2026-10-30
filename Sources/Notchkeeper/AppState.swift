@@ -29,6 +29,8 @@ final class AppState: ObservableObject {
 
     /// 每次读完都调用（不论有没有变化），参数是这次读到的显示
     var onPresentation: ((GuardPresentation) -> Void)?
+    /// 回合结束、进入需要你介入（AgentCore 判定），带上这个会话
+    var onAgentEvent: ((AgentEvent, Session) -> Void)?
     /// 订阅 guard-state 显示流的长任务；`stopWatchingGuard()` / deinit 取消，流随之结束、监听关掉
     private var guardTask: Task<Void, Never>?
     private var agentWatcher: AgentWatcher?
@@ -73,15 +75,22 @@ final class AppState: ObservableObject {
         onPresentation?(new)
     }
 
-    /// 卡片和声音第 4 步接上；现在只记日志，实机冒烟靠它
     private func applyAgent(_ update: AgentWatcher.Update) {
         if update.activity != agentActivity { agentActivity = update.activity }
         if update.sessions != sessions { sessions = update.sessions }
         for event in update.events {
+            let pid: Int32
             switch event {
-            case .turnEnded(let pid): Log.write("agent：回合结束（pid \(pid)）")
-            case .needsYou(let need, let pid): Log.write("agent：需要你介入，\(need)（pid \(pid)）")
+            case .turnEnded(let p):
+                pid = p
+                Log.write("agent：回合结束（pid \(p)）")
+            case .needsYou(let need, let p):
+                pid = p
+                Log.write("agent：需要你介入，\(need)（pid \(p)）")
             }
+            // 事件和会话列表出自同一次更新：发事件的会话一定在列表里
+            guard let session = update.sessions.first(where: { $0.pid == pid }) else { preconditionFailure("事件的会话不在列表里") }
+            onAgentEvent?(event, session)
         }
     }
 

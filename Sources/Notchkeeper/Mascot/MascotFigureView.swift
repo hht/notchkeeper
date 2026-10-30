@@ -23,8 +23,8 @@ final class MascotFigureView: MascotLayerView {
     private(set) var look: Look
     /// 两只眼当前的多边形（放大前）：下一次换形先对齐到它
     private var shapes: [EyeOutline]
-    /// 收起态的左耳：sign 装饰挪到右耳，这里不画
-    private let hidesSigns: Bool
+    /// 收起态的左耳、面板：sign 装饰挪到右边，这里不画
+    private var hidesSigns: Bool
     private var reduceMotion: Bool
     private var gazeTarget = Gaze.rest
     private var peeking = false
@@ -178,8 +178,10 @@ final class MascotFigureView: MascotLayerView {
 
     // MARK: 外面调用
 
-    func setLook(_ new: Look) {
-        guard new != look else { return }
+    /// 换造型；hidesSigns 一起给：两样都变时只换一次装饰，旧造型的告示不会先画出来再退场
+    func setLook(_ new: Look, hidesSigns h: Bool) {
+        guard new != look else { return setHidesSigns(h) }
+        hidesSigns = h
         look = new
         let e = new.eyes
         shapes = [Eyes.aligned(e.left, to: shapes[0]), Eyes.aligned(e.right, to: shapes[1])]
@@ -231,6 +233,25 @@ final class MascotFigureView: MascotLayerView {
         a.timingFunction = Self.function(.sineInOut)
         eye.removeAnimation(forKey: "blink")
         eye.add(a, forKey: "morph")
+    }
+
+    /// 飞到卡片上时告示画回来（红卡的 !!），回到左耳、面板再收起；换法和换造型时的装饰一样
+    private func setHidesSigns(_ on: Bool) {
+        guard on != hidesSigns else { return }
+        hidesSigns = on
+        guard look.isSign else { return }
+        guard active else {
+            quietly { draw(look) }
+            return
+        }
+        let c = Choreography.change(reduceMotion: reduceMotion)
+        stopLoops(ease: false)
+        quietly {
+            deco?.exit(c, animated: true)
+            deco = makeDeco(look)
+            deco?.enter(c)
+        }
+        startLoops(loops, delay: c.loopDelay)
     }
 
     func setReduceMotion(_ on: Bool) {

@@ -9,25 +9,15 @@ import MascotCore
 struct MascotView: View {
     let look: Look
     let size: CGFloat
-    /// 出现时开心一下（完成卡、恢复卡），5.2s 后回到 look（docs/mascot.md §2）
-    var cheers = false
-    /// 收起态的左耳：sign 装饰挪到右耳，这里不画
+    /// 收起态的左耳、面板：sign 装饰挪到右边，这里不画
     var hidesSigns = false
-    /// false：此刻透明、看不见，停掉动画（CLAUDE.md「看不见就不调度」）
-    var playing = true
-
-    static let cheerFor: TimeInterval = 5.2
 
     @ObservedObject private var director = MascotDirector.shared
     /// @see https://developer.apple.com/documentation/swiftui/environmentvalues/accessibilityreducemotion
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.mascotLiteral) private var literal
-    @State private var cheering = false
 
-    private var shown: Look {
-        if cheering { return .finished }
-        return literal ? look : look.shown(drowsy: director.drowsy)
-    }
+    private var shown: Look { literal ? look : look.shown(drowsy: director.drowsy) }
 
     /// 画布相对身体外框（原点 = 身体左上）的位置，单位 pt。身体外框在画布里是 (4, 6.5) 起的 20 × 20 单位
     private var canvas: (size: Size, unit: CGFloat, frame: CGRect) {
@@ -43,18 +33,10 @@ struct MascotView: View {
         Color.clear
             .frame(width: size, height: size)
             .overlay(alignment: .topLeading) {
-                MascotLayer(look: shown, size: c.size, unit: c.unit, reduceMotion: reduceMotion, hidesSigns: hidesSigns, playing: playing)
+                MascotLayer(look: shown, size: c.size, unit: c.unit, reduceMotion: reduceMotion, hidesSigns: hidesSigns)
                     .frame(width: c.frame.width, height: c.frame.height)
                     .offset(x: c.frame.minX, y: c.frame.minY)
                     .allowsHitTesting(false)
-            }
-            .onAppear {
-                guard cheers, !cheering else { return }
-                cheering = true
-                Task { @MainActor in
-                    try? await Task.sleep(for: .seconds(Self.cheerFor))
-                    cheering = false
-                }
             }
             .accessibilityElement()
             .accessibilityLabel("盾盾")
@@ -67,18 +49,14 @@ private struct MascotLayer: NSViewRepresentable {
     let unit: CGFloat
     let reduceMotion: Bool
     let hidesSigns: Bool
-    let playing: Bool
 
     func makeNSView(context: Context) -> MascotFigureView {
-        let v = MascotFigureView(look: look, size: size, unit: unit, reduceMotion: reduceMotion, entrance: true, hidesSigns: hidesSigns)
-        v.playing = playing
-        return v
+        MascotFigureView(look: look, size: size, unit: unit, reduceMotion: reduceMotion, entrance: true, hidesSigns: hidesSigns)
     }
 
     func updateNSView(_ v: MascotFigureView, context: Context) {
-        v.playing = playing
         v.setReduceMotion(reduceMotion)
-        v.setLook(look)
+        v.setLook(look, hidesSigns: hidesSigns)
     }
 }
 

@@ -43,7 +43,7 @@ Haitao 本机自用的 macOS 刘海应用。SwiftPM 构建，SwiftUI + AppKit，
   - `unknown`：不弹卡；状态点是灰色空心环，收起时右耳照盾盾造型显示（`docs/mascot.md` §2）。
   - `healthy`。
 
-  红卡显示与否，只看当前状态和 `dismissedViolationSince`。从任何路径进入 healthy 都要撤掉红卡。完整规则见 `docs/egress-guard.md`。
+  红卡该不该挂着，只看当前状态和 `dismissedViolationSince`；挂着时，临时卡（完成、介入、恢复）可以暂时盖在上面，放完回到红卡（Haitao 2026-10-29，`docs/ui.md`「卡片」）。从任何路径进入 healthy 都要撤掉红卡。完整规则见 `docs/egress-guard.md`。
 - **防火墙一键开关，安全第一**（Haitao 2026-10-29）：
   - **先能恢复，再谈拦截。** 恢复脚本 `scripts/firewall-rescue.sh` 要先写好，并在本机实测过，然后才能写任何 block 规则。恢复脚本不依赖网络、App 和已安装的防火墙脚本。每次开启防火墙都先试运行，2 分钟内没确认就自动回滚。
   - **范围**：只用自己的 pf anchor。不改 `/etc/pf.conf`，不读写 Clash 配置，不用 Network Extension，不碰 sudoers。
@@ -61,7 +61,7 @@ Haitao 本机自用的 macOS 刘海应用。SwiftPM 构建，SwiftUI + AppKit，
 ## 界面准则
 
 - **动效**：高级而克制，节奏活泼。用弹簧和正弦缓动，进场稍慢、退场稍快；开了「减弱动态效果」就只做淡入淡出。常驻动画用 Core Animation 交给系统合成，不在主线程逐帧重画。
-- **默认不打扰**：空闲时收进刘海，悬停或点击才展开；完成卡按设置自动收回；红卡一直留到恢复。
+- **默认不打扰**：空闲时收进刘海，悬停或点击才展开；完成卡、介入卡按设置自动收回；红卡一直挂到恢复，临时卡放完就回到它。
 - **状态 = 颜色 + 图标 + 文案**：绿 = healthy，琥珀 = egressMismatch，灰 = unknown，红 = violated。
 - **点击范围**：只有看得见的形状接收点击，透明区域一律穿透，不挡菜单栏。卡片只用阴影，不加描边。
 - **亮暗**：贴着刘海的部分（耳朵、面板、卡片）永远黑底白字，只有设置窗口跟随系统亮暗。细节见 `docs/ui.md`。
