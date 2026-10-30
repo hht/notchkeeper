@@ -77,6 +77,8 @@ final class MascotFigureView: MascotLayerView {
         var t = toPoints
         mask.path = CGPath(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r), transform: &t)
         disc.mask = mask
+        // 为了按屏幕倍率拍平三维子树，不是为了缓存：disc 里的动作一动就要重画（见 viewDidChangeBackingProperties）
+        disc.shouldRasterize = true
         gradient.frame = bounds
         gradient.startPoint = CGPoint(x: 0.5, y: point(CGPoint(x: c.x, y: c.y - r)).y / bounds.height)
         gradient.endPoint = CGPoint(x: 0.5, y: point(CGPoint(x: c.x, y: c.y + r)).y / bounds.height)
@@ -134,6 +136,15 @@ final class MascotFigureView: MascotLayerView {
         poseLayer.transform = poseTransform(l)
         deco?.layer.removeFromSuperlayer()
         deco = makeDeco(l)
+    }
+
+    /// 头一转（yaw / pitch 不为 0），眼睛边缘就发软；展开时盾盾总在看刘海上的鼠标，眼睛就一直是糊的。
+    /// 推断是三维子树拍平到 disc 时被重采样。disc 显式按屏幕倍率栅格化就清楚了（10-30 实测，docs/mascot.md §5「渲染」）
+    /// @see https://developer.apple.com/documentation/quartzcore/calayer/shouldrasterize
+    /// @see https://developer.apple.com/documentation/quartzcore/calayer/rasterizationscale
+    override func viewDidChangeBackingProperties() {
+        super.viewDidChangeBackingProperties()
+        quietly { disc.rasterizationScale = scale }
     }
 
     override func layer(for part: Part) -> CALayer? {
