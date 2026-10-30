@@ -24,6 +24,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var sigterm: DispatchSourceSignal?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        ClaudeMod.refreshIfInstalled()
         notch = NotchController()
         settings = SettingsWindowController(state: state, notch: notch)
         notch.onOpenSettings = { [weak self] in self?.openSettings() }

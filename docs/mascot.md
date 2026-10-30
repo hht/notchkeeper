@@ -65,7 +65,7 @@ stage ─┬─ body（呼吸，锚点在身体底部）
 | question 等你回答 | agent 需要你介入，不是权限类（见 `docs/agent-integration.md`） | `#D8F4F7` → `#8FD9E2` | 0 / 0 / −10（歪头等你） | mood：气泡，40pt 带 ? | 青点 `#3CC8DC` |
 | approval 等你批准 | agent 需要你介入，权限类 | `#F0F7D4` → `#C6DE7E` | 0 / 8 / 0（抬头看着你） | mood：举起的手 | 青柠点 `#B5E04A` |
 | finished 完成 | agent 回合结束；出口恢复（弹恢复卡时，见 `docs/egress-guard.md`）。持续 5.2s 后按优先级回落 | `#E3F6EE` → `#AEDCC7` | 0 / 10 / 0（得意地抬头） | mood：星星 | 无 |
-| error 出错 | 暂不接线 | `#FBE6D6` → `#EDB892` | 0 / −8 / 0（一缩） | sign：× | 告示图标 |
+| error 出错 | 出错卡上（agent 回合出错，`docs/agent-integration.md`）；收起态不画 | `#FBE6D6` → `#EDB892` | 0 / −8 / 0（一缩） | sign：× | 告示图标 |
 | interrupted 被打断 | 暂不接线 | 同空闲 | 0 / 0 / 0 | 无 | 无 |
 | dizzy 晕 | 点一下面板里的盾盾（第 4 步接上）。持续 1.6s | `#FBE3EC` → `#EBB3C7` | 0 / 0 / 0 | 无 | 无 |
 | offline 断网 | 守卫 unknown，原因是断网 | `#E6E8EC` → `#B4BAC4` | 0 / 0 / 0 | sign：Wi-Fi 加斜杠 | 告示图标 |

@@ -80,7 +80,8 @@ final class AppState: ObservableObject {
         if update.sessions != sessions { sessions = update.sessions }
         for event in update.events {
             switch event {
-            case .turnEnded(let pid): Log.write("agent：回合结束（pid \(pid)）")
+            case .turnDone(let pid): Log.write("agent：回合做完（pid \(pid)）")
+            case .turnFailed(let pid): Log.write("agent：回合出错（pid \(pid)）")
             case .needsYou(let need, let pid): Log.write("agent：需要你介入，\(need)（pid \(pid)）")
             case .needsYouEnded(let pid): Log.write("agent：介入结束（pid \(pid)）")
             }

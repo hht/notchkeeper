@@ -11,6 +11,8 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Notchkeeper"
 cp Support/Info.plist "$APP/Contents/Info.plist"
+# Claude Code mod（docs/agent-integration.md「Notchkeeper mod」）：设置页安装时从这里拷出去。测试和 Claude Code 生成的类型声明不带
+rsync -a --exclude tests --exclude types --exclude tsconfig.json ClaudeMod/ "$APP/Contents/Resources/ClaudeMod/"
 echo "==> codesign (ad-hoc)"
 codesign --force --sign - --identifier local.hht.notchkeeper "$APP"
 pkill -x Notchkeeper 2>/dev/null || true

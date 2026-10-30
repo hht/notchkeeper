@@ -5,8 +5,12 @@ public struct Session: Equatable, Sendable {
     public var pid: Int32
     /// 进程启动时刻（UTC，精确到秒）：和 `pid` 一起认进程，防 pid 复用
     public var processStart: Date
+    /// 和 mod 写的回合文件对上；`/clear` 之后会换。已校验是 UUID：会拼进文件路径
+    public var sessionId: String
     /// 工作目录的完整路径
     public var cwd: String
+    /// 会话名：可能从对话推出来，只用来在 Ghostty 里认窗口，不显示、不进日志（docs/agent-integration.md）
+    public var name: String?
     public var state: AgentState
     /// 进入这个状态的时刻
     public var stateSince: Date
@@ -28,10 +32,11 @@ public enum AgentState: Equatable, Sendable {
 /// sessions 文件解不开的原因：App 计数、跳过，不覆盖原文件（CLAUDE.md 准则 5）
 public enum SessionFileError: Error, Equatable {
     case unknownStatus(String)
+    case badSessionId(String)
 }
 
 /// 回答：一份 `~/.claude/sessions/<pid>.json` 是不是要看的会话、此刻什么状态。
-/// 只取判定和显示要的字段，不读 `name`（可能从对话推出来）；不读文件、不查进程。
+/// 只取判定、显示和认 Ghostty 窗口要的字段；不读文件、不查进程。
 /// @see docs/agent-integration.md「实测」（Claude Code 2.1.296）
 public enum SessionFile {
     /// 不是终端里开的交互式 `claude`（`claude -p`、SDK、VS Code、后台会话等，用户 10-29），
@@ -40,8 +45,9 @@ public enum SessionFile {
         let gate = try JSONDecoder().decode(Gate.self, from: data)
         guard gate.kind == "interactive", gate.entrypoint == "cli", gate.status != nil else { return nil }
         let raw = try JSONDecoder().decode(Raw.self, from: data)
+        guard UUID(uuidString: raw.sessionId) != nil else { throw SessionFileError.badSessionId(raw.sessionId) }
         return Session(pid: raw.pid, processStart: try Date(raw.procStart, strategy: lstart),
-                       cwd: raw.cwd,
+                       sessionId: raw.sessionId, cwd: raw.cwd, name: raw.name,
                        state: try state(raw.status, waitingFor: raw.waitingFor), stateSince: Date(timeIntervalSince1970: raw.statusUpdatedAt / 1000))
     }
 
@@ -56,7 +62,9 @@ public enum SessionFile {
     private struct Raw: Decodable {
         var pid: Int32
         var procStart: String
+        var sessionId: String
         var cwd: String
+        var name: String?
         var status: String
         var waitingFor: String?
         var statusUpdatedAt: Double

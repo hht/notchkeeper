@@ -20,11 +20,14 @@
 |---|---|---|
 | session | 会话 | 一个 Claude Code 进程，对应一份 `~/.claude/sessions/<pid>.json` |
 | agent state | agent 状态 | 工作中 working / 已停止 stopped / 需要你介入 needsYou（`docs/agent-integration.md`） |
-| turn | 回合 | 从已停止进入工作中，到再次变成已停止 |
-| turn end | 回合结束 | 回合中变成已停止 |
-| long turn | 干了很久 | 工作中，并且离回合开始满 10 分钟 |
+| turn | 回合 | Claude 回应一条消息的全过程，由 mod 的 `turn.start` / `turn.complete` 界定；子 agent 的不算 |
+| turn end | 回合结束 | mod 报主回合 `turn.complete` |
+| turn outcome | 结局 | 回合怎么结束的：done 做完 / failed 出错 / canceled 取消（`docs/agent-integration.md`「回合怎么结束的」） |
+| turn file | 回合文件 | mod 写的 `turns/<sessionId>.json` |
+| mod | mod | Claude Code 官方插件里的 JS 模块；本仓自带一个，源码在 `ClaudeMod/`。不叫「hook」「插件脚本」 |
+| long turn | 干了很久 | 工作中，并且离进入工作中满 10 分钟 |
 | meteor | 流星 | 卡片弹出时沿边扫一趟的两道光，从顶部两端 1.5 秒流到底边中间（`docs/ui.md`「卡片」）。不叫「流光」「进度条」 |
-| needs-you end | 介入结束 | 需要你介入的会话回到工作中、进程没了，或不在回合里时变成已停止（空闲时弹的对话框关掉）；回合里变成已停止算回合结束，不算这个 |
+| needs-you end | 介入结束 | 需要你介入的会话回到工作中、变成已停止或进程没了 |
 | need | 介入类型 | 需要你介入的是哪一类：question 等你回答 / approval 等你批准（`docs/agent-integration.md`「状态」） |
 | agent activity | agent 动态 | 所有会话合起来此刻 agent 这一档该画什么：approval > question > longTurn > working > finished（`docs/mascot.md` §2「优先级」） |
 

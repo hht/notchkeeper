@@ -321,14 +321,75 @@ private struct NotificationsPane: View {
             } header: {
                 Text("卡片")
             }
+            .disabled(store.fileUnreadable)
             Section("声音") {
                 Toggle(isOn: $store.config.soundEnabled) {
                     Text("提示音")
-                    Text("完成 Glass · 出口不合规 Basso")
+                    Text("完成 Glass · 出错 Funk · 等你 Ping · 出口不合规 Basso")
                 }
             }
+            .disabled(store.fileUnreadable)
+            ClaudeModSection()
         }
-        .disabled(store.fileUnreadable)
+    }
+}
+
+/// 装、卸 Notchkeeper 的 Claude Code mod（docs/agent-integration.md「安装和卸载」）。不靠 config.json，配置文件解不开也能用
+private struct ClaudeModSection: View {
+    /// nil：还在查
+    @State private var status: ClaudeMod.Status?
+    @State private var working = false
+    @State private var error: String?
+
+    var body: some View {
+        Section {
+            LabeledContent {
+                switch status {
+                case nil:
+                    ProgressView().controlSize(.small)
+                case .installed?, .disabled?:
+                    Button("卸载") { run(ClaudeMod.uninstall) }.disabled(working)
+                case .notInstalled?, .unknown?:
+                    Button("安装") { run(ClaudeMod.install) }.disabled(working)
+                case .noClaude?:
+                    EmptyView()
+                }
+            } label: {
+                Text("完成卡和出错卡")
+                Text(error ?? caption)
+            }
+        } header: {
+            Text("Claude Code")
+        } footer: {
+            Text("在 Claude Code 里装一个 Notchkeeper 自带的 mod，它只记下每个回合怎么结束的，不记对话内容。安装会在 ~/.claude/settings.json 里加一项插件；卸载会去掉。已经开着的会话要重开或运行 /reload-plugins 才生效。")
+        }
+        .task { status = await ClaudeMod.status() }
+    }
+
+    private var caption: String {
+        switch status {
+        case nil: return "正在检查…"
+        case .installed?: return "已安装：回合做完、出错时弹卡"
+        case .disabled?: return "已安装，但在 Claude Code 里关掉了（/plugin 里打开）"
+        case .notInstalled?: return "没装：只显示忙闲和等你，不弹完成卡、出错卡"
+        case .noClaude?: return "没找到 claude（只看 ~/.local/bin、/opt/homebrew/bin、/usr/local/bin）"
+        case .unknown(let reason)?: return "查不到装没装：\(reason)"
+        }
+    }
+
+    private func run(_ action: @escaping () async throws -> Void) {
+        working = true
+        error = nil
+        Task {
+            do {
+                try await action()
+            } catch {
+                self.error = "没成功：\(error.localizedDescription)"
+                Log.write("Claude Code mod：操作失败：\(error.localizedDescription)")
+            }
+            status = await ClaudeMod.status()
+            working = false
+        }
     }
 }
 

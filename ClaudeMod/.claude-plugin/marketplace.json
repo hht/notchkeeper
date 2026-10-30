@@ -1,0 +1,7 @@
+{
+  "name": "notchkeeper",
+  "owner": { "name": "Notchkeeper" },
+  "plugins": [
+    { "name": "notchkeeper", "source": "./plugins/notchkeeper", "description": "把 Claude Code 主回合怎么结束的写给刘海 App Notchkeeper（只写元数据）" }
+  ]
+}

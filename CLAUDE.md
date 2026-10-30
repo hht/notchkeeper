@@ -50,9 +50,9 @@ Haitao 本机自用的 macOS 刘海应用。SwiftPM 构建，SwiftUI + AppKit，
   - **开、关都要管理员密码。** App 不常驻特权代码；特权部分只有安装好的脚本和 LaunchDaemon。安装和任何规则改动，都先给用户看 diff 并备份，由用户自己执行。
   - **不杀进程**，不针对任何 App。
   - 细节见 `docs/firewall.md`。
-- **只提醒顶层回合的结束和需要你介入。** agent 状态只由 `AgentCore`（第 3 步新建）判定，配固定测试；来源是 `~/.claude/sessions/<pid>.json`，规则见 `docs/agent-integration.md`。零 hook：不改任何 agent 的配置。
-- **sessions 文件不做兼容**（Haitao 2026-10-29）：格式变了就直接改代码，不退回会话 JSONL，不做多版本兼容。解析不了的照准则 5 计数、跳过。
-- **只读元数据，不读对话内容。** 会话文件只取判定需要的字段；日志和界面不出现消息正文、工具参数和输出。
+- **只提醒顶层回合的结束（做完、出错）和需要你介入。** agent 状态只由 `AgentCore` 判定，配固定测试；来源是 `~/.claude/sessions/<pid>.json` 和 Notchkeeper 自带的 Claude Code mod 写的回合文件，规则见 `docs/agent-integration.md`。不用 settings.json 的 hooks。改 Claude Code 的配置只有一处：用户在设置页点「安装」时，由 `claude plugin` 命令写 `enabledPlugins` / `extraKnownMarketplaces`；卸载同理（Haitao 2026-10-30）。
+- **sessions 文件、mod 的 API 不做兼容**（Haitao 2026-10-29、10-30）：格式变了就直接改代码，不退回会话 JSONL，不做多版本兼容。解析不了的照准则 5 计数、跳过。
+- **只读元数据，不读对话内容。** 会话文件只取判定需要的字段；日志和界面不出现消息正文、工具参数和输出。mod 看得到正文，只写出元数据。唯一的例外：sessions 文件的 `name` 只在内存里和 Ghostty 窗口标题比对，不显示、不进日志（Haitao 2026-10-30）。
 - **除防火墙外不碰网络与 shell 环境。** 不改 `~/.zshrc`，不改系统网络设置。「打开 Clash」只是打开 App。出口探测只请求第三方服务（如 ipinfo.io），不碰 Claude / Anthropic 的域名。guardd 是用户级 LaunchAgent，不要 sudo。
 - **密钥不打印，日志不记 IP。** 界面上完整显示出口 IP（Haitao 2026-10-28）。测试与文档里的 IP 用 `198.51.100.x`。
 - **品牌**：盾盾是原创角色（Haitao 2026-10-29），造型与动效以 `docs/mascot.md` 为准。盾盾不用 Grok、Codex、Coucou、Mochi 等别家的名字、形象和音效；面板会话行可以用 agent 厂商自己的标志标明是哪家的会话（Haitao 2026-10-29）。过渡期：现有从 Coucou（MIT）移植来的代码，在第 4 步重写删掉之前，保留原 MIT 声明和设置页致谢。

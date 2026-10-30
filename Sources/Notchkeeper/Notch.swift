@@ -15,6 +15,8 @@ struct NotchCard: Identifiable, Equatable {
     var look: Look
     /// 放出来那一刻响的系统音效（docs/agent-integration.md「提醒」、docs/egress-guard.md）
     var sound: NSSound.Name
+    /// agent 的卡说的是哪个会话：点卡片跳到 Ghostty 里它的窗口（docs/ui.md「卡片」）。守卫的卡是 nil
+    var session: Session? = nil
 
     static func exitAlert(detail: String = GuardPresentation.violatedDetail) -> NotchCard {
         NotchCard(title: GuardPresentation.violatedTitle, detail: detail, tint: Color(cgColor: RGB.red.cg), look: .danger, sound: "Basso")
@@ -26,20 +28,27 @@ struct NotchCard: Identifiable, Equatable {
     /// 恢复卡固定 4 秒，不跟「卡片停留」设置走（docs/ui.md「卡片」）
     static let recoveredSeconds: TimeInterval = 4
 
-    /// 回合结束的完成卡；副标题是会话的路径，和会话行一样
-    static func turnEnded(cwd: String) -> NotchCard {
-        NotchCard(title: String(localized: "Claude Code 做完了"), detail: abbreviated(cwd), tint: Self.doneTint, look: .finished, sound: "Glass")
+    /// 回合做完的完成卡；副标题是会话的路径，和会话行一样
+    static func turnDone(_ session: Session) -> NotchCard {
+        NotchCard(title: String(localized: "Claude Code 做完了"), detail: abbreviated(session.cwd), tint: Self.doneTint, look: .finished,
+                  sound: "Glass", session: session)
+    }
+
+    /// 回合出错的出错卡：流星用 error 造型身体下端的浅橙（docs/ui.md「卡片」）
+    static func turnFailed(_ session: Session) -> NotchCard {
+        NotchCard(title: String(localized: "Claude Code 出错了"), detail: abbreviated(session.cwd), tint: Color(cgColor: Look.error.gradient.bottom.cg),
+                  look: .error, sound: "Funk", session: session)
     }
 
     /// 进入需要你介入的介入卡
-    static func needsYou(_ need: AgentState.Need, cwd: String) -> NotchCard {
+    static func needsYou(_ need: AgentState.Need, _ session: Session) -> NotchCard {
         switch need {
         case .question:
-            return NotchCard(title: String(localized: "Claude Code 在等你回答"), detail: abbreviated(cwd), tint: Color(cgColor: RGB.question.cg),
-                             look: .question, sound: "Ping")
+            return NotchCard(title: String(localized: "Claude Code 在等你回答"), detail: abbreviated(session.cwd), tint: Color(cgColor: RGB.question.cg),
+                             look: .question, sound: "Ping", session: session)
         case .approval:
-            return NotchCard(title: String(localized: "Claude Code 在等你批准"), detail: abbreviated(cwd), tint: Color(cgColor: RGB.approval.cg),
-                             look: .approval, sound: "Ping")
+            return NotchCard(title: String(localized: "Claude Code 在等你批准"), detail: abbreviated(session.cwd), tint: Color(cgColor: RGB.approval.cg),
+                             look: .approval, sound: "Ping", session: session)
         }
     }
 
@@ -227,6 +236,11 @@ final class NotchController {
             // 点了卡片的 ×
             guard let self else { return }
             self.apply(self.queue.dismiss(now: Date()))
+        }, onOpenCard: { [weak self] session in
+            // 点了 agent 卡的其他地方：跳到 Ghostty，这张卡算关掉（docs/ui.md「卡片」）
+            guard let self else { return }
+            Ghostty.focus(session)
+            self.apply(self.queue.dismiss(now: Date()))
         }, onSettings: { [weak self] in
             self?.setHovering(false)
             self?.onOpenSettings()
@@ -284,14 +298,15 @@ final class NotchController {
     /// AgentCore 的事件变成卡，或撤掉过期的介入卡（docs/ui.md「卡片」2）
     func agentEvents(_ events: [AgentEvent], sessions: [Session]) {
         // 事件和会话列表出自同一次更新：弹卡的会话一定在列表里
-        func cwd(_ pid: Int32) -> String {
+        func session(_ pid: Int32) -> Session {
             guard let s = sessions.first(where: { $0.pid == pid }) else { preconditionFailure("事件的会话不在列表里") }
-            return s.cwd
+            return s
         }
         for event in events {
             switch event {
-            case .turnEnded(let pid): post(.turnEnded(cwd: cwd(pid)), key: .session(pid))
-            case .needsYou(let need, let pid): post(.needsYou(need, cwd: cwd(pid)), key: .session(pid), lapses: true)
+            case .turnDone(let pid): post(.turnDone(session(pid)), key: .session(pid))
+            case .turnFailed(let pid): post(.turnFailed(session(pid)), key: .session(pid))
+            case .needsYou(let need, let pid): post(.needsYou(need, session(pid)), key: .session(pid), lapses: true)
             case .needsYouEnded(let pid): apply(queue.withdraw(.session(pid), now: Date()))
             }
         }
@@ -621,6 +636,7 @@ struct NotchRoot: View {
     @ObservedObject var overrides: NotchOverrides
     @ObservedObject var state: AppState
     let onDismiss: () -> Void
+    let onOpenCard: (Session) -> Void
     let onSettings: () -> Void
 
     @ObservedObject private var director = MascotDirector.shared
@@ -727,7 +743,7 @@ struct NotchRoot: View {
         switch mode {
         case .card:
             if let card = model.card {
-                NotchCardView(card: card, onDismiss: onDismiss)
+                NotchCardView(card: card, onDismiss: onDismiss, onOpen: card.session.map { s in { onOpenCard(s) } })
                     .id(card.id)
                     .padding(.top, top)
                     .padding(.horizontal, inset)
@@ -902,6 +918,7 @@ struct NotchGearButton: View {
 /// 状态只用指示表达，不写字（用户 10-29）；状态名留给悬停提示和旁白
 struct SessionRow: View {
     let session: Session
+    @State private var hover = false
 
     /// 工作中和右耳一样是三蓝点；需要你介入用盾盾这两个造型自己的装饰（带 ? 的气泡、举起的手），比一个点好认；已停止不画
     private var indicator: EarIndicator {
@@ -925,6 +942,17 @@ struct SessionRow: View {
     var body: some View {
         let path = (session.cwd as NSString).abbreviatingWithTildeInPath
         let dimmed = session.state == .stopped ? 0.55 : 1
+        // 点一行跳到 Ghostty 里这个会话的窗口（docs/ui.md「面板布局」）
+        Button { Ghostty.focus(session) } label: { row(path: path, dimmed: dimmed) }
+            .buttonStyle(.plain)
+            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(hover ? 0.06 : 0)))
+            .onHover { hover = $0 }
+            .accessibilityElement(children: .combine)
+            .accessibilityValue(stateTitle)
+            .accessibilityHint("在 Ghostty 中打开")
+    }
+
+    private func row(path: String, dimmed: Double) -> some View {
         HStack(spacing: 10) {
             // 是哪个 agent 只靠行首的厂商标志表示（用户 10-29）
             ClaudeMark()
@@ -958,14 +986,15 @@ struct SessionRow: View {
         }
         .padding(.horizontal, NotchLayout.rowPadding)
         .frame(height: NotchLayout.rowHeight)
-        .accessibilityElement(children: .combine)
-        .accessibilityValue(stateTitle)
+        .contentShape(Rectangle())
     }
 }
 
 struct NotchCardView: View {
     let card: NotchCard
     let onDismiss: () -> Void
+    /// nil：点了不做事（守卫的卡）
+    let onOpen: (() -> Void)?
 
     var body: some View {
         HStack(spacing: 12) {
@@ -987,5 +1016,9 @@ struct NotchCardView: View {
         }
         .frame(height: NotchLayout.cardRowHeight)
         .padding(.horizontal, NotchLayout.cardPadding)
+        // × 是按钮，自己先接住点击；其余地方点了跳到 Ghostty
+        .contentShape(Rectangle())
+        .onTapGesture { onOpen?() }
+        .accessibilityAddTraits(onOpen == nil ? [] : .isButton)
     }
 }

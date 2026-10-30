@@ -4,12 +4,20 @@
 
 **新会话从这里开始**：
 1. `git log --oneline -5` 核对最近的提交，工作区应是干净的。
-2. **灵动岛调研剩下的建议**（`docs/research/dynamic-island.md` §4 总表）：10-30 已定并做完的是 #1（先不动）、#2（流星保留）、#5（细边只写在 `docs/ui.md`）、#6（弹簧）、#7 的等宽、#4 的对比度。剩下的问用户挑：#3 收起态右耳空着时收窄、指示往刘海靠；#4 的卡片副标题改 medium、底栏 10.5→11；#7 卡片右侧放状态指示；#8 弹卡时状态图标 Replace 弹一下；#9 IP、徽章的内容过渡；#10 盾盾的 `accessibilityValue`、弹卡时 VoiceOver 播报；#11 悬停延迟 0.12→0.25–0.3s；#12 副标题只显示项目名（和 10-29 的决定冲突）。另外 §9 第 3 条（左耳画布尺寸，文档和代码说法不同）还没核对；卡片内容左右边距 18 要不要改成面板的 28（`contentInset`），让盾盾和 × 跟面板对齐、互切时盾盾不横移 6pt，会动布局，问用户。
-3. 「提醒卡待定」里剩下的几条问用户要不要做。
-4. 然后是**第 4 步**剩下的部分，见「开发计划」。第 3 步留给它的：
+2. **mod 与 Ghostty 还没实机走完的**（10-30 做的，规则见 `docs/agent-integration.md`）：
+   - 用户在设置页「通知 › Claude Code」点「安装」走一遍 App 里的安装（10-30 只用同样的命令在 shell 里装过、测过、卸掉了）。卸载后 Claude Code 会在 `settings.json` 留一个空的 `"extraKnownMarketplaces": {}`，无害。
+   - Ghostty 跳转只在 shell 里跑通了两条 AppleScript（10-30 本机 terminal id 是大写 UUID）：用户点会话行、点卡片各一次，第一次要允许「Notchkeeper 控制 Ghostty」；同目录开两个 Claude 时点对不对。
+   - 开着的会话里装上 mod 后 `/reload-plugins`，mod 应该开始写（官方文档说重新加载会再触发 `session.start`），没实测。
+   - `Funk` 出错音没人耳听过。
+   - 后台 agent 崩溃、出错时会不会发带 `agentId` 的 `turn.complete` 没测（TaskStop 停掉的测过，会发）；不发的话这个会话之后的完成卡都被压住，直到 `/clear` 或重开。后台 agent 还在跑时 `/reload-plugins`，mod 的计数清零，可能提前弹完成卡（推断）。
+   - mod 在 `$.fs.write` 写完之后才 `next(e)`：本地写盘挂住会拖住 Claude Code 的回合（reviewer 10-30 提，认为本地写盘挂住不现实，没改）。
+   - Claude Code 升级后要重跑 `ClaudeMod/plugins/notchkeeper` 里的 `claude plugin test`，并在 tmux 里按 `docs/agent-integration.md`「实测」8 重测一遍（mod API 不做兼容）。
+3. **灵动岛调研剩下的建议**（`docs/research/dynamic-island.md` §4 总表）：10-30 已定并做完的是 #1（先不动）、#2（流星保留）、#5（细边只写在 `docs/ui.md`）、#6（弹簧）、#7 的等宽、#4 的对比度。剩下的问用户挑：#3 收起态右耳空着时收窄、指示往刘海靠；#4 的卡片副标题改 medium、底栏 10.5→11；#7 卡片右侧放状态指示；#8 弹卡时状态图标 Replace 弹一下；#9 IP、徽章的内容过渡；#10 盾盾的 `accessibilityValue`、弹卡时 VoiceOver 播报；#11 悬停延迟 0.12→0.25–0.3s；#12 副标题只显示项目名（和 10-29 的决定冲突）。另外 §9 第 3 条（左耳画布尺寸，文档和代码说法不同）还没核对；卡片内容左右边距 18 要不要改成面板的 28（`contentInset`），让盾盾和 × 跟面板对齐、互切时盾盾不横移 6pt，会动布局，问用户。
+4. 「提醒卡待定」里剩下的几条问用户要不要做。
+5. 然后是**第 4 步**剩下的部分，见「开发计划」。第 3 步留给它的：
    - `AppState.look` 是临时的优先级合成（守卫 > agent > 空闲），晕和完整优先级进 `NotchCore` 的 MascotResolver。
    - 设置页「状态测试」的盾盾已经用 `state.look`（可能是 agent 造型），旁边文案还是 `presentation.title`，对不上。
-5. 空闲 CPU 还没在无人操作时测到干净的数，方法见「待办」。
+6. 空闲 CPU 还没在无人操作时测到干净的数，方法见「待办」。
 
 ## 还没写进文档的决定
 

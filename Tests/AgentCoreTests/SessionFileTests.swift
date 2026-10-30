@@ -7,7 +7,7 @@ private func file(_ overrides: [String: Any?] = [:]) -> Data {
     var json: [String: Any] = [
         "pid": 31301, "sessionId": "5d0c7c2e-0000-4000-8000-000000000000", "cwd": "/Users/u/Documents/Projects/notchkeeper",
         "startedAt": 1793296492153, "procStart": "Thu Oct 29 17:54:51 2026", "version": "2.1.296", "peerProtocol": 1,
-        "kind": "interactive", "entrypoint": "cli", "pidDomain": "darwin", "name": "不该被读的名字", "nameSource": "user",
+        "kind": "interactive", "entrypoint": "cli", "pidDomain": "darwin", "name": "会话名", "nameSource": "user",
         "status": "busy", "statusUpdatedAt": 1793304005799, "updatedAt": 1793304005799,
     ]
     for (k, v) in overrides { json[k] = v }
@@ -20,8 +20,14 @@ private let procStart = Date(timeIntervalSince1970: 1_793_296_491)
 @Suite struct SessionFileParsing {
     @Test func busyCLISession() throws {
         #expect(try SessionFile.parse(file()) == Session(
-            pid: 31301, processStart: procStart, cwd: "/Users/u/Documents/Projects/notchkeeper",
+            pid: 31301, processStart: procStart, sessionId: "5d0c7c2e-0000-4000-8000-000000000000",
+            cwd: "/Users/u/Documents/Projects/notchkeeper", name: "会话名",
             state: .working, stateSince: Date(timeIntervalSince1970: 1_793_304_005.799)))
+    }
+
+    /// 名字只用来认 Ghostty 窗口，没有也照常看这个会话
+    @Test func missingNameIsFine() throws {
+        #expect(try SessionFile.parse(file(["name": nil]))?.name == nil)
     }
 }
 
@@ -88,11 +94,16 @@ private let procStart = Date(timeIntervalSince1970: 1_793_296_491)
         #expect(throws: (any Error).self) { try SessionFile.parse(file(["procStart": text])) }
     }
 
+    /// sessionId 会拼进要删的回合文件路径：不是 UUID 一律不认（CLAUDE.md 准则 5）
+    @Test func sessionIdMustBeUUID() {
+        #expect(throws: SessionFileError.badSessionId("../../config")) { try SessionFile.parse(file(["sessionId": "../../config"])) }
+    }
+
     @Test func unknownStatusThrows() {
         #expect(throws: SessionFileError.unknownStatus("thinking")) { try SessionFile.parse(file(["status": "thinking"])) }
     }
 
-    @Test(arguments: ["pid", "procStart", "cwd", "statusUpdatedAt"])
+    @Test(arguments: ["pid", "procStart", "sessionId", "cwd", "statusUpdatedAt"])
     func missingFieldThrows(_ key: String) {
         #expect(throws: (any Error).self) { try SessionFile.parse(file([key: nil])) }
     }
