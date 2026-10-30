@@ -656,7 +656,7 @@ struct NotchRoot: View {
                         CardEdge(topRadius: t, bottomRadius: b, tint: card.tint, countdown: model.countdown)
                             // 盖满整张卡，点击交给下面的 × 和卡片
                             .allowsHitTesting(false)
-                            .transition(.asymmetric(insertion: .opacity.animation(.easeOut(duration: 0.25).delay(0.35)),
+                            .transition(.asymmetric(insertion: .opacity.animation(.easeOut(duration: 0.25).delay(CardEdgeView.appearDelay)),
                                                     removal: .opacity.animation(.linear(duration: 0))))
                     }
                 }

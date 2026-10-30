@@ -23,7 +23,7 @@
 | turn | 回合 | 从已停止进入工作中，到再次变成已停止 |
 | turn end | 回合结束 | 回合中变成已停止 |
 | long turn | 干了很久 | 工作中，并且离回合开始满 10 分钟 |
-| meteor | 流星 | 卡片边缘表达倒计时的两道光，从顶部两端流到底边中间（`docs/ui.md`「卡片」）。不叫「流光」「进度条」 |
+| meteor | 流星 | 卡片弹出时沿边扫一趟的两道光，从顶部两端 1.5 秒流到底边中间（`docs/ui.md`「卡片」）。不叫「流光」「进度条」 |
 | needs-you end | 介入结束 | 需要你介入的会话回到工作中、进程没了，或不在回合里时变成已停止（空闲时弹的对话框关掉）；回合里变成已停止算回合结束，不算这个 |
 | need | 介入类型 | 需要你介入的是哪一类：question 等你回答 / approval 等你批准（`docs/agent-integration.md`「状态」） |
 | agent activity | agent 动态 | 所有会话合起来此刻 agent 这一档该画什么：approval > question > longTurn > working > finished（`docs/mascot.md` §2「优先级」） |
