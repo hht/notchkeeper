@@ -4,26 +4,22 @@
 
 ## 接下来
 
-**新会话从这里开始**：插件化做到第 2 刀（卡片模型和内容块、点击动作和按钮都已提交，见 `git log`）。下一刀是第 3 刀。规则已经写进 CLAUDE.md「硬规则·插件」和 `docs/ui.md`「卡片」，设计全文在本机 `~/.claude/plans/agile-swimming-origami.md`（不在仓库里，下面是要点）。用户的偏好：文档尽量少、先做代码；每刀做完先汇报、等用户说「提交」。
+**新会话从这里开始**：插件化做到第 3 刀（卡片模型和内容块、点击动作和按钮、收件箱 + `PluginCore` + `nk` 都已提交，见 `git log`）。下一刀是第 4 刀。规则已经写进 CLAUDE.md「硬规则·插件」和 `docs/ui.md`「卡片」，设计全文在本机 `~/.claude/plans/agile-swimming-origami.md`（不在仓库里，下面是要点）。用户的偏好：文档尽量少、先做代码；每刀做完先汇报、等用户说「提交」。
 
 **插件化**（用户 10-31 定方向并批准设计）：App 变成「刘海 + Pip + 卡片队列 + 面板」外壳，三类插件挂上去、产出同一种 `Card`（`Sources/NotchCore/Card.swift`）。
 
 - 内置插件：出口守卫、Claude Code。能在设置里关；来源和判定仍在 `GuardCore` / `AgentCore`（mod 拿不到忙闲和介入、也没有原子写，所以 Claude Code 不改写通用格式）。只有守卫能用红、绿和 danger；外部卡在红卡挂着时排着（`CardQueue.Notice.coversAlert`）。
-- 外部插件：脚本写收件箱，App 监听。第一个是「终端命令结束」。
+- 外部插件：脚本写收件箱，App 监听。第一个是「终端命令结束」。消息格式看 `Sources/PluginCore/Message.swift`，`nk notify` 写，`InboxWatcher` 读。
 
 剩下的切片，每刀 TDD → 零警告 + 全绿 → reviewer → 用户说了再提交：
 
-3. **收件箱 + `PluginCore` + `nk`**
-   - 目录 `~/Library/Application Support/Notchkeeper/inbox/{tmp,new}`（0700），照 Maildir：写 `tmp/` 再 rename 到 `new/`，App 读完即删。插件按 `plugins/<id>/manifest.json`（`{id, name, symbol}`）登记，没登记的丢。
-   - 新 target `PluginCore`（纯值）：解析 v1 消息（只有 card）`v`、`plugin`、`id`、`at`、`group`、`title`、`subtitle`、`value`、`outcome`（done / failed / attention / info）、`block`、`action`、`buttons`、`staleAt`；字段名照 Adaptive Cards（`TextBlock` 的 text / fontType monospace、`FactSet` 的 facts{title,value}、`Action.OpenUrl` 的 url；activate、focusTerminal、进度、勾叉列表是扩展）；正文在边界按 `isNewline` 切成行；按插件限流（注入时间）；过期丢；解析不了的计数、删文件、不原样进日志（scheme 等外部字符串记之前截短）。
-   - `CardQueue.Key` 加 `.group(String)`，同组替换（照 terminal-notifier `-group`）。
-   - `AgentWatcher.swift` 里私有的 `Directory`（目录 + 每份 json 的 DispatchSource）提出来，给收件箱复用。
-   - 新 executable target `nk`：`nk notify --plugin terminal --title … --value … --outcome done --fact 退出码=0 … --tty $TTY --pid $$`，用 `PluginCore` 编码校验，写 tmp 再 rename；装到 `bin/nk`（和 guardd 同目录）。
 4. **终端命令插件**
    - 仓库里 `Resources/plugins/terminal/`：manifest + `notchkeeper.zsh`。设置页「安装」拷进 `plugins/terminal/`，显示一行 `source …` 让用户自己加进 `~/.zshrc`（硬规则：不改 zshrc），带拷贝按钮。
    - zsh 照 zsh-auto-notify / ntfy shell-integration：`add-zsh-hook preexec` 记 `EPOCHREALTIME` 和命令名（第一个词，去掉 sudo、env 赋值）；`precmd` 第一行取 `$?`（10-31 实测：每个 precmd 钩子读到的都是命令本身的退出码）；耗时 ≥ 10s、不在忽略表（vim nvim less man ssh top htop watch tmux …）才后台调 `nk`。只传命令名（用户定），参数不出 shell。卡：标题「<命令> 跑完了 / 失败了」，右侧耗时，facts（退出码、目录），点了跳回这个终端。
    - Ghostty 1.3.1 自带 `notify-on-command-finish`，但只进系统通知或响铃、交不出来，所以要自己做。前台正看着那个终端不弹（照它的 `unfocused`）：App 收到时 Ghostty 在前台且焦点终端就是这个 tty（复用 `Ghostty.swift` 的标记法）就不弹。
    - `TerminalRef` 加 tty；shell 没有启动时刻，改按「pid 的 tty == 消息里的 tty」校验。测试里用 `zsh -fi` + 假 `nk` 验退出码、阈值、忽略表、只传命令名。
+   - 消息加动作 `focusTerminal`（`Message.Action`、`nk --tty $TTY --pid $$`）：第 3 刀只做了 Action.OpenUrl 和 activate，因为跳回终端要等上面 `TerminalRef` 改完。
+   - 「安装」顺带把 `nk` 拷到 `bin/nk`（和 guardd 同目录），`run.sh` 要把 `nk` 打进 App 包；第 3 刀实机用的是 `.build/release/nk`。
 5. **内置插件开关 + 设置页「插件」页**：守卫（允许列表、自动弹红卡、红卡常驻，从「出口守卫」页挪来）、Claude Code（`ClaudeModSection` 挪来）、终端（安装 + source 行）、其他外部插件开关、URL 白名单 `urlSchemes`（现在只能改 config.json）。`NKConfig` 加 `plugins: [id: {enabled}]`。违规中关守卫弹确认「出口仍不合规，确定关掉提醒？」，确认后撤红卡、Pip 不画守卫造型，guardd 照跑，再打开读一次就恢复。
 6. **面板按插件分段 + 外部活动 + 状态与常驻**（和第 4 步的 MascotResolver 一起，用户 10-31 定）：
    - 面板每个开着的插件一段，行用统一模板（图标、标题、可选副标题、状态指示、右侧「距今多久」或短值、点击动作），内容由插件定；Claude 会话列表改走这个模板；用户在设置里管每段的开关、顺序、最多露几行。
@@ -32,7 +28,7 @@
    - 一个插件都不开：只留左耳 Pip、右耳空着，面板只有「还没有开启的插件」和「打开插件设置」；设置里可关掉 Pip 变纯黑刘海（照 boring.notch 的空闲脸选项）。
 7. 以后：快捷指令（App Intents，SwiftPM 能不能产出它要的元数据没核实）。
 
-插件化这几刀还没实机试的：demo 卡上「看 Swift 文档」（https）按钮；`demo.sh blocks` 现在 release 构建也能触发（随第 4 步的 DEBUG 监听一起处理，到时要有 DEBUG 版的运行方式）。
+插件化这几刀还没实机试的：demo 卡上「看 Swift 文档」（https）按钮；红卡挂着时外部卡排着、红卡撤了再放（`demo.sh alert` 后 `nk notify`）；`demo.sh blocks` 现在 release 构建也能触发（随第 4 步的 DEBUG 监听一起处理，到时要有 DEBUG 版的运行方式）。
 
 **第 4 步：App 外壳重写**（排在插件化之后；用户 10-31 定插件化先做）。已做：`NotchCore` 的 `CardQueue`、`GuardPresentation`、`ViolationAlert`、`Card`。剩下：
 

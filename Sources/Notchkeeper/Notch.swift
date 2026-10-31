@@ -305,9 +305,9 @@ final class NotchController {
     private func orderFront() { window.orderFrontRegardless() }
 
     /// 临时卡进队列（docs/ui.md「卡片」）。seconds 默认是「卡片停留」设置
-    func post(_ card: Card, key: CardQueue<Card>.Key?, seconds: TimeInterval? = nil, lapses: Bool = false) {
+    func post(_ card: Card, key: CardQueue<Card>.Key?, seconds: TimeInterval? = nil, lapses: Bool = false, staleAt: Date? = nil) {
         let notice = CardQueue.Notice(card: card, key: key, seconds: seconds ?? ConfigStore.shared.config.cardAutoDismissSeconds,
-                                      lapses: lapses, coversAlert: !card.isExternal)
+                                      lapses: lapses, coversAlert: !card.isExternal, staleAt: staleAt)
         apply(queue.post(notice, now: Date()))
     }
 

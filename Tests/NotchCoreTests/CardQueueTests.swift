@@ -130,6 +130,22 @@ private let silent = Queue.Change()
         _ = q.tick(now: at(6))
         #expect(q.showing == .notice("b"))
     }
+
+    /// 外部插件同组的卡只留最新（照 terminal-notifier `-group`）；组名只在一个插件里算数
+    @Test func sameGroupOfSamePluginIsReplaced() {
+        func grouped(_ card: String, _ plugin: String, _ name: String) -> Queue.Notice {
+            Queue.Notice(card: card, key: .group(plugin: plugin, name: name), seconds: 6, coversAlert: false)
+        }
+        var q = Queue()
+        _ = q.post(notice("a"), now: t0)
+        _ = q.post(grouped("b", "terminal", "tty1"), now: t0)
+        _ = q.post(grouped("c", "build", "tty1"), now: t0)
+        _ = q.post(grouped("d", "terminal", "tty1"), now: t0)
+        _ = q.tick(now: at(6))
+        #expect(q.showing == .notice("d"))
+        _ = q.tick(now: at(12))
+        #expect(q.showing == .notice("c"))
+    }
 }
 
 /// docs/ui.md「卡片」4、5 和红卡那一层
@@ -422,6 +438,18 @@ private let silent = Queue.Change()
         #expect(q.showing == .alert(persistent: true))
         _ = q.dismiss(now: at(8))
         #expect(q.showing == .notice("ext"))
+    }
+
+    /// 排着时过了插件说的过期时刻：轮到它时不放、不响，放下一张
+    @Test func staleWhileWaitingIsDropped() {
+        var q = Queue()
+        _ = q.raiseAlert(persistent: true, sound: true, seconds: 6, now: t0)
+        _ = q.post(Queue.Notice(card: "old", key: nil, seconds: 6, coversAlert: false, staleAt: at(60)), now: at(1))
+        _ = q.post(Queue.Notice(card: "new", key: nil, seconds: 6, coversAlert: false, staleAt: at(600)), now: at(2))
+        #expect(q.clearAlert(now: at(60)) == sound)
+        #expect(q.showing == .notice("new"))
+        _ = q.tick(now: at(66))
+        #expect(q.showing == nil)
     }
 }
 

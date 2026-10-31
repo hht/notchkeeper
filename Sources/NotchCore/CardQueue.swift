@@ -9,6 +9,8 @@ public struct CardQueue<Item: Equatable & Sendable>: Sendable {
     public enum Key: Hashable, Sendable {
         case session(Int32)
         case recovered
+        /// 外部插件自己定的组：同一个插件里同组只留最新（照 terminal-notifier `-group`）
+        case group(plugin: String, name: String)
     }
 
     /// 一张临时卡
@@ -22,13 +24,16 @@ public struct CardQueue<Item: Equatable & Sendable>: Sendable {
         public var lapses: Bool
         /// false：外部插件的卡，红卡挂着时排着不放，红卡撤了再放（CLAUDE.md 硬规则「插件」）
         public var coversAlert: Bool
+        /// 排到这个时刻还没放就不放了（外部插件的消息过期，红卡挂着或熄屏时可能排很久）
+        public var staleAt: Date?
 
-        public init(card: Item, key: Key?, seconds: TimeInterval, lapses: Bool = false, coversAlert: Bool = true) {
+        public init(card: Item, key: Key?, seconds: TimeInterval, lapses: Bool = false, coversAlert: Bool = true, staleAt: Date? = nil) {
             self.card = card
             self.key = key
             self.seconds = seconds
             self.lapses = lapses
             self.coversAlert = coversAlert
+            self.staleAt = staleAt
         }
     }
 
@@ -210,8 +215,9 @@ public struct CardQueue<Item: Equatable & Sendable>: Sendable {
         alert == nil ? waiting.indices.first : waiting.firstIndex { $0.notice.coversAlert }
     }
 
-    /// 台面上这张放完了：放能上台的第一张临时卡；没有就回到挂着的红卡（一直放着、不再响）；都没有就收起
+    /// 台面上这张放完了：丢掉排着过期的，放能上台的第一张临时卡；没有就回到挂着的红卡（一直放着、不再响）；都没有就收起
     private mutating func next(_ now: Date) -> Change {
+        waiting.removeAll { $0.notice.staleAt.map { $0 <= now } ?? false }
         if let i = nextIndex, !away {
             var e = waiting.remove(at: i)
             let sound = !e.sounded

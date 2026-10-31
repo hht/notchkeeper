@@ -24,6 +24,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var notch: NotchController!
     private var cancellables = Set<AnyCancellable>()
     private var sigterm: DispatchSourceSignal?
+    private var inbox: InboxWatcher?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         ClaudeMod.refreshIfInstalled()
@@ -54,6 +55,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         MascotDirector.shared.onPausedChange = { [weak self] in self?.notch.setScreenAway($0) }
         MascotDirector.shared.start(notchRect: { [weak self] in self?.notch.anchorRect ?? .zero })
         state.start()
+        // 外部插件的卡（docs/ui.md「卡片」）：红卡挂着时排着，由 `CardQueue` 按 `coversAlert` 管
+        let inbox = InboxWatcher { admitted in
+            DispatchQueue.main.async { [weak self] in
+                for a in admitted { self?.notch.post(a.card, key: a.key, staleAt: a.staleAt) }
+            }
+        }
+        inbox.start()
+        self.inbox = inbox
         watchSIGTERM()
         Log.write("Notchkeeper 启动")
         Log.write("notch screen: \(notch.hasNotch)")

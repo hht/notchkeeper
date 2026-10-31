@@ -1,0 +1,185 @@
+import Darwin
+import Foundation
+import PluginCore
+
+/// 回答：收件箱里来了哪些外部插件的卡。
+/// 只做 I/O：建目录（0700，别的用户写不进来）、监听 `inbox/new/`、读完即删、读插件登记；
+/// 解不解得开、放不放、放成哪张卡全归 PluginCore（`Message`、`Manifest`、`InboxGate`）。可变状态只在 `queue` 上读写，所以标 `@unchecked Sendable`。
+/// 消息是外部数据：日志里只记丢的原因（PluginCore 的枚举、errno）和计数，不记内容和文件名（CLAUDE.md 准则 5）。
+final class InboxWatcher: @unchecked Sendable {
+    private let onCards: @Sendable ([InboxGate.Admitted]) -> Void
+    private let queue = DispatchQueue(label: "com.notchkeeper.inbox")
+    private var gate = InboxGate()
+    /// 只看目录：照 Maildir 文件是 rename 进来的，不会原地改
+    private lazy var inbox = WatchedDirectory(PluginPaths.new, watchesFiles: false, queue: queue) { [weak self] in self?.scan() }
+    private var dropped = 0
+    /// 删不掉的文件：不再读，免得每次有动静都再弹一次
+    private var stuck: Set<String> = []
+    /// 解不开的登记文件：只在第一次记日志
+    private var badManifests: Set<String> = []
+
+    /// 一份消息至多这么大：卡上最多显示几百个字，再大的是写错了的
+    private static let maxBytes = 64 * 1024
+    /// `tmp/` 里这么久的是写到一半崩了的（照 Maildir）
+    private static let staleTmp: TimeInterval = 36 * 3600
+
+    /// `onCards` 在内部队列上调用，只在有能放的卡时调用
+    init(onCards: @escaping @Sendable ([InboxGate.Admitted]) -> Void) {
+        self.onCards = onCards
+    }
+
+    func start() {
+        queue.async { [self] in
+            do {
+                for dir in [PluginPaths.inbox, PluginPaths.tmp, PluginPaths.new, PluginPaths.plugins] {
+                    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+                    try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: dir.path)
+                }
+            } catch {
+                Log.write("插件：建不了收件箱目录（\(Self.code(error))），不收外部插件的卡")
+                return
+            }
+            pruneTmp()
+            guard inbox.open() else {
+                Log.write("插件：打不开收件箱（errno \(errno)），不收外部插件的卡")
+                return
+            }
+            scan()
+        }
+    }
+
+    /// 清不掉不影响收卡：记一行，下次启动再清
+    private func pruneTmp() {
+        let names: [String]
+        do {
+            names = try FileManager.default.contentsOfDirectory(atPath: PluginPaths.tmp.path)
+        } catch {
+            Log.write("插件：读不了收件箱的 tmp/（\(Self.code(error))），这次不清理")
+            return
+        }
+        for name in names {
+            let url = PluginPaths.tmp.appendingPathComponent(name)
+            // 不跟随符号链接；刚被 nk rename 走的查不到，跳过
+            var info = stat()
+            guard lstat(url.path, &info) == 0,
+                  -Date(timeIntervalSince1970: TimeInterval(info.st_mtimespec.tv_sec)).timeIntervalSinceNow > Self.staleTmp else { continue }
+            remove(url)
+        }
+    }
+
+    private func scan() {
+        let names: Set<String>
+        do {
+            names = try inbox.list()
+        } catch {
+            Log.write("插件：读收件箱失败（\(Self.code(error))），不收外部插件的卡")
+            return
+        }
+        var messages: [Message] = []
+        for name in names.subtracting(stuck) {
+            let url = inbox.url.appendingPathComponent(name)
+            let data: Data
+            do {
+                data = try Self.readRegularFile(url)
+            } catch POSIXError.ENOENT {
+                continue
+            } catch {
+                drop("读不了（errno \(error.code.rawValue)）")
+                remove(url)
+                continue
+            }
+            remove(url)
+            guard data.count <= Self.maxBytes else {
+                drop("太大")
+                continue
+            }
+            do {
+                messages.append(try Message.parse(data))
+            } catch {
+                drop("解不开（\(error)）")
+            }
+        }
+        guard !messages.isEmpty else { return }
+        let plugins = manifests()
+        let now = Date()
+        var admitted: [InboxGate.Admitted] = []
+        for m in messages.sorted(by: { $0.at < $1.at }) {
+            do {
+                admitted.append(try gate.admit(m, plugins: plugins, now: now))
+                Log.write("插件 \(m.plugin)：收到一张卡")
+            } catch .unregistered {
+                drop("插件 \(m.plugin) 没登记") // id 已按格式校验过，可以进日志
+            } catch {
+                drop("插件 \(m.plugin)：\(error)")
+            }
+        }
+        if !admitted.isEmpty { onCards(admitted) }
+    }
+
+    /// `plugins/<id>/manifest.json`：每次有消息时现读（插件只有几个），装上、卸掉不用重启 App
+    private func manifests() -> [String: Manifest] {
+        let dirs: [String]
+        do {
+            dirs = try FileManager.default.contentsOfDirectory(atPath: PluginPaths.plugins.path)
+        } catch {
+            Log.write("插件：读不了插件目录（\(Self.code(error))），都算没登记")
+            return [:]
+        }
+        var result: [String: Manifest] = [:]
+        for dir in dirs {
+            let url = PluginPaths.plugins.appendingPathComponent(dir).appendingPathComponent("manifest.json")
+            do {
+                let manifest = try Manifest.parse(Self.readRegularFile(url), directoryName: dir)
+                result[manifest.id] = manifest
+                badManifests.remove(dir)
+            } catch POSIXError.ENOENT {
+                continue
+            } catch {
+                // 目录名是外部的：只留字母、数字、连字符，截短再记
+                let name = String(String.UnicodeScalarView(dir.unicodeScalars.filter { $0.isASCII && ($0.properties.isAlphabetic || ("0"..."9").contains($0) || $0 == "-") }).prefix(32))
+                if badManifests.insert(dir).inserted { Log.write("插件：\(name) 的 manifest.json 读不了或解不开（\(error)），算没登记") }
+            }
+        }
+        return result
+    }
+
+    private func drop(_ why: String) {
+        dropped += 1
+        Log.write("插件：丢掉一条消息，\(why)（共丢 \(dropped) 条）")
+    }
+
+    /// 只删这一项：是符号链接就删链接本身
+    private func remove(_ url: URL) {
+        guard unlink(url.path) != 0, errno != ENOENT else { return }
+        stuck.insert(url.lastPathComponent)
+        Log.write("插件：收件箱里有文件删不掉（errno \(errno)），不再读它")
+    }
+
+    /// 只读普通文件，至多 `maxBytes + 1` 字节。不跟随符号链接（`O_NOFOLLOW`）、打开时不等（`O_NONBLOCK`）：
+    /// 收件箱里放一个 FIFO，阻塞地打开会一直等写端，整条队列就卡死了
+    /// @see man 2 open
+    private static func readRegularFile(_ url: URL) throws(POSIXError) -> Data {
+        let fd = open(url.path, O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+        guard fd >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+        defer { close(fd) }
+        var info = stat()
+        guard fstat(fd, &info) == 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+        guard info.st_mode & S_IFMT == S_IFREG else { throw POSIXError(.EFTYPE) }
+        // read(2) 可能读不满：读到文件尾或够了上限为止
+        var data = Data(count: maxBytes + 1)
+        var total = 0
+        while total < data.count {
+            let n = data.withUnsafeMutableBytes { read(fd, $0.baseAddress! + total, $0.count - total) }
+            guard n >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+            if n == 0 { break }
+            total += n
+        }
+        return data.prefix(total)
+    }
+
+    /// 只带错误码：Foundation 的错误描述里有路径，路径里有外部写的文件名
+    private static func code(_ error: Error) -> String {
+        let e = error as NSError
+        return "\(e.domain) \(e.code)"
+    }
+}

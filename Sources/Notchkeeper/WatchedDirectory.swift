@@ -1,8 +1,8 @@
 import Darwin
 import Foundation
 
-/// 回答：一个放 `.json` 的目录里此刻有哪些文件、什么时候有了动静。目录本身和里面每份文件各挂一个监听，有动静就调 `onChange`。
-/// 不读文件内容。只在建它时给的队列上用（`AgentWatcher`）
+/// 回答：一个放 `.json` 的目录里此刻有哪些文件、什么时候有了动静。目录本身挂一个监听，`watchesFiles` 时里面每份文件也各挂一个，有动静就调 `onChange`。
+/// 不读文件内容。只在建它时给的队列上用（`AgentWatcher`、`InboxWatcher`）
 final class WatchedDirectory {
     let url: URL
     private let queue: DispatchQueue
@@ -10,9 +10,12 @@ final class WatchedDirectory {
     private var source: DispatchSourceFileSystemObject?
     /// 文件名 → 它的监听
     private var files: [String: DispatchSourceFileSystemObject] = [:]
+    /// 文件会被原地重写（inode 不变，目录收不到事件）时才要；只增删、rename 进来的目录不用
+    private let watchesFiles: Bool
 
-    init(_ url: URL, queue: DispatchQueue, onChange: @escaping () -> Void) {
+    init(_ url: URL, watchesFiles: Bool = true, queue: DispatchQueue, onChange: @escaping () -> Void) {
         self.url = url
+        self.watchesFiles = watchesFiles
         self.queue = queue
         self.onChange = onChange
     }
@@ -39,7 +42,7 @@ final class WatchedDirectory {
         let jsons = Set(names.filter { $0.hasSuffix(".json") })
         for name in files.keys where !jsons.contains(name) { files.removeValue(forKey: name)?.cancel() }
         // 先挂监听再读：读完到挂上之间的改动也收得到
-        for name in jsons where files[name] == nil {
+        for name in jsons where watchesFiles && files[name] == nil {
             files[name] = watch(url.appendingPathComponent(name), events: [.write, .extend, .delete, .rename]) { [weak self] data in
                 guard let self else { return }
                 if !data.isDisjoint(with: [.delete, .rename]) { files.removeValue(forKey: name)?.cancel() }
