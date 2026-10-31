@@ -184,6 +184,8 @@ final class NotchController {
         window.ignoresMouseEvents = true
         window.isReleasedWhenClosed = false
         window.animationBehavior = .none
+        // 贴刘海的部分永远黑底白字：系统控件、.secondary、SF Symbols 分层色、tooltip 都跟窗口外观走，只写死颜色不够（docs/ui.md「亮色与暗色」）
+        window.appearance = NSAppearance(named: .darkAqua)
         // 面板不激活 App，Notchkeeper 几乎从不在前台：不开这个，会话行、齿轮的 .help 永远不出现
         // @see https://developer.apple.com/documentation/appkit/nswindow/allowstooltipswhenapplicationisinactive
         window.allowsToolTipsWhenApplicationIsInactive = true

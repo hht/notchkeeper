@@ -92,7 +92,6 @@ struct SettingsView: View {
                     if store.fileUnreadable { ConfigUnreadableBanner(store: store) }
                 }
         }
-        .preferredColorScheme(.dark)
     }
 
     @ViewBuilder
@@ -116,7 +115,8 @@ private struct ConfigUnreadableBanner: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.yellow)
+            // 多色：黄三角里是黑色的 !，亮色的浅底上也看得清
+            Image(systemName: "exclamationmark.triangle.fill").symbolRenderingMode(.multicolor)
             Text("配置文件解不开，设置暂时改不了。改好文件后自动恢复。")
             Spacer()
             Button("打开配置文件") { store.openFile() }.controlSize(.small)
@@ -148,7 +148,7 @@ private struct StatusCard: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            MascotView(look: presentation.look, size: 32)
+            MascotStage(look: presentation.look, size: 26)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Notchkeeper").font(.system(size: 13, weight: .semibold))
                 HStack(spacing: 5) {
@@ -586,7 +586,7 @@ private struct MascotPane: View {
         Form {
             Section {
                 VStack(spacing: 6) {
-                    MascotView(look: .idle, size: 40)
+                    MascotStage(look: .idle, size: 40)
                     Text("Pip").font(.system(size: 13, weight: .semibold))
                 }
                 .frame(maxWidth: .infinity)
@@ -618,7 +618,7 @@ private struct StateTestPane: View {
         Form {
             Section {
                 VStack(spacing: 6) {
-                    MascotView(look: overrides.mascot(real: state.look), size: 40)
+                    MascotStage(look: overrides.mascot(real: state.look), size: 40)
                         .environment(\.mascotLiteral, overrides.look != nil)
                     // 说的是上面这只 Pip 此刻画的造型（上位插件的，叠上晕和睡着），不是出口状态
                     Text(overrides.look.map { "强制：\($0.title)" } ?? "真实状态：\(director.shown(state.look).title)")
@@ -700,7 +700,7 @@ private struct AboutPane: View {
         Form {
             Section {
                 VStack(spacing: 6) {
-                    MascotView(look: .finished, size: 64)
+                    MascotStage(look: .finished, size: 64)
                     Text("Notchkeeper").font(.title3.weight(.semibold))
                     Text("版本 \(version)（本机签名）").foregroundStyle(.secondary)
                 }

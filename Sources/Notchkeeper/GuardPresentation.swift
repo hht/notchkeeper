@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import MascotCore
 import NotchCore
@@ -18,12 +19,24 @@ extension GuardPresentation {
 
     static var violatedTitle: String { String(localized: "出口不合规") }
 
-    var color: Color {
+    var color: Color { Color(nsColor: Self.nsColor(tone)) }
+
+    /// 跟着外观换：刘海窗口固定暗色外观，永远是暗色那套（和 Pip、右耳的配色一致）；设置窗口跟随系统
+    static func nsColor(_ tone: Tone) -> NSColor {
+        let p = palette(tone)
+        return NSColor(name: nil) { appearance in
+            let rgb = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? p.dark : p.light
+            return NSColor(srgbRed: rgb.r, green: rgb.g, blue: rgb.b, alpha: 1)
+        }
+    }
+
+    /// 亮色那套压暗：设置页白底上的状态点也要 3:1（WCAG 1.4.11，docs/ui.md「亮色与暗色」）
+    static func palette(_ tone: Tone) -> (dark: RGB, light: RGB) {
         switch tone {
-        case .healthy: return .green
-        case .mismatch: return Color(cgColor: RGB.amber.cg)
-        case .unknown: return Color(cgColor: RGB.grey.cg)
-        case .violated: return Color(cgColor: RGB.red.cg)
+        case .healthy: (RGB(0x30D158), RGB(0x248A3D))
+        case .mismatch: (.amber, RGB(0xB25000))
+        case .unknown: (.grey, RGB(0x6E6E73))
+        case .violated: (.red, RGB(0xD70015))
         }
     }
 

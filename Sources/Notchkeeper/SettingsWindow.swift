@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// 设置窗口：普通 NSWindow（标题栏透明、内容铺满），宽度固定 715，高度可调。
+/// 设置窗口：普通 NSWindow（标题栏透明、内容铺满），宽度固定 715，高度可调。外观跟随系统（docs/ui.md「亮色与暗色」）。
 /// 第一次打开居中，之后记住位置；关掉窗口不退出 App。
 @MainActor
 final class SettingsWindowController: NSObject, NSWindowDelegate {
@@ -49,7 +49,6 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         w.titlebarAppearsTransparent = true
         w.toolbar = NSToolbar()  // 有工具栏，页面标题才会像系统设置那样靠左显示在详情栏顶部
         w.toolbarStyle = .unified
-        w.appearance = NSAppearance(named: .darkAqua)
         w.isReleasedWhenClosed = false
         w.contentMinSize = NSSize(width: Self.size.width, height: 460)
         w.contentMaxSize = NSSize(width: Self.size.width, height: .greatestFiniteMagnitude)

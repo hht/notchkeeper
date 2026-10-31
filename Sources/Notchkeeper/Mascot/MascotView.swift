@@ -45,6 +45,19 @@ struct MascotView: View {
     }
 }
 
+/// 设置页里的 Pip 站在黑底「舞台」上：Pip 的配色按黑底设计，白底上几乎看不见；这样造型数据不用分亮暗（docs/ui.md「亮色与暗色」）。
+/// 四周留的边装得下右上角的装饰
+struct MascotStage: View {
+    let look: Look
+    let size: CGFloat
+
+    var body: some View {
+        MascotView(look: look, size: size)
+            .padding(size * 0.35)
+            .background(.black, in: RoundedRectangle(cornerRadius: size * 0.4, style: .continuous))
+    }
+}
+
 private struct MascotLayer: NSViewRepresentable {
     let look: Look
     let unit: CGFloat
