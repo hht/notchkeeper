@@ -46,7 +46,7 @@
    - 可以重复执行；什么都没装时执行，也不报错、不改任何东西。
    - **默认不执行 `pfctl -d`。** 它会强制停掉整个 pf，连带作废别人的启用引用（互联网共享、AirDrop、应用防火墙、OrbStack 等，见第 6 节）。只有带 `--disable-pf` 时才执行，作为最后手段。
 
-   **先验证再往下做**：在本机装一个只放行、不拦截的测试 anchor 和 LaunchDaemon，执行恢复脚本，确认两样都清掉了，重启后也没回来。过程记进第 7 节。通过之后才开始写 block 规则。
+   **先验证再往下做**：在本机装一个只放行、不拦截的测试 anchor 和 LaunchDaemon，执行恢复脚本，确认两样都清掉了，开机也不会回来。过程记进第 7 节。通过之后才开始写 block 规则。
 2. **试运行，到时自动回滚。** 每次开启都先进入 `trial`，App 显示倒计时和「保留」按钮；2 分钟内没点「保留」就回到 `off`（同网络设备的 commit confirmed：新规则把网弄断了，什么都不做也会自己恢复）。
 3. **README 里写明逃生步骤**，并把恢复脚本的路径放在最前面。断网时没法上网查资料，必须本地就能看到。
 
@@ -166,13 +166,15 @@ root 实测（`scripts/firewall-drill.sh`，10-31）：
 
 要等用户自己安装后才能做，按这个顺序：
 
-1. **恢复脚本**：装上测试 anchor 和 LaunchDaemon，执行恢复脚本，确认都清掉了，重启后也没回来。
-2. **试运行**：开启后不点「保留」，确认到时间自动关闭、外网恢复；试运行期间重启，开机后状态是 `off`。
+**本机不能重启（用户定，10-31）**，凡是要重启的验收都换成「模拟开机」：开机时内核里的 pf 规则和 token 全丢、launchd 按 `/Library/LaunchDaemons` 里现有的 plist 重新加载守护进程（[launchd(8)](https://keith.github.io/xcode-man-pages/launchd.8.html)）。所以模拟时清空本 anchor、`pfctl -X` 释放自己的 token、把状态文件的 `bootSession` 改成别的值，再 `launchctl bootout` + `bootstrap`。真开机时 launchd 会不会加载 `/Library/LaunchDaemons` 里的 plist，只靠 Apple 文档，不实测。
+
+1. **恢复脚本**：装上测试 anchor 和 LaunchDaemon，执行恢复脚本，确认都清掉了；核对开机时会读的地方都没有它（`/etc/pf.conf`、`/etc/pf.anchors/`、`/Library/LaunchDaemons`、launchd 的 `disabled.plist`、后台项目登记 `BackgroundItems-v*.btm`）；什么都没装时再跑一次，每步都是「跳过」。
+2. **试运行**：开启后不点「保留」，确认到时间自动关闭、外网恢复；试运行期间模拟开机，之后状态是 `off`。
 3. **开启并保留后断开 Clash**：`curl` 外网失败，局域网照样通；恢复 Clash 后外网恢复。
 4. **关闭后**：直连恢复。
-5. **`on` 状态下重启**：开机后防护仍在。
+5. **`on` 状态下模拟开机**：之后防护仍在。
 6. **fail-open 检测**：手动执行 `pfctl -d` 后，App 在 10 秒内显示异常。
 
 每一步的命令和结果都记在这里。
 
-- 第 1 步（10-31）：`sudo scripts/firewall-drill.sh` 装上假防火墙，手动清空 anchor 后 11 秒内被守护进程装回；`sudo scripts/firewall-rescue.sh` 依次 bootout、清 anchor、`pfctl -X` 释放自己的引用（`pfd` 的引用留着，pf 仍启用）、删文件，核对全过，目录也删掉了。重启后的复查：待做。
+- 第 1 步（10-31）：`sudo scripts/firewall-drill.sh` 装上假防火墙，手动清空 anchor 后 11 秒内被守护进程装回；`sudo scripts/firewall-rescue.sh` 依次 bootout、清 anchor、`pfctl -X` 释放自己的引用（`pfd` 的引用留着，pf 仍启用）、删文件，核对全过，目录也删掉了。开机会读的地方都没有它：`/etc/pf.conf` 和 `/etc/pf.anchors/com.apple` 只有 Apple 的 anchor，`/Library/LaunchDaemons`、`disabled.plist` 里没有，`BackgroundItems-v16.btm` 在恢复脚本跑完后更新过、只剩 guardd。什么都没装时再跑一次：第 1 到 3 步都是「跳过」，第 4 步没东西可删，核对全过。**第 1 步通过。**

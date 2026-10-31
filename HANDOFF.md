@@ -17,7 +17,7 @@
 - demo 卡上「看 Swift 文档」（https）按钮。
 
 **第 5 步：防火墙**：root 实测 → 恢复脚本并实测 → 试运行和自动回滚 → 规则、LaunchDaemon、安装脚本、App 开关；shielded 造型接线。按全局 Contract「高影响」档收工。IPv6 一起处理。
-- 恢复脚本 `scripts/firewall-rescue.sh` 用演练脚本 `scripts/firewall-drill.sh` 实测过一次，全过（`docs/firewall.md` §6、§7 第 1 步）。还差：用户重启后再跑一次恢复脚本，应每步「跳过」、以「已全部卸掉」结尾，再 `sudo -k`。这一项过了才写 block 规则。
+- 恢复脚本 `scripts/firewall-rescue.sh` 用演练脚本 `scripts/firewall-drill.sh` 实测过一次，全过（`docs/firewall.md` §6、§7 第 1 步）。§7 第 1 步 10-31 通过，可以开始写 block 规则。本机不能重启，重启类验收改成 §7 开头的「模拟开机」。
 - 还没查：shell 里能用的单调时钟（`kern.monotonicclock*` 这几个 sysctl 没有文档，含义没核实），决定试运行截止时间怎么记。
 
 ## 等实机验证
