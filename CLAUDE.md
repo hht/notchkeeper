@@ -23,8 +23,9 @@ Haitao 本机自用的 macOS 刘海应用（SwiftPM，SwiftUI + AppKit，macOS 1
 
 - **守卫只监测，判定止于 `GuardCore`**：violated 只有一轮完整的 healthy 才能解除，断网、探针超时、守卫停了都不降级；unknown 不弹卡。红卡挂不挂由 `NotchCore` 的 `ViolationAlert` 定，从任何路径进入 healthy 都撤红卡。
 - **防火墙安全第一。动防火墙、pf、LaunchDaemon 之前必须读完 `docs/firewall.md`。** 先写好并实测恢复脚本才能写 block 规则，恢复脚本不依赖网络、App 和已安装的防火墙脚本；每次开启先试运行，2 分钟没确认自动回滚；只用自己的 pf anchor，不改 `/etc/pf.conf`，不读写 Clash 配置，不用 Network Extension，不碰 sudoers；开启、保留、关闭都要管理员密码；App 不常驻特权代码；安装和任何规则改动先给用户看 diff 并备份，由用户自己执行；不杀进程，不针对任何 App。
-- **只读元数据，不读对话内容。** 会话文件只取判定需要的字段，不退回读会话 JSONL；日志和界面不出现消息正文、工具参数和输出；mod 看得到正文，只写出元数据。唯一例外：跳转 Ghostty 时读到的终端标题只在内存里找标记、原样写回，不显示、不进日志。
+- **Claude Code 只读元数据，不读对话内容。** 会话文件只取判定需要的字段，不退回读会话 JSONL；日志和界面不出现会话里的消息正文、工具参数和输出（外部插件自己发来的卡片内容不在此列，用户 10-31）；mod 看得到正文，只写出元数据。唯一例外：跳转 Ghostty 时读到的终端标题只在内存里找标记、原样写回，不显示、不进日志。
 - **Claude Code**：只提醒顶层回合的结束（做完、出错）和需要你介入，子 agent 的不算；状态只由 `AgentCore` 判定，来源是 sessions 文件和自带 mod 写的回合文件；不用 settings.json 的 hooks；改 Claude Code 配置只有设置页「安装 / 卸载」调 `claude plugin`；sessions 和 mod API 格式变了直接改代码，不做兼容。
+- **插件**：出口守卫和 Claude Code 是内置插件，能在设置里关（关的是提醒，不是判定；违规中关守卫要确认）。外部插件可信但受限：卡上标明来源；不能用红色、绿色和 danger、不能撤或盖住红卡（`Card` 构造时把 violation、recovered 降级，`CardQueue` 让它们在红卡挂着时排着）；按插件限流；没登记的丢弃；点击只能打开 https 或白名单 scheme 的 URL、切换 App、跳回终端；不收要执行的命令、图片路径和原始色值。
 - **除防火墙外不碰网络与 shell 环境**：不改 `~/.zshrc` 和系统网络设置；出口探测只请求第三方服务，不碰 Claude / Anthropic 域名；guardd 不要 sudo。
 - **密钥不打印，日志不记 IP**（界面上完整显示出口 IP）。测试与文档里的 IP 用 `198.51.100.x`。
 - **品牌**：Pip 是原创角色，不用 Grok、Codex、Coucou、Mochi 等别家的名字、形象和音效；代码里用 `Mascot` 前缀。会话行可以用 agent 厂商自己的标志标明是哪家的会话。从 Coucou（MIT）移植的代码在第 4 步重写删掉之前，保留 MIT 声明和设置页致谢。
@@ -48,7 +49,7 @@ Haitao 本机自用的 macOS 刘海应用（SwiftPM，SwiftUI + AppKit，macOS 1
 ## 命令
 
 - **验收**：`swift build` 零警告，并且 `swift test` 全绿。
-- `./scripts/run.sh`：打包并启动 App（先结束旧实例）；`./scripts/demo.sh done|failed|question|approval|alert`：实机弹卡。它靠分布式通知，本机任何进程都能发，第 4 步起只在 DEBUG 构建里监听。
+- `./scripts/run.sh`：打包并启动 App（先结束旧实例）；`./scripts/demo.sh done|failed|question|approval|alert|blocks`：实机弹卡。它靠分布式通知，本机任何进程都能发，第 4 步起只在 DEBUG 构建里监听。
 - 新增 lint / format 工具或依赖要用户明示同意。
 
 ## 提交与汇报

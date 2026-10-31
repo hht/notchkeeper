@@ -14,8 +14,16 @@
 - Claude Code 和出口守卫做成**内置插件**：设置里能开关、配置，产出和外部插件同一种卡片 / 活动；来源和判定仍在 `AgentCore` / `GuardCore`（用户 10-31，因为 mod 拿不到忙闲和介入、也没有原子写）。
 - 打开 URL：默认只放行 `https`，用户可在设置里加白名单 scheme（用户 10-31）。
 - 卡片内容丰富化（用户 10-31）：照灵动岛展开态分区，固定一行「Pip + 标题 / 副标题 + 右侧短值」，底部区由插件选一种内容块——正文（≤3 行，Markdown 子集）、进度（随活动更新原地刷新）、键值（≤4 对）、列表或日志尾巴（≤3 行）；最多两个按钮，动作只有打开 URL / 切换 App。图标只收 SF Symbols 名、颜色只收语义色，不收图片路径和原始色值；总高度有上限，超出截断。
+- 卡片字段名向 Adaptive Cards 靠（TextBlock、FactSet 的 title/value、Action.OpenUrl；进度和勾叉列表是扩展），正文支持 Markdown 子集，原生 SwiftUI 画，不用 HTML（用户 10-31）。
+- 状态与常驻（用户 10-31）：每个开着的插件报一个带紧急程度的状态（平静 / 进行中 / 要你看 / 严重，严重只有守卫能报）；收起时 Pip 和右耳显示最急的那个（照灵动岛 relevanceScore）；都平静时显示用户指定的「常驻插件」（默认守卫，可选不常驻）。一个插件都不开：只留左耳 Pip、右耳空着，面板只有「还没有开启的插件」和「打开插件设置」；设置里可关掉 Pip 变纯黑刘海（照 boring.notch 空闲脸，默认关的是它，我们默认开）。面板按插件分段，顺序用户在设置里拖，关掉的不占位置。
 设计时要先改 CLAUDE.md、交用户定的：守卫插件能关掉，但硬规则说 violated 只有一轮完整 healthy 才解除、守卫停了不降级——违规时关掉守卫红卡撤不撤；收件箱同一用户的任何进程都能写，和「`demo.sh` 的分布式通知因为本机任何进程都能发才只在 DEBUG 监听」、reviewer 必须修的「本机任意进程能触发 UI」冲突，要写明外部插件卡片的信任级别。并讲清：外部消息不能伪造或撤掉红卡；收件箱同一用户的任何进程都能写，信任级别等同本机进程；打开 URL 默认只允许 `https`（自定义 scheme 能拉起别的 App 执行动作）。
-下一步：照成熟实现（terminal-notifier、ntfy、SwiftBar、Raycast Script Commands、ActivityKit）出消息格式、插件目录和切片，给用户看过再做；第 4 步重写要给这套接口留位置。
+切片（设计已经用户批准，每刀 TDD → reviewer → 用户说了再提交；第 1 刀已做：`Card` 进 NotchCore、富卡片版式、`demo.sh blocks`）：
+2. 动作：`URLPolicy`（https + 白名单）、按钮（≤2）、`urlSchemes` 配置；点卡片 / 按钮都算关掉。
+3. 收件箱 + 新 target `PluginCore`（v1 消息只有 card：`v`、`plugin`、`id`、`at`、`group`、`title`、`subtitle`、`value`、`outcome`、`block`、`action`、`buttons`、`staleAt`；Maildir 式 tmp → new；按 `plugins/<id>/manifest.json` 登记；限流；解析不了的计数、删掉、不原样进日志）+ executable `nk`；`CardQueue.Key.group`；`AgentWatcher` 里的 `Directory` 提出来复用。
+4. 终端命令插件：`Resources/plugins/terminal/` 的 manifest + `notchkeeper.zsh`（preexec/precmd、≥ 10s、忽略表、只传命令名、带 tty 和 pid）；前台正看着那个终端不弹（照 Ghostty `unfocused`）；设置页安装 + 拷贝 source 行。`TerminalRef` 要加 tty，pid 没有启动时刻时改按 tty 校验。
+5. 内置插件开关：设置页「插件」页，守卫、Claude Code 的配置挪进来；违规中关守卫弹确认后撤卡。
+6. 面板按插件分段 + 外部活动 + 状态与常驻（和 MascotResolver 一起）：面板每个插件一段，行用统一模板（图标、标题、可选副标题、状态指示、右侧「距今多久」或短值、点击动作），内容由插件定，Claude 会话列表改走这个模板；用户在设置里管每段的开关、顺序、最多露几行（用户 10-31）。外部插件用活动（start / update / end，时间戳取新）往自己那段加行、原地刷新进度。
+7. 以后：快捷指令。
 
 **第 4 步：App 外壳重写**（每一刀：TDD → 零警告 + 全绿 → reviewer → 用户明示后提交）。已做：`NotchCore` 的 `CardQueue`、`GuardPresentation`、`ViolationAlert`。剩下：
 

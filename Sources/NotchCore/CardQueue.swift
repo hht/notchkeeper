@@ -1,10 +1,10 @@
 import Foundation
 
 /// 回答：刘海上此刻放哪张卡、什么时候换下一张、放出来那一刻响不响（docs/ui.md「卡片」）。
-/// 两层：红卡挂着时是底层；临时卡排一个先进先出队列，一次放一张，放完回到红卡。
+/// 两层：红卡挂着时是底层；临时卡排一个先进先出队列，一次放一张，放完回到红卡。红卡挂着时外部插件的卡不上台，内置的越过它们先放。
 /// 纯状态机：喂事件和当前时间；不知道卡长什么样、该响哪个音，不放声音、不起定时器（App 按 `deadline` 到点调 `tick`）。
 /// 红卡该不该挂着由外面判定（当前状态 + dismissedViolationSince），这里只管它什么时候在台面上。
-public struct CardQueue<Card: Equatable & Sendable>: Sendable {
+public struct CardQueue<Item: Equatable & Sendable>: Sendable {
     /// 同一个 key 还没放的旧卡，被后来的卡原地替换
     public enum Key: Hashable, Sendable {
         case session(Int32)
@@ -13,24 +13,27 @@ public struct CardQueue<Card: Equatable & Sendable>: Sendable {
 
     /// 一张临时卡
     public struct Notice: Equatable, Sendable {
-        public var card: Card
+        public var card: Item
         /// nil：从不替换
         public var key: Key?
         /// 放多久（「卡片停留」设置；恢复卡固定 4 秒）
         public var seconds: TimeInterval
         /// 说的是此刻的状态（介入卡）：同一个会话来了新卡、或被 `withdraw`，排着的、正在放的都作废
         public var lapses: Bool
+        /// false：外部插件的卡，红卡挂着时排着不放，红卡撤了再放（CLAUDE.md 硬规则「插件」）
+        public var coversAlert: Bool
 
-        public init(card: Card, key: Key?, seconds: TimeInterval, lapses: Bool = false) {
+        public init(card: Item, key: Key?, seconds: TimeInterval, lapses: Bool = false, coversAlert: Bool = true) {
             self.card = card
             self.key = key
             self.seconds = seconds
             self.lapses = lapses
+            self.coversAlert = coversAlert
         }
     }
 
     public enum Showing: Equatable, Sendable {
-        case notice(Card)
+        case notice(Item)
         /// persistent：「红卡一直保留，直到恢复」
         case alert(persistent: Bool)
     }
@@ -96,6 +99,9 @@ public struct CardQueue<Card: Equatable & Sendable>: Sendable {
         }
         if let key = notice.key, let i = waiting.firstIndex(where: { $0.notice.key == key }) {
             waiting[i] = Entry(notice: notice)
+        } else if notice.key == .recovered {
+            // 恢复卡说的是守卫的事：排在违规期间攒下的外部卡前面
+            waiting.insert(Entry(notice: notice), at: waiting.firstIndex { !$0.notice.coversAlert } ?? waiting.endIndex)
         } else {
             waiting.append(Entry(notice: notice))
         }
@@ -154,11 +160,7 @@ public struct CardQueue<Card: Equatable & Sendable>: Sendable {
         case .alert:
             guard let persistent = alert else { preconditionFailure("台面上是红卡，红卡一定挂着") }
             if !persistent { return dismiss(now: now) }
-            // 常驻红卡放满第一次：有排着的就让，没有就一直放着
-            if waiting.isEmpty {
-                countdown = nil
-                return Change()
-            }
+            // 常驻红卡放满第一次：有能盖它的就让，没有就一直放着
             return next(now)
         }
     }
@@ -185,7 +187,8 @@ public struct CardQueue<Card: Equatable & Sendable>: Sendable {
             syncCountdown(now)
             return Change()
         }
-        if yieldable, !waiting.isEmpty { return next(now) }
+        // 能让的时候欠着的红卡声音一定已经响过（它只在红卡第一次放时欠下）
+        if yieldable { return next(now) }
         syncCountdown(now)
         defer { alertSoundDue = false }
         return Change(sound: alertSoundDue)
@@ -202,10 +205,15 @@ public struct CardQueue<Card: Equatable & Sendable>: Sendable {
         if hovering || away { countdown?.pause(at: now) } else { countdown?.resume(at: now) }
     }
 
-    /// 台面上这张放完了：放队首的临时卡；队列空了回到挂着的红卡（一直放着、不再响）；都没有就收起
+    /// 下一张能上台的：红卡挂着时跳过不能盖它的
+    private var nextIndex: Int? {
+        alert == nil ? waiting.indices.first : waiting.firstIndex { $0.notice.coversAlert }
+    }
+
+    /// 台面上这张放完了：放能上台的第一张临时卡；没有就回到挂着的红卡（一直放着、不再响）；都没有就收起
     private mutating func next(_ now: Date) -> Change {
-        if !waiting.isEmpty, !away {
-            var e = waiting.removeFirst()
+        if let i = nextIndex, !away {
+            var e = waiting.remove(at: i)
             let sound = !e.sounded
             e.sounded = true
             stage = .notice(e)

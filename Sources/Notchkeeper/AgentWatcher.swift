@@ -172,7 +172,7 @@ final class AgentWatcher: @unchecked Sendable {
             unreadable.remove(url)
             guard let session else { continue }
             watchExit(session.pid) // 先挂通知再查进程：查完到挂上之间退出的也收得到
-            guard Self.isRunning(session) else { continue }
+            guard Self.isRunning(pid: session.pid, since: session.processStart) else { continue }
             present.insert(session.pid)
             if let event = board.update(session, at: now) { events.append(event) }
         }
@@ -204,11 +204,11 @@ final class AgentWatcher: @unchecked Sendable {
     }
     /// 进程在，并且启动时刻和文件里的 `procStart` 一致（防 pid 复用）。查不到（进程没了或判不出来）都算不在
     /// @see https://opensource.apple.com/source/xnu/xnu-7195.81.3/bsd/sys/proc_info.h （`proc_bsdinfo.pbi_start_tvsec`）
-    static func isRunning(_ session: Session) -> Bool {
+    static func isRunning(pid: Int32, since processStart: Date) -> Bool {
         var info = proc_bsdinfo()
         let size = Int32(MemoryLayout<proc_bsdinfo>.size)
-        guard proc_pidinfo(session.pid, PROC_PIDTBSDINFO, 0, &info, size) == size else { return false }
-        return TimeInterval(info.pbi_start_tvsec) == session.processStart.timeIntervalSince1970
+        guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size else { return false }
+        return TimeInterval(info.pbi_start_tvsec) == processStart.timeIntervalSince1970
     }
 
     private func watchExit(_ pid: Int32) {

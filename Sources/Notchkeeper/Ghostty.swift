@@ -1,7 +1,7 @@
-import AgentCore
 import AppKit
+import NotchCore
 
-/// 回答：点了一个会话，Ghostty 里哪个窗口是它、怎么切过去（docs/agent-integration.md「跳转到 Ghostty」）。
+/// 回答：点了一个终端里的会话，Ghostty 里哪个窗口是它、怎么切过去（docs/agent-integration.md「跳转到 Ghostty」）。
 /// 只在用户点击时发 Apple Event，不轮询；都在一条专用队列上发，第一次用时系统问权限、Ghostty 卡住时都不挡主线程。
 /// 不知道卡片和面板。
 /// @see /Applications/Ghostty.app/Contents/Resources/Ghostty.sdef（Ghostty 1.3：terminal 的 id、name、working directory，focus 命令；没有 tty、pid）
@@ -52,7 +52,7 @@ enum Ghostty {
     }
 
     /// 打开 Ghostty 并切到这个会话的窗口、标签和分屏；认不出来就只把 Ghostty 拉到前面
-    static func focus(_ session: Session) {
+    static func focus(_ terminal: TerminalRef) {
         let ghostty = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
         guard !ghostty.isEmpty else {
             // 没开：只打开 Ghostty，里面没有这个会话
@@ -64,7 +64,7 @@ enum Ghostty {
         let ghosttyPIDs = Set(ghostty.map(\.processIdentifier))
         queue.async {
             let all = terminals()
-            let target = all.flatMap { all in marked(session, ghostty: ghosttyPIDs, in: all) ?? pick(all, cwd: session.cwd) }
+            let target = all.flatMap { all in marked(terminal, ghostty: ghosttyPIDs, in: all) ?? pick(all, cwd: terminal.cwd) }
             // id 来自 Ghostty，拼进脚本前仍按 UUID 校验（信任边界），拼的是原样的字符串
             let focus = target.flatMap { UUID(uuidString: $0) == nil ? nil : "focus terminal id \"\($0)\"\n" } ?? ""
             _ = execute("tell application id \"\(bundleID)\"\n\(timeout)\n\(focus)activate\nend timeout\nend tell")
@@ -74,10 +74,10 @@ enum Ghostty {
     /// 往会话的 tty 写一个一次性的标题，看 Ghostty 里哪个 terminal 换成了它，再把那个 terminal 的原标题写回去。
     /// Ghostty 的 AppleScript 不给 tty（1.3，main 上也还没有），tty 是唯一认得准的东西。
     /// @see https://github.com/kovoor/claude-code-notifier（同一招：临时标题当标记，找到后恢复原标题）
-    private static func marked(_ session: Session, ghostty: Set<Int32>, in terminals: [Terminal]) -> String? {
+    private static func marked(_ terminal: TerminalRef, ghostty: Set<Int32>, in terminals: [Terminal]) -> String? {
         // 卡片里存的是会话快照：进程没了、pid 被别的终端复用了，就不能往那个 tty 写
-        guard AgentWatcher.isRunning(session),
-              let tty = markableTTY(session.pid, ghostty: ghostty, parent: { process($0)?.kp_eproc.e_ppid }, tty: tty(of:))
+        guard AgentWatcher.isRunning(pid: terminal.pid, since: terminal.processStart),
+              let tty = markableTTY(terminal.pid, ghostty: ghostty, parent: { process($0)?.kp_eproc.e_ppid }, tty: tty(of:))
         else { return nil }
         let marker = "notchkeeper-\(UUID().uuidString)"
         guard write(titleSequence(marker), to: tty) else { return nil }

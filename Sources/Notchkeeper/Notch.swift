@@ -4,58 +4,71 @@ import SwiftUI
 import MascotCore
 import NotchCore
 
-/// 刘海上的一张卡长什么样、放出来时响什么（docs/ui.md「卡片」）。什么时候放由 `CardQueue` 决定
-struct NotchCard: Identifiable, Equatable {
-    let id = UUID()
-    var title: String
-    var detail: String
-    /// 边缘流星的颜色（docs/ui.md「卡片」）
-    var tint: Color
-    /// 卡上的 Pip 画这张卡自己的造型
-    var look: Look
-    /// 放出来那一刻响的系统音效（docs/agent-integration.md「提醒」、docs/egress-guard.md）
-    var sound: NSSound.Name
-    /// agent 的卡说的是哪个会话：点卡片跳到 Ghostty 里它的窗口（docs/ui.md「卡片」）。守卫的卡是 nil
-    var session: Session? = nil
-
-    static func exitAlert(detail: String) -> NotchCard {
-        NotchCard(title: GuardPresentation.violatedTitle, detail: detail, tint: Color(cgColor: RGB.red.cg), look: .danger, sound: "Basso")
+/// 卡片的样子和声音：写什么在 NotchCore 的 `Card`，这里按 `outcome` 取流星颜色、Pip 造型、提示音（docs/ui.md「卡片」）。
+/// 什么时候放由 `CardQueue` 决定
+extension Card {
+    static func exitAlert(detail: String) -> Card {
+        Card(source: .exitGuard, title: GuardPresentation.violatedTitle, subtitle: detail, outcome: .violation)
     }
-    static var recovered: NotchCard {
-        NotchCard(title: String(localized: "出口已恢复"), detail: String(localized: "流量重新全部走 utun 隧道"), tint: .green,
-                  look: .finished, sound: "Glass")
+    static var recovered: Card {
+        Card(source: .exitGuard, title: String(localized: "出口已恢复"), subtitle: String(localized: "流量重新全部走 utun 隧道"), outcome: .recovered)
     }
     /// 恢复卡固定 4 秒，不跟「卡片停留」设置走（docs/ui.md「卡片」）
     static let recoveredSeconds: TimeInterval = 4
 
-    /// 回合做完的完成卡；副标题是会话的路径，和会话行一样
-    static func turnDone(_ session: Session) -> NotchCard {
-        NotchCard(title: String(localized: "Claude Code 做完了"), detail: abbreviated(session.cwd), tint: Self.doneTint, look: .finished,
-                  sound: "Glass", session: session)
-    }
-
-    /// 回合出错的出错卡：流星用 error 造型身体下端的浅橙（docs/ui.md「卡片」）
-    static func turnFailed(_ session: Session) -> NotchCard {
-        NotchCard(title: String(localized: "Claude Code 出错了"), detail: abbreviated(session.cwd), tint: Color(cgColor: Look.error.gradient.bottom.cg),
-                  look: .error, sound: "Funk", session: session)
-    }
-
-    /// 进入需要你介入的介入卡
-    static func needsYou(_ need: AgentState.Need, _ session: Session) -> NotchCard {
+    /// Claude Code 的卡：副标题是会话的路径，和会话行一样；点了跳回它的终端
+    static func turnDone(_ session: Session) -> Card { claude(String(localized: "Claude Code 做完了"), .done, session) }
+    static func turnFailed(_ session: Session) -> Card { claude(String(localized: "Claude Code 出错了"), .failed, session) }
+    static func needsYou(_ need: AgentState.Need, _ session: Session) -> Card {
         switch need {
-        case .question:
-            return NotchCard(title: String(localized: "Claude Code 在等你回答"), detail: abbreviated(session.cwd), tint: Color(cgColor: RGB.question.cg),
-                             look: .question, sound: "Ping", session: session)
-        case .approval:
-            return NotchCard(title: String(localized: "Claude Code 在等你批准"), detail: abbreviated(session.cwd), tint: Color(cgColor: RGB.approval.cg),
-                             look: .approval, sound: "Ping", session: session)
+        case .question: return claude(String(localized: "Claude Code 在等你回答"), .question, session)
+        case .approval: return claude(String(localized: "Claude Code 在等你批准"), .approval, session)
         }
     }
 
-    private static func abbreviated(_ cwd: String) -> String { (cwd as NSString).abbreviatingWithTildeInPath }
+    private static func claude(_ title: String, _ outcome: Outcome, _ session: Session) -> Card {
+        Card(source: .claudeCode, title: title, subtitle: (session.cwd as NSString).abbreviatingWithTildeInPath, outcome: outcome,
+             action: .terminal(TerminalRef(session)))
+    }
 
-    /// 完成卡的流星是低饱和的银白：绿色只给出口正常，Claude 橙在黑底上晕开发红（docs/ui.md「卡片」）
-    static let doneTint = Color(white: 0.85)
+    /// 流星和细边的颜色：完成低饱和银白，出错是 error 造型身体下端的浅橙；绿色只给出口正常，Claude 橙在黑底上晕开发红，不用
+    var tint: Color {
+        switch outcome {
+        case .done, .info: return Color(white: 0.85)
+        case .failed: return Color(cgColor: Look.error.gradient.bottom.cg)
+        case .question, .attention: return Color(cgColor: RGB.question.cg)
+        case .approval: return Color(cgColor: RGB.approval.cg)
+        case .recovered: return .green
+        case .violation: return Color(cgColor: RGB.red.cg)
+        }
+    }
+
+    /// 卡上的 Pip 换成这张卡自己的造型（docs/ui.md「卡片」7）
+    var look: Look {
+        switch outcome {
+        case .done, .recovered: return .finished
+        case .failed: return .error
+        case .question, .attention: return .question
+        case .approval: return .approval
+        case .info: return .idle
+        case .violation: return .danger
+        }
+    }
+
+    /// 放出来那一刻响的系统音效（docs/agent-integration.md「提醒」、docs/egress-guard.md）；普通消息不响
+    var sound: NSSound.Name? {
+        switch outcome {
+        case .done, .recovered: return "Glass"
+        case .failed: return "Funk"
+        case .question, .approval, .attention: return "Ping"
+        case .info: return nil
+        case .violation: return "Basso"
+        }
+    }
+}
+
+extension TerminalRef {
+    init(_ session: Session) { self.init(pid: session.pid, processStart: session.processStart, cwd: session.cwd) }
 }
 
 enum NotchMode: Hashable { case closed, card, dashboard }
@@ -74,11 +87,13 @@ final class NotchOverrides: ObservableObject {
 
 @MainActor
 final class NotchModel: ObservableObject {
-    @Published var card: NotchCard?
+    @Published var card: Card?
     @Published var expanded = false      // 卡片是否展开
     @Published var hovering = false      // 鼠标悬停展开的“岛”
     @Published var notchSize: CGSize = CGSize(width: 190, height: 32)
     @Published var countdown: CardCountdown?
+    /// 卡片内容按自然大小排，量出来的高度；形状和悬停命中区都按它
+    @Published var cardContentHeight = NotchLayout.cardRowHeight
     let overrides = NotchOverrides()
 
     /// 卡片压过一切（固定收起也挡不住真的红卡）；其余由固定方式决定，自动时跟悬停走
@@ -151,11 +166,12 @@ enum NotchLayout {
     /// 卡片内容的上沿
     static func cardTop(_ notch: CGSize) -> CGFloat { topInset(notch) - 2 }
 
-    static func size(_ mode: NotchMode, notch: CGSize, rows: Int) -> CGSize {
+    /// cardContent：卡片内容量出来的高度（第一行 + 内容块），形状跟着它用弹簧长
+    static func size(_ mode: NotchMode, notch: CGSize, rows: Int, cardContent: CGFloat) -> CGSize {
         switch mode {
         case .closed:
             return hasEars(notch) ? CGSize(width: notch.width + 2 * earWidth, height: notch.height) : notch
-        case .card: return CGSize(width: dashWidth + 2 * openFlare, height: cardTop(notch) + cardRowHeight + cardBottom)
+        case .card: return CGSize(width: dashWidth + 2 * openFlare, height: cardTop(notch) + cardContent + cardBottom)
         case .dashboard:
             let n = min(rows, maxRows)
             let list = (n == 0 ? rowHeight : CGFloat(n) * rowHeight) + 2 * listInset
@@ -182,9 +198,9 @@ final class NotchController {
     private let window: NSPanel
     private let model = NotchModel()
     private let state = AppState.shared
-    private var queue = CardQueue<NotchCard>()
+    private var queue = CardQueue<Card>()
     /// 红卡的内容：挂着时台面上放它；副标题跟着守卫状态换
-    private var alertCard: NotchCard?
+    private var alertCard: Card?
     private var tickWork: DispatchWorkItem?
     var hasNotch: Bool { NotchLayout.hasEars(model.notchSize) }
     var overrides: NotchOverrides { model.overrides }
@@ -222,11 +238,15 @@ final class NotchController {
             // 点了卡片的 ×
             guard let self else { return }
             self.apply(self.queue.dismiss(now: Date()))
-        }, onOpenCard: { [weak self] session in
-            // 点了 agent 卡的其他地方：跳到 Ghostty，这张卡算关掉（docs/ui.md「卡片」）
+        }, onOpenCard: { [weak self] action in
+            // 点了卡片 × 以外的地方：去这张卡说的地方，这张卡算关掉（docs/ui.md「卡片」）
             guard let self else { return }
-            Ghostty.focus(session)
+            switch action {
+            case .terminal(let terminal): Ghostty.focus(terminal)
+            }
             self.apply(self.queue.dismiss(now: Date()))
+        }, onCardResized: { [weak self] in
+            self?.cardResized()
         }, onSettings: { [weak self] in
             self?.setHovering(false)
             self?.onOpenSettings()
@@ -275,9 +295,9 @@ final class NotchController {
     private func orderFront() { window.orderFrontRegardless() }
 
     /// 临时卡进队列（docs/ui.md「卡片」）。seconds 默认是「卡片停留」设置
-    func post(_ card: NotchCard, key: CardQueue<NotchCard>.Key?, seconds: TimeInterval? = nil, lapses: Bool = false) {
+    func post(_ card: Card, key: CardQueue<Card>.Key?, seconds: TimeInterval? = nil, lapses: Bool = false) {
         let notice = CardQueue.Notice(card: card, key: key, seconds: seconds ?? ConfigStore.shared.config.cardAutoDismissSeconds,
-                                      lapses: lapses)
+                                      lapses: lapses, coversAlert: !card.isExternal)
         apply(queue.post(notice, now: Date()))
     }
 
@@ -299,15 +319,15 @@ final class NotchController {
     }
 
     /// 新的一次违规：红卡插到最前。sound 为 false 时不响（守卫不响应时保留的红卡不再响 Basso）
-    private func raiseAlert(_ card: NotchCard, sound: Bool) {
+    private func raiseAlert(_ card: Card, sound: Bool) {
         alertCard = card
         let cfg = ConfigStore.shared.config
         apply(queue.raiseAlert(persistent: cfg.alertPersistent, sound: sound, seconds: cfg.cardAutoDismissSeconds, now: Date()))
     }
 
     /// 台面跟着队列走：换卡或收起、响这张卡的声音、定下一次到点
-    private func apply(_ change: CardQueue<NotchCard>.Change) {
-        let card: NotchCard?
+    private func apply(_ change: CardQueue<Card>.Change) {
+        let card: Card?
         switch queue.showing {
         case .notice(let c): card = c
         case .alert:
@@ -317,7 +337,7 @@ final class NotchController {
         }
         if let card {
             if card.id != model.card?.id || !model.expanded { present(card) }
-            if change.sound, ConfigStore.shared.config.soundEnabled { NSSound(named: card.sound)?.play() }
+            if change.sound, ConfigStore.shared.config.soundEnabled, let sound = card.sound { NSSound(named: sound)?.play() }
         } else if model.expanded {
             collapse()
         }
@@ -330,7 +350,7 @@ final class NotchController {
         }
     }
 
-    private func present(_ card: NotchCard) {
+    private func present(_ card: Card) {
         orderFront()
         if model.mode != .closed {
             withAnimation(NotchSpring.notchOpen) { model.card = card; model.expanded = true }
@@ -375,13 +395,14 @@ final class NotchController {
         case .raise(let alert): raiseAlert(.exitAlert(detail: alert.detail), sound: alert.sounds)
         case .replaceDetail(let alert):
             guard var shown = alertCard else { preconditionFailure("换副标题时红卡一定挂着") }
-            shown.detail = alert.detail
+            shown = shown.replacingSubtitle(alert.detail)
             alertCard = shown
             if model.card?.id == shown.id { model.card = shown }
         case .clear(let recovered):
+            // 恢复卡先排上，红卡撤了马上轮到它，不排在违规期间攒下的外部卡后面
+            if recovered { post(.recovered, key: .recovered, seconds: Card.recoveredSeconds) }
             apply(queue.clearAlert(now: Date()))
             alertCard = nil
-            if recovered { post(.recovered, key: .recovered, seconds: NotchCard.recoveredSeconds) }
         }
     }
 
@@ -493,7 +514,7 @@ final class NotchController {
     /// 收起的形状（刘海加两只耳朵，或无刘海屏顶端中间一条细带）略放大一点作为悬停、点击热区
     var triggerRect: NSRect {
         let f = screenFrame
-        let n = NotchLayout.size(.closed, notch: model.notchSize, rows: 0)
+        let n = NotchLayout.size(.closed, notch: model.notchSize, rows: 0, cardContent: 0)
         let w = (hasNotch ? n.width : 200) + 16
         let h = hasNotch ? n.height + 2 : 6
         return NSRect(x: f.midX - w / 2, y: f.maxY - h, width: w, height: h + Self.topEdgeSlack)
@@ -507,13 +528,20 @@ final class NotchController {
 
     /// 当前可见形状的屏幕区域（与视图共用 NotchLayout 的尺寸）
     private var shapeRect: NSRect {
-        let s = NotchLayout.size(model.mode, notch: model.notchSize, rows: state.sessions.count)
+        let s = NotchLayout.size(model.mode, notch: model.notchSize, rows: state.sessions.count, cardContent: model.cardContentHeight)
         let f = screenFrame
         return NSRect(x: f.midX - s.width / 2, y: f.maxY - s.height, width: s.width, height: s.height + Self.topEdgeSlack)
     }
 
     /// 判断悬停是否离开时多留 10pt 余量
     private var visibleRect: NSRect { shapeRect.insetBy(dx: -10, dy: -10) }
+
+    /// 卡片换了高度、鼠标没动：透明区要穿透、看得见的要接住点击；鼠标已不在卡上就不算悬停。
+    /// 不因此算作悬停开始（docs/ui.md「卡片」：鼠标在这张卡上动了才暂停）
+    private func cardResized() {
+        updateMouseCapture()
+        if queue.hovering, !shapeRect.contains(NSEvent.mouseLocation) { setCardHover(false) }
+    }
 
     private func mouseMoved() {
         updateMouseCapture()
@@ -617,7 +645,9 @@ struct NotchRoot: View {
     @ObservedObject var overrides: NotchOverrides
     @ObservedObject var state: AppState
     let onDismiss: () -> Void
-    let onOpenCard: (Session) -> Void
+    let onOpenCard: (Card.Action) -> Void
+    /// 卡片量出了新高度：命中区跟着变
+    let onCardResized: () -> Void
     let onSettings: () -> Void
 
     @ObservedObject private var director = MascotDirector.shared
@@ -625,7 +655,7 @@ struct NotchRoot: View {
 
     var body: some View {
         let mode = model.mode
-        let size = NotchLayout.size(mode, notch: model.notchSize, rows: state.sessions.count)
+        let size = NotchLayout.size(mode, notch: model.notchSize, rows: state.sessions.count, cardContent: model.cardContentHeight)
         let open = mode != .closed
         let t: CGFloat = open ? NotchLayout.openFlare : NotchLayout.closedFlare
         let b: CGFloat = open ? NotchLayout.openBottomRadius : 8
@@ -724,7 +754,14 @@ struct NotchRoot: View {
         switch mode {
         case .card:
             if let card = model.card {
-                NotchCardView(card: card, onDismiss: onDismiss, onOpen: card.session.map { s in { onOpenCard(s) } })
+                NotchCardView(card: card, onDismiss: onDismiss, onOpen: card.action.map { a in { onOpenCard(a) } })
+                    .fixedSize(horizontal: false, vertical: true)
+                    // 内容多高，形状就用弹簧长到多高：换卡、内容变了都平滑过渡
+                    // @see https://developer.apple.com/documentation/swiftui/view/ongeometrychange(for:of:action:)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { h in
+                        withAnimation(NotchSpring.page) { model.cardContentHeight = h }
+                        onCardResized()
+                    }
                     .id(card.id)
                     .padding(.top, top)
                     .padding(.horizontal, inset)
@@ -932,7 +969,7 @@ struct SessionRow: View {
         let path = (session.cwd as NSString).abbreviatingWithTildeInPath
         let dimmed = session.state == .stopped ? 0.55 : 1
         // 点一行跳到 Ghostty 里这个会话的窗口（docs/ui.md「面板布局」）
-        Button { Ghostty.focus(session) } label: { row(path: path, dimmed: dimmed) }
+        Button { Ghostty.focus(TerminalRef(session)) } label: { row(path: path, dimmed: dimmed) }
             .buttonStyle(.plain)
             .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(hover ? 0.06 : 0)))
             .onHover { hover = $0 }
@@ -980,34 +1017,158 @@ struct SessionRow: View {
 }
 
 struct NotchCardView: View {
-    let card: NotchCard
+    let card: Card
     let onDismiss: () -> Void
     /// nil：点了不做事（守卫的卡）
     let onOpen: (() -> Void)?
 
     var body: some View {
-        HStack(spacing: 12) {
-            // Pip 的位置：NotchRoot 里那只飞过来（docs/ui.md「卡片」7）
-            Color.clear.frame(width: NotchLayout.dashCorner, height: NotchLayout.dashCorner)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(card.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(.white)
-                Text(card.detail).font(.system(size: 12, weight: .medium)).foregroundStyle(.white.opacity(0.65)).lineLimit(1)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 12) {
+                // Pip 的位置：NotchRoot 里那只飞过来（docs/ui.md「卡片」7）
+                Color.clear.frame(width: NotchLayout.dashCorner, height: NotchLayout.dashCorner)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(card.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(.white).lineLimit(1)
+                    subtitle
+                }
+                Spacer(minLength: 8)
+                if let value = card.value {
+                    Text(value).font(.system(size: 12, weight: .medium).monospacedDigit()).foregroundStyle(.white.opacity(0.65)).lineLimit(1)
+                }
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.75))
+                        .frame(width: 24, height: 24)
+                        .background(Circle().fill(Color.white.opacity(0.12)))
+                }
+                .buttonStyle(PressableStyle())
             }
-            Spacer(minLength: 8)
-            Button(action: onDismiss) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.75))
-                    .frame(width: 24, height: 24)
-                    .background(Circle().fill(Color.white.opacity(0.12)))
+            .frame(height: NotchLayout.cardRowHeight)
+            if let block = card.block {
+                CardBlockView(block: block, tint: card.tint)
             }
-            .buttonStyle(PressableStyle())
         }
-        .frame(height: NotchLayout.cardRowHeight)
         .padding(.horizontal, NotchLayout.cardPadding)
-        // × 是按钮，自己先接住点击；其余地方点了跳到 Ghostty
+        // × 是按钮，自己先接住点击；其余地方点了去这张卡说的地方
         .contentShape(Rectangle())
         .onTapGesture { onOpen?() }
         .accessibilityAddTraits(onOpen == nil ? [] : .isButton)
+    }
+
+    /// 外部插件的卡标明是谁发的（CLAUDE.md 硬规则「外部插件可信但受限」）
+    private var subtitle: some View {
+        HStack(spacing: 4) {
+            if case .plugin(_, let name, let symbol) = card.source {
+                Image(systemName: symbol)
+                Text(card.subtitle == nil ? name : "\(name) ·")
+            }
+            if let subtitle = card.subtitle { Text(subtitle) }
+        }
+        .font(.system(size: 12, weight: .medium))
+        .foregroundStyle(.white.opacity(0.65))
+        .lineLimit(1)
+    }
+}
+
+/// 卡片底部的内容块：按自然大小排，卡片量出高度后用弹簧长过去
+struct CardBlockView: View {
+    let block: Card.Block
+    let tint: Color
+
+    var body: some View {
+        content
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(8)
+            // 同心：卡片底角 28 − 下边距 16
+            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.white.opacity(0.06)))
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch block {
+        case .text(let t):
+            // 正文可以换行，整块最多露 3 行
+            Text(Self.markdown(t.joined(separator: "\n")))
+                .lineLimit(Card.maxLines)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.white.opacity(0.85))
+        case .log(let l):
+            // 日志不换行：一行截一行
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(Array(l.enumerated()), id: \.offset) { _, line in Text(line).lineLimit(1) }
+            }
+                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                .foregroundStyle(.white.opacity(0.75))
+        case .facts(let facts):
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 12, alignment: .leading), GridItem(.flexible(), alignment: .leading)], spacing: 4) {
+                ForEach(Array(facts.enumerated()), id: \.offset) { _, f in
+                    HStack(spacing: 6) {
+                        Text(f.title).foregroundStyle(.white.opacity(NotchLayout.secondaryTextOpacity))
+                        Text(f.value).foregroundStyle(.white.opacity(0.9))
+                    }
+                    .lineLimit(1)
+                }
+            }
+            .font(.system(size: 12, weight: .medium))
+        case .checklist(let checks):
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(Array(checks.enumerated()), id: \.offset) { _, c in
+                    HStack(spacing: 6) {
+                        Image(systemName: Self.symbol(c.state)).foregroundStyle(Self.color(c.state)).frame(width: 14)
+                        Text(c.text).foregroundStyle(.white.opacity(0.85)).lineLimit(1)
+                    }
+                }
+            }
+            .font(.system(size: 12, weight: .medium))
+        case .progress(let p, let label):
+            VStack(spacing: 6) {
+                HStack {
+                    if let label { Text(label).lineLimit(1) }
+                    Spacer(minLength: 8)
+                    Text(p, format: .percent.precision(.fractionLength(0))).monospacedDigit()
+                }
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.white.opacity(0.85))
+                GeometryReader { g in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(.white.opacity(0.12))
+                        Capsule().fill(tint).frame(width: g.size.width * p)
+                    }
+                }
+                .frame(height: 6)
+            }
+        }
+    }
+
+    /// 只认行内的粗体、斜体、代码（Adaptive Cards 的 Markdown 子集）。链接和图片去掉：点卡片和按钮才是动作，不能绕过 URL 白名单，也不收图片路径。
+    /// 解析不了的照原文显示：它是外部文字，不是我们的错
+    /// @see https://learn.microsoft.com/en-us/adaptive-cards/authoring-cards/text-features
+    static func markdown(_ line: String) -> AttributedString {
+        guard var s = try? AttributedString(markdown: line, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)) else {
+            return AttributedString(line)
+        }
+        for run in s.runs where run.link != nil || run.imageURL != nil {
+            s[run.range].link = nil
+            s[run.range].imageURL = nil
+        }
+        return s
+    }
+
+    private static func symbol(_ state: Card.Check.State) -> String {
+        switch state {
+        case .ok: return "checkmark"
+        case .failed: return "xmark"
+        case .pending: return "circle.dotted"
+        }
+    }
+
+    /// 绿色只给出口正常：做完的用白，失败的用出错卡的浅橙
+    private static func color(_ state: Card.Check.State) -> Color {
+        switch state {
+        case .ok: return .white.opacity(0.85)
+        case .failed: return Color(cgColor: Look.error.gradient.bottom.cg)
+        case .pending: return .white.opacity(NotchLayout.secondaryTextOpacity)
+        }
     }
 }

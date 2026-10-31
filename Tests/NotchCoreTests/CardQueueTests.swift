@@ -389,3 +389,52 @@ private let silent = Queue.Change()
     }
 }
 
+
+/// 外部插件的卡不盖红卡（CLAUDE.md 硬规则「插件」）：红卡挂着时排着，内置的卡照常插队放，红卡撤了再放
+@Suite struct ExternalNoticesWaitForAlert {
+    private func external(_ card: String) -> Queue.Notice {
+        Queue.Notice(card: card, key: nil, seconds: 6, coversAlert: false)
+    }
+
+    @Test func waitsBehindHangingAlert() {
+        var q = Queue()
+        _ = q.raiseAlert(persistent: true, sound: true, seconds: 6, now: t0)
+        _ = q.tick(now: at(6))
+        #expect(q.post(external("ext"), now: at(7)) == silent)
+        #expect(q.showing == .alert(persistent: true))
+        // 内置的卡越过它先放
+        #expect(q.post(notice("claude"), now: at(8)) == sound)
+        #expect(q.showing == .notice("claude"))
+        _ = q.tick(now: at(14))
+        #expect(q.showing == .alert(persistent: true))
+        #expect(q.deadline(now: at(14)) == nil)
+        // 红卡撤了才轮到它
+        #expect(q.clearAlert(now: at(20)) == sound)
+        #expect(q.showing == .notice("ext"))
+    }
+
+    /// 正在放的外部卡被新违规打断：回到队里，红卡放完第一次也不出来
+    @Test func interruptedByViolationKeepsWaiting() {
+        var q = Queue()
+        _ = q.post(external("ext"), now: t0)
+        _ = q.raiseAlert(persistent: true, sound: true, seconds: 6, now: at(1))
+        _ = q.tick(now: at(7))
+        #expect(q.showing == .alert(persistent: true))
+        _ = q.dismiss(now: at(8))
+        #expect(q.showing == .notice("ext"))
+    }
+}
+
+/// 恢复卡说的是守卫的事：排在违规期间攒下的外部卡前面，内置卡之后
+@Suite struct RecoveredBeforeExternal {
+    @Test func recoveredJumpsAheadOfExternal() {
+        var q = Queue()
+        _ = q.raiseAlert(persistent: true, sound: true, seconds: 6, now: t0)
+        _ = q.post(Queue.Notice(card: "ext", key: nil, seconds: 6, coversAlert: false), now: at(1))
+        _ = q.post(Queue.Notice(card: "恢复", key: .recovered, seconds: 4), now: at(2))
+        _ = q.clearAlert(now: at(2))
+        #expect(q.showing == .notice("恢复"))
+        _ = q.tick(now: at(6))
+        #expect(q.showing == .notice("ext"))
+    }
+}
