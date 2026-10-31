@@ -71,7 +71,7 @@ enum NotchSpring {
     }
 }
 
-/// 「多久以前」：面板底栏的出口检查时间、会话行的时间。只说过去：刚写完的守卫状态、时钟差一点的时间
+/// 「多久以前」：设置页的「上次检查」、会话行的时间。只说过去：刚写完的守卫状态、时钟差一点的时间
 /// 和现在一样或稍晚，格式化出来是「0 秒后」，按 1 秒前说
 /// @see https://developer.apple.com/documentation/foundation/relativedatetimeformatter
 enum AgoText {

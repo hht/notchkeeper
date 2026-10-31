@@ -396,32 +396,12 @@
         }
       }
     },
-    "出口检查于 %@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Egress checked %@"
-          }
-        }
-      }
-    },
     "出口正常": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Egress OK"
-          }
-        }
-      }
-    },
-    "出口还没检查过": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Egress not checked yet"
           }
         }
       }

@@ -810,8 +810,8 @@ struct GuardBadge: View {
     }
 }
 
-/// 悬停展开的内容：刘海正下方出口守卫的状态、各插件的段、底栏（检查时间 + 设置）。左上的 Pip 和右上的徽章在 NotchRoot。
-/// 出口守卫那一段固定在顶上（状态区 + 底栏的检查时间），关掉就不画；其余插件各一段，按设置里的顺序（docs/ui.md「面板布局」）。
+/// 悬停展开的内容：刘海正下方出口守卫的状态、各插件的段、底栏的齿轮。左上的 Pip 和右上的徽章在 NotchRoot。
+/// 出口守卫那一段固定在顶上（状态区和徽章），关掉就不画；其余插件各一段，按设置里的顺序（docs/ui.md「面板布局」）。
 /// 只显示路径 / 状态 / 时间，不显示任何对话内容。
 struct NotchDashboard: View {
     let state: AppState
@@ -847,14 +847,9 @@ struct NotchDashboard: View {
                     .padding(.horizontal, NotchLayout.dashMargin)
             }
 
-            HStack(spacing: 6) {
-                if panel.header {
-                    TimelineView(.periodic(from: .now, by: 1)) { _ in
-                        Text(checkedText)
-                            .font(.system(size: 11, weight: .medium).monospacedDigit())
-                            .foregroundStyle(.white.opacity(NotchLayout.secondaryTextOpacity))
-                    }
-                }
+            // 底栏是全局的，只放齿轮：哪个插件都不是必须的，不放某个插件自己的东西（用户 10-31：去掉「出口检查于…」）。
+            // 守卫数据旧了由顶上的状态说（守卫没有响应）
+            HStack {
                 Spacer()
                 NotchGearButton { onSettings(nil) }
                     .padding(.trailing, -5) // 齿轮的点击框 24、图形约 14：让图形右缘落在右对齐线上
@@ -862,12 +857,6 @@ struct NotchDashboard: View {
             .padding(.horizontal, NotchLayout.contentInset)
             .frame(height: NotchLayout.footerHeight)
         }
-    }
-
-    /// 守卫数据新不新鲜：「未知」也要看得出来（CLAUDE.md 准则 5）
-    private var checkedText: String {
-        guard let at = state.display.checkedAt else { return String(localized: "出口还没检查过") }
-        return String(localized: "出口检查于 \(AgoText.string(at))")
     }
 }
 

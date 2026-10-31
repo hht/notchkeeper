@@ -27,7 +27,7 @@ public enum NotchLayout {
     public static let rowHeight: CGFloat = 38
     public static let rowPadding: CGFloat = 10
     public static let rowIcon: CGFloat = 24
-    /// 行内容离黑底左右边：会话图标左缘、时间右缘、底栏文字左缘、齿轮右缘、右上徽章右缘都在这条线上（docs/ui.md「面板布局」）
+    /// 行内容离黑底左右边：会话图标左缘、时间右缘、齿轮右缘、右上徽章右缘都在这条线上（docs/ui.md「面板布局」）
     public static let contentInset = dashMargin + listInset + rowPadding
     /// 左上的 Pip 和右上的徽章：等大（HIG：leading / trailing 大小相近，左右平衡），和刘海下的标题 + IP 两行一样高；
     /// Pip 身体中心和会话图标中心在同一条竖线上。卡片上还是这只 Pip，也是这么大
