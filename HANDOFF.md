@@ -25,7 +25,7 @@
 - 减弱动态效果时黑色形状的弹簧还没收紧（HIG Accessibility，`docs/ui.md`「灵动岛规范」12）。
 - 精简设置页。「状态测试」的 Pip 用 `state.look`，旁边文案还是 `presentation.title`，对不上。
 - `demo.sh` 的通知只在 DEBUG 构建里监听。刘海视图只订阅 `presentation`。
-- `NotchController.collapse()` 用 `asyncAfter(0.5)` 等收起动画；`NKConfig` 去前缀；`ConfigStore` 每秒轮询、看不见时也在跑。
+- `NotchController.collapse()` 用 `asyncAfter(0.5)` 等收起动画；`Config` 去前缀；`ConfigStore` 每秒轮询、看不见时也在跑。
 - `config.json` 的 `launchAtLogin`、`suppressWhenHostFrontmost`、`agents` 没有消费者，下次存盘会被去掉。
 - `Notch.swift` 里「Emily 规格」几处出处说法确认后改掉。
 - 删 `MascotView` 的 small 尺寸（App 里已不用，只剩测试；单独一个 refactor 提交）。

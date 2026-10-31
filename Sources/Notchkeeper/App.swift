@@ -189,7 +189,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var enabledPlugins: [String: Bool] = [:]
 
     /// 关掉一个插件（docs/ui.md「面板布局」）：关的是提醒，不是判定。出口守卫撤红卡，Claude Code 撤会话的卡，外部插件撤卡、撤行、之后的消息丢掉
-    private func pluginsChanged(_ c: NKConfig) {
+    private func pluginsChanged(_ c: Config) {
         let ids = [PluginID.exitGuard, PluginID.claudeCode] + state.manifests.keys
         let now = Dictionary(uniqueKeysWithValues: ids.map { ($0, c.isEnabled($0)) })
         defer { enabledPlugins = now }

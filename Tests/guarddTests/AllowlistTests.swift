@@ -12,7 +12,7 @@ private let defaults = AllowlistFile.defaults
         #expect(defaults.isEmpty)
     }
 
-    /// App 写的是整份 NKConfig，guardd 只取 allowlist，其余键一律忽略
+    /// App 写的是整份 Config，guardd 只取 allowlist，其余键一律忽略
     @Test func readsOnlyAllowlistIgnoringOtherKeys() {
         let l = load(#"{"agents":{"claudeCode":true},"allowlist":["1.2.3.4"],"soundEnabled":true,"future":[1]}"#)
         #expect(l == .init(allowlist: [IPv4("1.2.3.4")!], problem: nil))
@@ -25,7 +25,7 @@ private let defaults = AllowlistFile.defaults
         #expect(load(json) == .init(allowlist: defaults, problem: .unreadable))
     }
 
-    /// 和 App 的 NKConfig 一致：缺这个键就用默认值，不算问题
+    /// 和 App 的 Config 一致：缺这个键就用默认值，不算问题
     @Test func missingKeyUsesDefaults() { #expect(load("{}") == .init(allowlist: defaults, problem: nil)) }
 
     /// 空列表是 Haitao 的设置，照用（判定里 IP 一律算未知），不偷偷换成默认值

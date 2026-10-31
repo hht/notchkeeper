@@ -11,7 +11,7 @@ let package = Package(
             path: "Sources/Notchkeeper",
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
-        // App 外壳里还没挪进核心 target 的逻辑（目前是 config.json 的读写）
+        // App 外壳里离不开 AppKit、SwiftUI 或真文件的部分（config.json 读写、Ghostty 跳转、mod 安装、视图量高度等）
         .testTarget(name: "NotchkeeperTests", dependencies: ["Notchkeeper"]),
         // 出口守卫的纯逻辑：不 import SwiftUI / AppKit，不做 I/O
         .target(name: "GuardCore"),
@@ -32,7 +32,7 @@ let package = Package(
         .target(name: "AgentCore"),
         .testTarget(name: "AgentCoreTests", dependencies: ["AgentCore"]),
         // 卡上写什么、刘海此刻放哪张卡、放多久、放出来时响不响：红卡一层 + 临时卡队列（docs/ui.md「卡片」）；守卫读数画成什么、红卡挂上还是撤掉（docs/egress-guard.md）；
-        // 各插件多急、收起时谁上位、面板一行画什么；刘海三种形态各多大。纯值类型，不知道卡长什么样、不放声音、不起定时器
+        // 各插件多急、收起时谁上位、面板一行画什么；刘海三种形态各多大；config.json 有哪些设置。纯值类型，不知道卡长什么样、不放声音、不起定时器
         .target(name: "NotchCore", dependencies: ["AgentCore", "GuardCore", "MascotCore"]),
         .testTarget(name: "NotchCoreTests", dependencies: ["NotchCore", "AgentCore", "GuardCore", "MascotCore"]),
         // 外部插件发来的一条消息合不合法、变成哪张卡或面板里哪一行：解析收件箱里的消息和插件登记、限流、过期，跟踪活动。纯值类型，不读目录

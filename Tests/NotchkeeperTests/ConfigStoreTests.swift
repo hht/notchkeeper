@@ -1,4 +1,5 @@
 import Foundation
+import NotchCore
 import Testing
 @testable import Notchkeeper
 
@@ -31,7 +32,7 @@ private final class Lines { var all: [String] = [] }
     func startupDoesNotOverwrite(_ json: String) throws {
         let url = try tempConfig(json)
         let store = store(url)
-        #expect(store.config == NKConfig())
+        #expect(store.config == Config())
         #expect(store.fileUnreadable)
         store.config.hoverExpand.toggle()
         store.saveNow()
@@ -60,26 +61,26 @@ private final class Lines { var all: [String] = [] }
         #expect(!store.fileUnreadable)
         store.config.soundEnabled = false
         store.saveNow()
-        #expect(try JSONDecoder().decode(NKConfig.self, from: Data(contentsOf: url)).soundEnabled == false)
+        #expect(try JSONDecoder().decode(Config.self, from: Data(contentsOf: url)).soundEnabled == false)
     }
 
     @Test func missingFileIsCreatedWithDefaults() throws {
         let url = try tempConfig(nil)
         _ = store(url)
-        #expect(try JSONDecoder().decode(NKConfig.self, from: Data(contentsOf: url)) == NKConfig())
+        #expect(try JSONDecoder().decode(Config.self, from: Data(contentsOf: url)) == Config())
     }
 
     /// 缺失字段用默认值、未知字段忽略（CLAUDE.md「配置与状态文件」）
     @Test func missingAndUnknownKeysStillLoad() throws {
         let url = try tempConfig(#"{"allowlist":["198.51.100.8"],"future":1}"#)
-        var expected = NKConfig()
+        var expected = Config()
         expected.allowlist = ["198.51.100.8"]
         #expect(store(url).config == expected)
     }
 
     /// URL 白名单默认是空的：只放行 https
     @Test func urlSchemesDefaultEmptyAndLoad() throws {
-        #expect(NKConfig().urlSchemes.isEmpty)
+        #expect(Config().urlSchemes.isEmpty)
         let url = try tempConfig(#"{"urlSchemes":["raycast"]}"#)
         #expect(store(url).config.urlSchemes == ["raycast"])
     }
@@ -126,58 +127,5 @@ private final class Lines { var all: [String] = [] }
         _ = store(try tempConfig(#"{"allowlist":"198.51.100.8"}"#), lines)
         #expect(lines.all.contains { $0.contains("allowlist") })
         #expect(lines.all.allSatisfy { $0.firstMatch(of: /\d+\.\d+\.\d+\.\d+/) == nil })
-    }
-}
-
-/// 插件的设置（docs/ui.md「面板布局」）：缺省都开着、每段最多露 5 行，常驻插件是出口守卫
-@Suite struct PluginConfig {
-    private func decode(_ json: String) throws -> NKConfig { try JSONDecoder().decode(NKConfig.self, from: Data(json.utf8)) }
-
-    @Test func defaults() {
-        let c = NKConfig()
-        #expect(c.isEnabled("guard") && c.isEnabled("terminal"))
-        #expect(c.maxRows("claude") == 5)
-        #expect(c.residentPlugin == "guard" && c.showsEarMascot && c.pluginOrder.isEmpty)
-    }
-
-    /// 缺字段用默认值；行数压在 1…5
-    @Test func partialEntries() throws {
-        let c = try decode(#"{"plugins":{"claude":{"enabled":false},"terminal":{"maxRows":9},"dl":{"maxRows":0}}}"#)
-        #expect(!c.isEnabled("claude") && c.maxRows("claude") == 5)
-        #expect(c.isEnabled("terminal") && c.maxRows("terminal") == 5)
-        #expect(c.maxRows("dl") == 1)
-    }
-
-    /// 空串是不常驻
-    @Test func noResident() throws {
-        #expect(try decode(#"{"residentPlugin":""}"#).resident == nil)
-        #expect(NKConfig().resident == "guard")
-    }
-
-    /// 段的顺序：用户排过的在前，没排过的按给的默认顺序跟在后面；排过但已经没了的不出现
-    @Test func sectionOrder() throws {
-        let c = try decode(#"{"pluginOrder":["terminal","gone","claude"]}"#)
-        #expect(c.ordered(["claude", "dl", "terminal"]) == ["terminal", "claude", "dl"])
-        #expect(NKConfig().ordered(["claude", "dl"]) == ["claude", "dl"])
-    }
-
-    @Test func setters() {
-        var c = NKConfig()
-        c.setEnabled(false, for: "dl")
-        c.setMaxRows(2, for: "dl")
-        #expect(!c.isEnabled("dl") && c.maxRows("dl") == 2)
-        c.move("dl", by: -1, in: ["claude", "dl"])
-        #expect(c.ordered(["claude", "dl"]) == ["dl", "claude"])
-        c.move("dl", by: -1, in: ["claude", "dl"])
-        #expect(c.ordered(["claude", "dl"]) == ["dl", "claude"])
-    }
-
-    @Test func roundTrips() throws {
-        var c = NKConfig()
-        c.setEnabled(false, for: "guard")
-        c.residentPlugin = ""
-        c.showsEarMascot = false
-        c.pluginOrder = ["dl"]
-        #expect(try decode(String(decoding: JSONEncoder().encode(c), as: UTF8.self)) == c)
     }
 }
