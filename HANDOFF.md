@@ -1,8 +1,21 @@
 # HANDOFF
 
-最后更新：2026-10-31。只放接下来要做的和没解决的；做完的看 `git log`，规则看 `CLAUDE.md` 和 `docs/*`。开工前 `git log --oneline -5` 核对，工作区应是干净的。
+最后更新：2026-10-31。只放接下来要做的和没解决的；做完的看 `git log`，规则看 `CLAUDE.md` 和 `docs/*`。开工前 `git log --oneline -5` 核对，工作区应是干净的。实机验证的技巧见 `docs/dev-notes.md`。
 
 ## 接下来
+
+**插件化（用户 10-31 定方向，设计还没出）**：App 接收外部消息，功能做成插件。已定：
+- 外部脚本把消息写进只给当前用户的收件箱目录，App 监听；不开本地端口，不用 URL scheme、分布式通知。
+- 第一个新场景：终端里的命令结束了提醒。
+- 点击动作只有「打开 URL」「切换到 App」（含切到 Ghostty 里某个终端窗口）；消息不能带要执行的命令。
+- Claude Code 也走插件通道；出口守卫和红卡也做成可配置的插件。插件要支持一次性卡片和有生命周期的活动（开始、更新、结束）两种。
+- 快捷指令（App Intents）放第二步。
+- 终端命令卡片只显示命令名（不带参数），日志不记命令（用户 10-31）。
+- Claude Code 和出口守卫做成**内置插件**：设置里能开关、配置，产出和外部插件同一种卡片 / 活动；来源和判定仍在 `AgentCore` / `GuardCore`（用户 10-31，因为 mod 拿不到忙闲和介入、也没有原子写）。
+- 打开 URL：默认只放行 `https`，用户可在设置里加白名单 scheme（用户 10-31）。
+- 卡片内容丰富化（用户 10-31）：照灵动岛展开态分区，固定一行「Pip + 标题 / 副标题 + 右侧短值」，底部区由插件选一种内容块——正文（≤3 行，Markdown 子集）、进度（随活动更新原地刷新）、键值（≤4 对）、列表或日志尾巴（≤3 行）；最多两个按钮，动作只有打开 URL / 切换 App。图标只收 SF Symbols 名、颜色只收语义色，不收图片路径和原始色值；总高度有上限，超出截断。
+设计时要先改 CLAUDE.md、交用户定的：守卫插件能关掉，但硬规则说 violated 只有一轮完整 healthy 才解除、守卫停了不降级——违规时关掉守卫红卡撤不撤；收件箱同一用户的任何进程都能写，和「`demo.sh` 的分布式通知因为本机任何进程都能发才只在 DEBUG 监听」、reviewer 必须修的「本机任意进程能触发 UI」冲突，要写明外部插件卡片的信任级别。并讲清：外部消息不能伪造或撤掉红卡；收件箱同一用户的任何进程都能写，信任级别等同本机进程；打开 URL 默认只允许 `https`（自定义 scheme 能拉起别的 App 执行动作）。
+下一步：照成熟实现（terminal-notifier、ntfy、SwiftBar、Raycast Script Commands、ActivityKit）出消息格式、插件目录和切片，给用户看过再做；第 4 步重写要给这套接口留位置。
 
 **第 4 步：App 外壳重写**（每一刀：TDD → 零警告 + 全绿 → reviewer → 用户明示后提交）。已做：`NotchCore` 的 `CardQueue`、`GuardPresentation`、`ViolationAlert`。剩下：
 
@@ -39,14 +52,3 @@
 - 滚出可视区的会话行，三蓝点循环照跑（量小）。
 - 守卫只查 IPv4，IPv6 直连泄漏看不见；任何 utun 都算在隧道上，开着别的 VPN 时可能看漏；每 5 秒请求 3 个回显服务可能被限流（都是推断）。
 - mod 写完盘才 `next(e)`，本地写盘挂住会拖住回合（认为不现实，没改）。
-
-## 工作方法备忘
-
-- 整包编不过时先跑核心测试：把 `Sources/<Core>` 和 `Tests/<Core>Tests` 拷到 `/tmp` 一个临时包里 `swift test`。测试第一次就全绿时，在副本里故意改坏几处，确认会红。
-- 驱动 Claude Code 会话：`tmux -L <名字> new-session -d -s x -c <已信任的目录> claude --permission-mode default`，`send-keys` 发提示、`Escape` 拒绝批准；没信任的目录只写 `.key` 不写 `.json`。用完 `kill-server`，`kill -9` 过的会话手动删 `<pid>.json` / `.key`。停在「等你批准」：让它跑 `touch /tmp/<文件>`（`date` 在允许列表里）；「等你回答」：让它用 AskUserQuestion 问是非题。
-- 截图：卡片和收起态 `screencapture -x -R 556,0,400,110`（刘海在主屏顶部正中）；看造型在 `/tmp` 搭一次性陈列，`screencapture -l <windowID>` 连拍。几只 Pip 同时扁眼是眨眼。
-- 没有 cliclick：在 `/tmp` 写一次性 Swift 脚本，用 `CGEvent` 移动、点击、滚动，完了把鼠标移回原处。
-- 崩溃看 `~/Library/Logs/DiagnosticReports/Notchkeeper-*.ips`；日志在 `~/Library/Logs/Notchkeeper/notchkeeper.log`。
-- zsh：`for f in $files` 不按空格拆，用 `xargs`；BSD `sed` 不认 `\b`，用 `perl -pi -e`。
-- 拆提交不能用 `git add -p`：`git hash-object -w` + `git update-index --cacheinfo` 暂存部分内容，`git checkout-index -a --prefix=/tmp/x/` 导出暂存区单独构建。
-- 交接文档就是本文件，不另写 `handoff.md`（macOS 不分大小写，会覆盖它）。

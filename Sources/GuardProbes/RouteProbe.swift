@@ -8,7 +8,7 @@ import Foundation
 public enum RouteProbe {
     /// 只查本机路由表，不发包。第一个是 Anthropic 公布的入站网段 160.79.104.0/23 里的地址，
     /// 第一个直接回答「去 Claude 的路由走哪」；另两个是不同网段的公网地址。
-    /// 三者同权：任何一个不走 utun 都判 violated（除局域网外全部流量必须走代理，CLAUDE.md 硬规则）。
+    /// 三者同权：任何一个不走 utun 都判 violated（除局域网外全部流量必须走代理，docs/egress-guard.md）。
     /// Clash 的 DIRECT 规则不改内核路由表；只有 TUN 排除了某网段，这里才会看到 en0，那本身就违反规则。
     /// @see https://docs.anthropic.com/en/api/ip-addresses
     static let destinations = ["160.79.104.10", "1.1.1.1", "8.8.8.8"]

@@ -1,6 +1,6 @@
 # Pip：造型与动效
 
-Pip 是 Notchkeeper 的原创吉祥物，在刘海左耳、展开面板和卡片里用表情说出此刻的状态。本文记每个造型的意思、谁压过谁、动效的规矩和原因。**数值以代码为准**：造型数据在 `Sources/MascotCore/Look.swift`、装饰形状在 `Shapes.swift`、眼形在 `Eyes.swift`、动画在 `Choreography.swift`、空闲调度在 `IdleDirector.swift`、跟随鼠标在 `Gaze.swift`。这些数值出自原型分支 `prototype/dundun-3d`，用户逐条确认过；要改先问用户。
+Pip 是 Notchkeeper 的原创吉祥物，在刘海左耳、展开面板和卡片里用表情说出此刻的状态。本文记每个造型的意思、谁压过谁、动效的规矩和原因。**数值以代码为准**：造型数据在 `Sources/MascotCore/Look.swift`、装饰形状在 `Shapes.swift`、眼形在 `Eyes.swift`、动画在 `Choreography.swift`、空闲调度在 `IdleDirector.swift`、跟随鼠标在 `Gaze.swift`。这些数值用户逐条确认过；要改先问用户。
 
 ## 1. 几何
 

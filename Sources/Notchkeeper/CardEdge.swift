@@ -14,7 +14,7 @@ import SwiftUI
 /// 尾巴是顺滑的渐变，拐角也跟着弯。光压在卡片边缘正中（视图放在卡片的裁切外面），柔光往里外两边晕开。
 /// @see https://magicui.design/docs/components/border-beam
 /// 位置交给 Core Animation：一条 1.5 秒的沿路径关键帧动画，按卡片弹出后已过的时间从对应那一帧放起；
-/// 暂停时动画速度设成 0、停在那一帧。主线程不逐帧重画（CLAUDE.md「界面」）。
+/// 暂停时动画速度设成 0、停在那一帧。主线程不逐帧重画（docs/ui.md「原则」）。
 /// @see https://developer.apple.com/library/archive/qa/qa1673/_index.html
 struct CardEdge: NSViewRepresentable {
     /// 和形状同一组参数：路径要和卡片外形完全重合

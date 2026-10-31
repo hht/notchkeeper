@@ -741,7 +741,7 @@ struct NotchRoot: View {
     }
 
     /// 内容在形状长开之后进场：模糊变清晰 + 从 0.96 放大 + 淡入，稍等 0.06s 让形状先走（DynamicNotchKit 的 blur + scale + opacity，
-    /// boring.notch 的 `.smooth(0.35)`）；退场只淡出、更快（CLAUDE.md：进场稍慢、退场稍快）。减弱动态效果只淡入淡出
+    /// boring.notch 的 `.smooth(0.35)`）；退场只淡出、更快（docs/ui.md「原则」：进场稍慢、退场稍快）。减弱动态效果只淡入淡出
     static func contentTransition(_ reduceMotion: Bool) -> AnyTransition {
         let fadeOut = AnyTransition.opacity.animation(.easeIn(duration: 0.1))
         if reduceMotion { return .asymmetric(insertion: .opacity.animation(.easeOut(duration: 0.2)), removal: fadeOut) }
@@ -763,7 +763,7 @@ private struct Unfocus: ViewModifier {
     }
 }
 
-/// 右上的出口状态徽章：和左上的 Pip 等大。颜色 + 图标 + 文案三者一起表达状态（CLAUDE.md「状态 = 颜色 + 图标 + 文案」），
+/// 右上的出口状态徽章：和左上的 Pip 等大。颜色 + 图标 + 文案三者一起表达状态（docs/ui.md「原则」），
 /// 文案在刘海下方的标题
 struct GuardBadge: View {
     let presentation: GuardPresentation
