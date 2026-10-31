@@ -2,7 +2,7 @@ import AppKit
 import QuartzCore
 import MascotCore
 
-/// 一只盾盾的图层树：把造型画出来，把 MascotCore 编排好的动作交给 Core Animation 播。
+/// 一只 Pip 的图层树：把造型画出来，把 MascotCore 编排好的动作交给 Core Animation 播。
 /// 中间帧由系统合成器在 App 进程外插值，App 只在换造型、动作开始、鼠标换了目标时提交一次（docs/mascot.md §5「渲染」）。
 /// 不知道造型从哪来、什么时候眨眼（MascotDirector）。
 ///
@@ -138,7 +138,7 @@ final class MascotFigureView: MascotLayerView {
         deco = makeDeco(l)
     }
 
-    /// 头一转（yaw / pitch 不为 0），眼睛边缘就发软；展开时盾盾总在看刘海上的鼠标，眼睛就一直是糊的。
+    /// 头一转（yaw / pitch 不为 0），眼睛边缘就发软；展开时 Pip 总在看刘海上的鼠标，眼睛就一直是糊的。
     /// 推断是三维子树拍平到 disc 时被重采样。disc 显式按屏幕倍率栅格化就清楚了（10-30 实测，docs/mascot.md §5「渲染」）
     /// @see https://developer.apple.com/documentation/quartzcore/calayer/shouldrasterize
     /// @see https://developer.apple.com/documentation/quartzcore/calayer/rasterizationscale

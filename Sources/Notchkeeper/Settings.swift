@@ -20,7 +20,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .notch: return "刘海与外观"
         case .exitGuard: return "出口守卫"
         case .notifications: return "通知"
-        case .mascot: return "盾盾"
+        case .mascot: return "Pip"
         case .stateTest: return "状态测试"
         case .about: return "关于"
         }
@@ -394,7 +394,7 @@ private struct ClaudeModSection: View {
     }
 }
 
-// MARK: - 盾盾
+// MARK: - Pip
 
 private struct MascotPane: View {
     @ObservedObject var store: ConfigStore
@@ -404,7 +404,7 @@ private struct MascotPane: View {
             Section {
                 VStack(spacing: 6) {
                     MascotView(look: .idle, size: 40)
-                    Text("盾盾").font(.system(size: 13, weight: .semibold))
+                    Text("Pip").font(.system(size: 13, weight: .semibold))
                 }
                 .frame(maxWidth: .infinity)
             }
@@ -438,7 +438,7 @@ private struct StateTestPane: View {
                 .frame(maxWidth: .infinity)
             }
             Section {
-                Picker("盾盾", selection: Binding(get: { overrides.look }, set: { notch.force($0) })) {
+                Picker("Pip", selection: Binding(get: { overrides.look }, set: { notch.force($0) })) {
                     Text("真实状态").tag(Look?.none)
                     Divider()
                     ForEach(Look.allCases, id: \.self) { l in
@@ -452,7 +452,7 @@ private struct StateTestPane: View {
             } header: {
                 Text("强制显示")
             } footer: {
-                Text("只改盾盾和刘海的样子，不改出口判定，也不弹红卡、不响；真的红卡照常弹出。不写任何文件，重开 App 就恢复。")
+                Text("只改 Pip 和刘海的样子，不改出口判定，也不弹红卡、不响；真的红卡照常弹出。不写任何文件，重开 App 就恢复。")
             }
             MotionSection()
             Section {
@@ -466,7 +466,7 @@ private struct StateTestPane: View {
     }
 }
 
-/// 「播放动作」：看得见的盾盾（左耳、上面的预览）各播一次，不管当前造型。只在内存里
+/// 「播放动作」：看得见的 Pip（左耳、上面的预览）各播一次，不管当前造型。只在内存里
 private struct MotionSection: View {
     var body: some View {
         Section {
@@ -479,7 +479,7 @@ private struct MotionSection: View {
         } header: {
             Text("播放动作")
         } footer: {
-            Text("看得见的盾盾各播一次；开了「减弱动态效果」时只有眨眼。不写任何文件。")
+            Text("看得见的 Pip 各播一次；开了「减弱动态效果」时只有眨眼。不写任何文件。")
         }
     }
 }

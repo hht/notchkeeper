@@ -1,6 +1,6 @@
 import CoreGraphics
 
-/// 盾盾此刻做什么动作：给一个造型或动作，输出要提交给 Core Animation 的声明式 `[Track]`。
+/// Pip 此刻做什么动作：给一个造型或动作，输出要提交给 Core Animation 的声明式 `[Track]`。
 /// 不知道图层怎么搭、动画怎么提交（App），也不知道什么时候该做（`IdleDirector`、App）。
 /// 所有 Track 都叠加（additive）在图层的静止值上：values 是相对静止值的偏移，所以朝向、注视、呼吸、动作可以同时生效。
 /// 实测（macOS 26，2026-10-29）：同一键路径的两个 additive 动画相加。
@@ -230,7 +230,7 @@ public enum Motion: CaseIterable, Sendable {
 
 /// 动画作用在哪一层。图层树由 App 搭（docs/mascot.md §1）：stage ⊃ body ⊃ … ⊃ pose ⊃ yaw ⊃ pitch ⊃ roll ⊃ 两只眼；stage ⊃ 装饰
 public enum Part: Hashable, Sendable {
-    /// 整只盾盾：抖、跳
+    /// 整只 Pip：抖、跳
     case stage
     /// 身体，锚点在身体底部：呼吸
     case body

@@ -51,7 +51,7 @@ func display(_ verdict: Verdict, _ reason: GuardDisplay.Reason = .fresh, unknown
         }
     }
 
-    /// 用户关掉的是哪一次：同一次不再要红卡，盾盾仍是危险；违规仍在画红点，守卫不响应画灰环
+    /// 用户关掉的是哪一次：同一次不再要红卡，Pip 仍是危险；违规仍在画红点，守卫不响应画灰环
     @Test func dismissedViolation() {
         let dv = GuardPresentation(display(.violated), dismissedViolationSince: .some(violatedAt))
         #expect(dv.alert == nil && dv.status == .violated && dv.tone == .violated && dv.look == .danger && dv.holdsViolation)

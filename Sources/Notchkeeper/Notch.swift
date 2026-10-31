@@ -11,7 +11,7 @@ struct NotchCard: Identifiable, Equatable {
     var detail: String
     /// 边缘流星的颜色（docs/ui.md「卡片」）
     var tint: Color
-    /// 卡上的盾盾画这张卡自己的造型
+    /// 卡上的 Pip 画这张卡自己的造型
     var look: Look
     /// 放出来那一刻响的系统音效（docs/agent-integration.md「提醒」、docs/egress-guard.md）
     var sound: NSSound.Name
@@ -68,7 +68,7 @@ final class NotchOverrides: ObservableObject {
 
     var isReal: Bool { look == nil && pin == .auto }
 
-    /// 盾盾实际显示的造型：强制的优先，否则是真实的守卫状态
+    /// Pip 实际显示的造型：强制的优先，否则是真实的守卫状态
     func mascot(real: Look) -> Look { look ?? real }
 }
 
@@ -94,9 +94,9 @@ final class NotchModel: ObservableObject {
 
 /// 三种形态的尺寸，视图和悬停命中测试共用
 enum NotchLayout {
-    /// 卡片内容离形状黑底左右边：卡上的盾盾和面板左上的那只中心对齐，两边互切时盾盾只上下走、不横移（HIG Live Activities：展开态之间元素保持相对位置）
+    /// 卡片内容离形状黑底左右边：卡上的 Pip 和面板左上的那只中心对齐，两边互切时 Pip 只上下走、不横移（HIG Live Activities：展开态之间元素保持相对位置）
     static let cardPadding = contentInset + rowIcon / 2 - dashCorner / 2
-    /// 第一行（盾盾 + 标题 + 副标题）的高度
+    /// 第一行（Pip + 标题 + 副标题）的高度
     static let cardRowHeight: CGFloat = 38
     static let cardBottom: CGFloat = 16
     /// 展开面板和卡片的黑底宽 = iOS 灵动岛展开态宽 408（HIG Live Activities；Mac 菜单栏里的 Live Activity 用同一套尺寸）。
@@ -116,10 +116,10 @@ enum NotchLayout {
     static let rowIcon: CGFloat = 24
     /// 行内容离黑底左右边：会话图标左缘、时间右缘、底栏文字左缘、齿轮右缘、右上徽章右缘都在这条线上（docs/ui.md「面板布局」）
     static let contentInset = dashMargin + listInset + rowPadding
-    /// 左上的盾盾和右上的徽章：等大（HIG：leading / trailing 大小相近，左右平衡），和刘海下的标题 + IP 两行一样高；
-    /// 盾盾身体中心和会话图标中心在同一条竖线上。卡片上还是这只盾盾，也是这么大
+    /// 左上的 Pip 和右上的徽章：等大（HIG：leading / trailing 大小相近，左右平衡），和刘海下的标题 + IP 两行一样高；
+    /// Pip 身体中心和会话图标中心在同一条竖线上。卡片上还是这只 Pip，也是这么大
     static let dashCorner: CGFloat = 32
-    /// 盾盾和徽章上缘离面板顶 8：紧贴刘海两侧，不留「额头」
+    /// Pip 和徽章上缘离面板顶 8：紧贴刘海两侧，不留「额头」
     static let dashCornerTop: CGFloat = 8
     /// 刘海正下方的状态区（标题 + IP）的高度
     static let dashStatusHeight: CGFloat = 42
@@ -132,13 +132,13 @@ enum NotchLayout {
     /// 小字（时间、底栏、空列表）的白色不透明度：≤17pt 的字对比度至少 4.5:1（HIG Accessibility）
     static let secondaryTextOpacity = 0.5
 
-    /// 收起时刘海两侧各一只耳朵：左耳放盾盾，右耳放状态指示（docs/mascot.md §1）
+    /// 收起时刘海两侧各一只耳朵：左耳放 Pip，右耳放状态指示（docs/mascot.md §1）
     static let earWidth: CGFloat = 44
     /// 收起时形状顶角往外翻的宽度（NotchShape 的 topRadius）
     static let closedFlare: CGFloat = 4
-    /// 左耳盾盾的身体直径（docs/mascot.md §1）：面板里那只缩到这么大
+    /// 左耳 Pip 的身体直径（docs/mascot.md §1）：面板里那只缩到这么大
     static let earMascotSize: CGFloat = 20
-    /// 左耳盾盾的身体中心、右耳指示的中心离形状外缘多远：都在耳朵看得见的部分（去掉外翻）里居中，左右对称
+    /// 左耳 Pip 的身体中心、右耳指示的中心离形状外缘多远：都在耳朵看得见的部分（去掉外翻）里居中，左右对称
     /// （docs/mascot.md §1；HIG Live Activities compact：左右平衡、紧贴摄像头）
     static let earCenterInset = closedFlare + (earWidth - closedFlare) / 2
 
@@ -397,7 +397,7 @@ final class NotchController {
 
     var mode: NotchMode { model.mode }
 
-    /// 强制盾盾显示某个状态；nil 回到真实状态。只换盾盾的样子：不碰 AppState 和红卡，
+    /// 强制 Pip 显示某个状态；nil 回到真实状态。只换 Pip 的样子：不碰 AppState 和红卡，
     /// 所以强制「危险」不弹红卡、不响，也不动「这次违规已关掉」的记录
     func force(_ l: Look?) {
         guard overrides.look != l else { return }
@@ -467,7 +467,7 @@ final class NotchController {
         return true
     }
 
-    /// 刘海本体在屏幕上的位置（盾盾 MascotDirector 贴着它走）
+    /// 刘海本体在屏幕上的位置（Pip MascotDirector 贴着它走）
     var anchorRect: NSRect {
         let h = NotchLayout.topInset(model.notchSize)
         let w = model.notchSize.width
@@ -663,11 +663,11 @@ struct NotchRoot: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
-    /// 盾盾和右边的指示：收起、面板、卡片里是**同一个视图**，只按形态改位置和缩放，
+    /// Pip 和右边的指示：收起、面板、卡片里是**同一个视图**，只按形态改位置和缩放，
     /// 跟着形状的同一个弹簧走（HIG Live Activities：「Maintain the relative placement of elements」，
     /// 展开态是收起态放大，元素不移除再进场）。布局尺寸固定、只动 position / scaleEffect，
     /// 嵌进来的 Core Animation 视图在 macOS 14 上也会被逐帧插值（10-29 实测）。
-    /// 盾盾在左耳 → 面板左上 → 卡片左侧之间飞，到卡片上换成这张卡的造型、告示画回来（docs/ui.md「卡片」7）；
+    /// Pip 在左耳 → 面板左上 → 卡片左侧之间飞，到卡片上换成这张卡的造型、告示画回来（docs/ui.md「卡片」7）；
     /// 右边的一组在卡片形态时淡出，透明时停掉动画。
     /// 减弱动态效果时不飞：换形态就换一个新视图，旧的原地淡出、新的在新位置淡入（docs/mascot.md §5）
     @ViewBuilder
@@ -688,7 +688,7 @@ struct NotchRoot: View {
             case .card: CGPoint(x: flare + NotchLayout.cardPadding + c / 2, y: NotchLayout.cardTop(notch) + NotchLayout.cardRowHeight / 2)
             }
             ZStack(alignment: .topLeading) {
-                // 告示（sign）在右边，盾盾只管表情；卡片上没有右边，画回来
+                // 告示（sign）在右边，Pip 只管表情；卡片上没有右边，画回来
                 MascotView(look: look, size: c, hidesSigns: card == nil)
                     .environment(\.mascotLiteral, overrides.look != nil || card != nil)
                     .scaleEffect(mode == .closed ? NotchLayout.earMascotSize / c : 1)
@@ -763,7 +763,7 @@ private struct Unfocus: ViewModifier {
     }
 }
 
-/// 右上的出口状态徽章：和左上的盾盾等大。颜色 + 图标 + 文案三者一起表达状态（CLAUDE.md「状态 = 颜色 + 图标 + 文案」），
+/// 右上的出口状态徽章：和左上的 Pip 等大。颜色 + 图标 + 文案三者一起表达状态（CLAUDE.md「状态 = 颜色 + 图标 + 文案」），
 /// 文案在刘海下方的标题
 struct GuardBadge: View {
     let presentation: GuardPresentation
@@ -798,7 +798,7 @@ struct GuardBadge: View {
     }
 }
 
-/// 悬停展开的内容：刘海正下方的出口状态、会话列表、底栏（检查时间 + 设置）。左上的盾盾和右上的徽章在 NotchRoot。
+/// 悬停展开的内容：刘海正下方的出口状态、会话列表、底栏（检查时间 + 设置）。左上的 Pip 和右上的徽章在 NotchRoot。
 /// 只显示路径 / 状态 / 时间，不显示任何对话内容。
 struct NotchDashboard: View {
     @ObservedObject var state: AppState
@@ -809,7 +809,7 @@ struct NotchDashboard: View {
         let p = state.presentation
         let m = NotchLayout.dashMargin
         VStack(spacing: 0) {
-            // 刘海正下方（灵动岛的 center 区）：标题用中等以上字重（HIG Live Activities），圆体配圆润的盾盾（HIG Typography）
+            // 刘海正下方（灵动岛的 center 区）：标题用中等以上字重（HIG Live Activities），圆体配圆润的 Pip（HIG Typography）
             VStack(spacing: 2) {
                 Text(p.title)
                     .font(.system(size: 15, weight: .semibold, design: .rounded))
@@ -822,7 +822,7 @@ struct NotchDashboard: View {
                     .contentTransition(reduceMotion ? .opacity : .numericText())
                     .animation(.smooth, value: state.display.egressIP)
             }
-            // 两侧让开盾盾和徽章
+            // 两侧让开 Pip 和徽章
             .padding(.horizontal, NotchLayout.contentInset + NotchLayout.rowIcon / 2 + NotchLayout.dashCorner / 2 + 6)
             .frame(height: NotchLayout.dashStatusHeight)
 
@@ -909,7 +909,7 @@ struct SessionRow: View {
     let session: Session
     @State private var hover = false
 
-    /// 工作中和右耳一样是三蓝点；需要你介入用盾盾这两个造型自己的装饰（带 ? 的气泡、举起的手），比一个点好认；已停止不画
+    /// 工作中和右耳一样是三蓝点；需要你介入用 Pip 这两个造型自己的装饰（带 ? 的气泡、举起的手），比一个点好认；已停止不画
     private var indicator: EarIndicator {
         switch session.state {
         case .working: return .dots
@@ -987,7 +987,7 @@ struct NotchCardView: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            // 盾盾的位置：NotchRoot 里那只飞过来（docs/ui.md「卡片」7）
+            // Pip 的位置：NotchRoot 里那只飞过来（docs/ui.md「卡片」7）
             Color.clear.frame(width: NotchLayout.dashCorner, height: NotchLayout.dashCorner)
             VStack(alignment: .leading, spacing: 2) {
                 Text(card.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(.white)

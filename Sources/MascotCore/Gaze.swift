@@ -1,6 +1,6 @@
 import CoreGraphics
 
-/// 鼠标在哪，盾盾就往哪看：输入鼠标相对身体圆心的位移，输出头的 yaw / pitch（弧度）。
+/// 鼠标在哪，Pip 就往哪看：输入鼠标相对身体圆心的位移，输出头的 yaw / pitch（弧度）。
 /// 不知道鼠标从哪来、什么时候回正（App），也不知道怎么转过去（`Choreography.followSpring`）。
 /// 数字出自 docs/mascot.md §5「跟随鼠标」：两轴各自线性，400pt 处到最大角度，再远停在最大角度。
 public struct Gaze: Equatable, Sendable {

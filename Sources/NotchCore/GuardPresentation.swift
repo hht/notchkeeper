@@ -74,7 +74,7 @@ public struct GuardPresentation: Equatable, Sendable {
         }
     }
 
-    /// 盾盾画成哪个守卫造型；没有守卫的事时是 idle（docs/mascot.md §2）
+    /// Pip 画成哪个守卫造型；没有守卫的事时是 idle（docs/mascot.md §2）
     public var look: Look {
         switch status {
         case .healthy, .probeFailed: return .idle

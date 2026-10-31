@@ -21,7 +21,7 @@ final class AppState: ObservableObject {
     /// Claude Code 各会话合起来此刻是什么（AgentCore 判定）；没有要画的是 nil
     @Published private(set) var agentActivity: AgentActivity?
 
-    /// 盾盾画哪个（docs/mascot.md §2「优先级」）：守卫的事 > agent > 空闲。晕、睡着在外面叠，完整的优先级第 4 步归 NotchCore
+    /// Pip 画哪个（docs/mascot.md §2「优先级」）：守卫的事 > agent > 空闲。晕、睡着在外面叠，完整的优先级第 4 步归 NotchCore
     var look: Look { presentation.look != .idle ? presentation.look : agentActivity.map(Look.init) ?? .idle }
 
     private var violationAlert: ViolationAlert

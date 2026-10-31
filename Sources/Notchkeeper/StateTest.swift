@@ -1,6 +1,6 @@
 import MascotCore
 
-// 设置里的「状态测试」：强制盾盾显示某个状态、把刘海固定展开或收起，方便看效果。
+// 设置里的「状态测试」：强制 Pip 显示某个状态、把刘海固定展开或收起，方便看效果。
 // 只在内存里：不写 config.json、不写 guard-state.json、不碰 guardd，重开 App 就回到真实状态。
 // 存放和改动在 Notch.swift 的 NotchOverrides / NotchController，这里只是两张表。
 

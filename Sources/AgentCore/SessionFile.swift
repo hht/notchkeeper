@@ -20,7 +20,7 @@ public enum AgentState: Equatable, Sendable {
     case stopped
     case needsYou(Need)
 
-    /// 需要你介入的是哪一类：决定盾盾是 question 还是 approval（docs/mascot.md §2）
+    /// 需要你介入的是哪一类：决定 Pip 是 question 还是 approval（docs/mascot.md §2）
     public enum Need: Sendable {
         case question
         case approval

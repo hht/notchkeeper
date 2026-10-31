@@ -3,7 +3,7 @@ import CoreGraphics
 /// 闭合多边形的顶点，画布单位
 public typealias EyeOutline = [CGPoint]
 
-/// 盾盾的眼睛长什么样，以及两种眼形之间怎么逐点补间。
+/// Pip 的眼睛长什么样，以及两种眼形之间怎么逐点补间。
 /// 不知道眼睛贴在球面上怎么转（`Sphere`、App 的图层树），也不知道什么时候换（App）。
 ///
 /// Core Animation 只在两条路径点数、结构完全相同时才能逐点补间，所以所有眼形（实心的、描边的）都化成

@@ -1,4 +1,4 @@
-/// 空闲时盾盾什么时候眨眼、什么时候做哪个小动作。全 App 只有一个，左耳和面板里的盾盾同步。
+/// 空闲时 Pip 什么时候眨眼、什么时候做哪个小动作。全 App 只有一个，左耳和面板里的 Pip 同步。
 /// 不知道现在是不是空闲、看不看得见、鼠标在哪（App 决定要不要问它、问到的提示播不播），也不知道动作长什么样（`Choreography`）。
 /// 时间和随机数都从参数进来：同一个种子、同一串调用，结果完全一样。
 public struct IdleDirector: Sendable {
@@ -37,7 +37,7 @@ public struct IdleDirector: Sendable {
         return out
     }
 
-    /// 鼠标在动、盾盾在看鼠标时不做小动作：停下以后至少再等最短间隔
+    /// 鼠标在动、Pip 在看鼠标时不做小动作：停下以后至少再等最短间隔
     public mutating func postponeMotions(until t: Double) {
         nextMotion = max(nextMotion, t + Self.motionGap.lowerBound)
     }

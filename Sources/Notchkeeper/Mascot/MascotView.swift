@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 import MascotCore
 
-/// 盾盾嵌进 SwiftUI 的地方。
+/// Pip 嵌进 SwiftUI 的地方。
 /// 布局占 size × size，正好是身体圆的外框；画布按 docs/mascot.md §1 的比例画在 overlay 里，装饰在右上方出框。
 /// size ≤ 24 用 20pt 画法（左耳），更大用 40pt 画法按比例缩放（面板、卡片、设置页）。
 /// 这里只决定画哪个造型（开心、犯困盖不盖过调用方给的造型）；怎么画、怎么动见 `MascotFigureView`。
@@ -39,8 +39,8 @@ struct MascotView: View {
                     .allowsHitTesting(false)
             }
             .accessibilityElement()
-            .accessibilityLabel("盾盾")
-            // 盾盾用表情表达状态，旁白要能念出来（HIG Accessibility）
+            .accessibilityLabel("Pip")
+            // Pip 用表情表达状态，旁白要能念出来（HIG Accessibility）
             .accessibilityValue(shown.title)
     }
 }

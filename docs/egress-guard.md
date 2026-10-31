@@ -67,7 +67,7 @@ App 订阅 `GuardStateWatcher`，自己不探测。**监听目录不监听文件
 | stale / clockSkew 且上次是 violated | 红卡保留，不再响 |
 | violated 且防火墙已开、状态摘要新鲜、核对通过（第 5 步，`docs/firewall.md`） | 红卡、锁图标、不响：「代理断开，防火墙已拦住外网」 |
 
-收起时右耳显示什么由盾盾造型决定（`docs/mascot.md` §2）。
+收起时右耳显示什么由 Pip 造型决定（`docs/mascot.md` §2）。
 
 - **关掉红卡**：记下这次的 `violatedSince`，之后同一次不再弹，状态点照画（违规红点、守卫不响应灰环）；不同的 `violatedSince` 是新的一次，照弹。只在内存，App 重启后会再弹一次（宁可多提醒）。
 - **和临时卡共用刘海**：见 `docs/ui.md`「卡片」。

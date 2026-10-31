@@ -19,7 +19,7 @@ public enum AgentActivity: Comparable, Sendable {
 
 /// 回答：看着哪些会话、各自此刻什么状态、刚刚发生了哪件该提醒的事。
 /// 两路输入：sessions 文件管此刻的状态，mod 的回合文件管回合怎么结束的（docs/agent-integration.md「两个来源」），按 sessionId 对上。
-/// 纯状态机：喂进解析好的 `Session`、`TurnReport` 和当前时间；不读文件、不查进程、不起定时器，也不知道盾盾和卡片。
+/// 纯状态机：喂进解析好的 `Session`、`TurnReport` 和当前时间；不读文件、不查进程、不起定时器，也不知道 Pip 和卡片。
 public struct AgentBoard: Sendable {
     /// pid → 最近一次看到的会话，和它这一段工作的开始时刻（已停止时为 nil）
     private var tracked: [Int32: (session: Session, workStart: Date?)] = [:]

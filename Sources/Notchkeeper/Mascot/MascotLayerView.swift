@@ -2,7 +2,7 @@ import AppKit
 import QuartzCore
 import MascotCore
 
-/// 盾盾和右耳共用的两件事：此刻看不看得见；把 MascotCore 的 `Track` 提交成 Core Animation 动画。
+/// Pip 和右耳共用的两件事：此刻看不看得见；把 MascotCore 的 `Track` 提交成 Core Animation 动画。
 /// 不知道画的是什么（子类搭图层树、给出 `Part` 对应哪一层）。
 ///
 /// 看得见 = 外面说在画（`playing`）、在窗口里、窗口没收起也没被完全挡住、没熄屏也没锁屏（docs/mascot.md §5「渲染」）。

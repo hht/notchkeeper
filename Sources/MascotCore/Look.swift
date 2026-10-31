@@ -1,6 +1,6 @@
 import CoreGraphics
 
-/// 盾盾此刻是哪个造型、这个造型长什么样（颜色、头的朝向、睁不睁眼、装饰算哪一类、右耳）。
+/// Pip 此刻是哪个造型、这个造型长什么样（颜色、头的朝向、睁不睁眼、装饰算哪一类、右耳）。
 /// 不知道造型从哪来（守卫、agent、鼠标），那是 App 的事；眼形见 `Eyes`，装饰见 `decoration(_:)`，怎么动见 `Choreography`。
 /// 数据全部出自 docs/mascot.md §2。
 public enum Look: String, CaseIterable, Sendable {
@@ -50,7 +50,7 @@ public enum Look: String, CaseIterable, Sendable {
         }
     }
 
-    /// 装饰是告示（sign）：收起时挪到右耳当图标，左耳只留脸。其余有装饰的是心情装饰（mood），留在盾盾身上
+    /// 装饰是告示（sign）：收起时挪到右耳当图标，左耳只留脸。其余有装饰的是心情装饰（mood），留在 Pip 身上
     public var isSign: Bool {
         switch self {
         case .error, .offline, .mismatch, .stale, .danger, .shielded: return true

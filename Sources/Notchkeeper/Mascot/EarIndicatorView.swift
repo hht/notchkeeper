@@ -25,8 +25,8 @@ struct EarIndicatorView: NSViewRepresentable {
     }
 }
 
-/// 右耳图层：点、三蓝点、灰环，或者某个造型的装饰（和 40pt 盾盾右上角的一样大、一样动）。
-/// 换指示时和盾盾换装饰一样：旧的缩小淡出，新的弹出
+/// 右耳图层：点、三蓝点、灰环，或者某个造型的装饰（和 40pt Pip 右上角的一样大、一样动）。
+/// 换指示时和 Pip 换装饰一样：旧的缩小淡出，新的弹出
 @MainActor
 final class EarLayerView: MascotLayerView {
     private let center: CGPoint

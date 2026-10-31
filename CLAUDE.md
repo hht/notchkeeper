@@ -9,7 +9,7 @@ Haitao 本机自用的 macOS 刘海应用。SwiftPM 构建，SwiftUI + AppKit，
 1. **出口守卫（只监测）**：用户级 LaunchAgent `guardd` 检查 Clash、utun 路由和出口 IPv4，写进 `guard-state.json`；App 监听这个文件，在刘海上显示。
 2. **防火墙（一键开关）**：开启后，除局域网外不走 Clash 隧道的出站流量一律丢弃；关闭后完全不拦。
 3. **任务完成卡片**：Claude Code 的顶层回合结束或需要你介入时，在刘海弹卡。
-4. **盾盾**：原创吉祥物，在左耳、面板和卡片里用表情说现在是什么状态。
+4. **Pip**：原创吉祥物，在左耳、面板和卡片里用表情说现在是什么状态。
 
 现状与待办见 `HANDOFF.md`，运行与安装见 `README.md`，每个 target 的职责见 `Package.swift` 的注释。
 
@@ -43,7 +43,7 @@ Haitao 本机自用的 macOS 刘海应用。SwiftPM 构建，SwiftUI + AppKit，
 - **只读元数据，不读对话内容。** 会话文件只取判定需要的字段；日志和界面不出现消息正文、工具参数和输出；mod 只写出元数据。唯一例外：跳转 Ghostty 时读到的终端标题只在内存里找标记、原样写回，不显示、不进日志。
 - **除防火墙外不碰网络与 shell 环境。** 不改 `~/.zshrc` 和系统网络设置；出口探测只请求第三方服务，不碰 Claude / Anthropic 的域名；guardd 不要 sudo。
 - **密钥不打印，日志不记 IP**（界面上完整显示出口 IP）。测试与文档里的 IP 用 `198.51.100.x`。
-- **品牌**：盾盾是原创角色，不用 Grok、Codex、Coucou、Mochi 等别家的名字、形象和音效；会话行可以用 agent 厂商的标志。从 Coucou（MIT）移植的代码在第 4 步重写删掉之前，保留 MIT 声明和设置页致谢。
+- **品牌**：Pip 是原创角色，不用 Grok、Codex、Coucou、Mochi 等别家的名字、形象和音效；会话行可以用 agent 厂商的标志。从 Coucou（MIT）移植的代码在第 4 步重写删掉之前，保留 MIT 声明和设置页致谢。
 - **看不见就不调度。** 收起、被遮挡、熄屏、锁屏时停掉动画和计时器。性能验收数字见 `docs/mascot.md`。
 
 ## 界面
@@ -65,7 +65,7 @@ Haitao 本机自用的 macOS 刘海应用。SwiftPM 构建，SwiftUI + AppKit，
 | 守卫判定、`guard-state.json`、怎么画 | `docs/egress-guard.md` |
 | 会话怎么读、回合结束、声音 | `docs/agent-integration.md` |
 | 防火墙 | `docs/firewall.md` |
-| 盾盾造型、动效、性能验收 | `docs/mascot.md` |
+| Pip 造型、动效、性能验收 | `docs/mascot.md` |
 | 卡片、面板、亮暗、多语言 | `docs/ui.md` |
 | 起名字 | `docs/ubiquitous-language.md` |
 
@@ -79,7 +79,7 @@ Haitao 本机自用的 macOS 刘海应用。SwiftPM 构建，SwiftUI + AppKit，
 ## 风格与命名
 
 - 照 [Swift API Design Guidelines](https://www.swift.org/documentation/api-design-guidelines/)：缩写大小写一致（`IP`、`URL`、`ID`）；优先值类型和 `enum` 状态机；错误用 `throws`；UI 状态只在 `@MainActor` 上改；外部数据不强制解包。
-- 同一概念只有一个名字（`docs/ubiquitous-language.md`）；盾盾在代码里用 `Mascot` 前缀。
+- 同一概念只有一个名字（`docs/ubiquitous-language.md`）；Pip 在代码里用 `Mascot` 前缀。
 - 配置与状态文件：JSON 字段 lowerCamelCase，缺失字段用默认值，未知字段忽略，时间用 ISO 8601。
 - 注释写为什么，不写做了什么；依赖外部行为的地方标 `@see`。
 - 每个 target 的职责写在 `Package.swift` 的注释和类型注释里，不写包 README。
