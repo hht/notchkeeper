@@ -9,7 +9,7 @@ Haitao 本机自用的 macOS 刘海应用（SwiftPM，SwiftUI + AppKit，macOS 1
 ## 准则
 
 1. **删除优先。** 每行代码都要答得出「删掉会坏什么」，答不出就删（可读性不降的前提下）。只转发、只换名字、只有一个调用方的函数和类型一律内联。不为没出现的需求写代码。
-2. **一个模块一个问题。** 按会独立变化的设计决定划分 target 和文件，不按 View / Model / Manager 切；类型注释第一句写它回答哪个问题、不该知道什么。核心 target（`GuardCore`、`AgentCore`、`MascotCore`、`NotchCore`）是纯值类型，不 import SwiftUI / AppKit，依赖单向无环；文件监听、探针、pf、画界面放外层。
+2. **一个模块一个问题。** 按会独立变化的设计决定划分 target 和文件，不按 View / Model / Manager 切；类型注释第一句写它回答哪个问题、不该知道什么。核心 target（`GuardCore`、`AgentCore`、`MascotCore`、`NotchCore`、`PluginCore`）是纯值类型，不 import SwiftUI / AppKit，依赖单向无环；文件监听、探针、pf、画界面放外层。
 3. **本质对、分支少。** 先定数据结构、状态机与不变量；同一件事只有一个 owner；要调速先测量。
 4. **测试先行。** 新行为、新规则、修 bug 先写会失败的测试，亲眼看它红。时间、随机数、文件系统、探针、进程表都从参数注入。测不了的（窗口、动效、权限弹窗、pf）在提交说明里写实机步骤和结果。
 5. **信任边界。** 外部数据（sessions、回合文件、`config.json`、`guard-state.json`、防火墙状态、探针响应、`proc_pidpath`）在边界解析成精确类型；**「未知」是一个值**，不是 healthy 也不是 violated；解析不了的计数并降级，不崩溃、不覆盖原文件；内部不变量坏了就 `preconditionFailure`。
