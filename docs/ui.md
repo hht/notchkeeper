@@ -89,7 +89,7 @@
 | 9 | 点按打开 App 里相关的位置；展开态的交互尽量只有一个（HIG） | 点卡片跳到 Ghostty 里这个会话；卡上唯一的按钮是 × |
 | 10 | 收起态左右平衡、紧贴摄像头（HIG compact） | 右耳指示在耳朵可见部分正中，和左耳 Pip 对称；不随内容收窄（三点常亮常灭，宽度跟着变反而打扰） |
 | 11 | 字用 medium 以上，小字少用；≤ 17pt 对比度至少 4.5:1；macOS 最小字号 10pt（HIG、HIG Accessibility、HIG Typography） | 小字 medium、白 0.5 以上；× 的 10pt 已在下限 |
-| 12 | 减弱动态效果：位移、缩放换成淡入淡出，不做模糊进出，收紧弹簧（HIG Accessibility） | 内容、Pip、徽章只淡入淡出；黑色形状照常弹簧，还没收紧（`HANDOFF.md`） |
+| 12 | 减弱动态效果：位移、缩放换成淡入淡出，不做模糊进出，收紧弹簧（HIG Accessibility） | 内容、Pip、徽章只淡入淡出；黑色形状的弹簧收紧到不回弹（`NotchSpring`） |
 | 13 | VoiceOver 能读到状态；动效不能是传达重要信息的唯一途径（HIG Accessibility、HIG Motion） | Pip 有 `accessibilityValue`，弹卡时播报标题；状态 = 颜色 + 图标 + 文案 + 声音 |
 | 14 | 同心：内圆角 = 外圆角 − 边距；内容紧贴顶部，不留「额头」（HIG、WWDC23 10194） | 面板满足（外圆角 28、边距 14、会话容器 14）；卡片左右边距按 Pip 对齐线定，不按这条；面板里的 Pip 在刘海左侧、紧贴刘海 |
 

@@ -57,9 +57,16 @@ extension FileManager {
     }
 }
 
-/// 刘海展开（含弹卡）、收起、卡片放完回到面板、面板行数变化的弹簧，只在这里定义（docs/mascot.md §5「收起与展开」）
+/// 刘海展开（含弹卡）、收起、卡片放完回到面板、面板行数变化的弹簧，只在这里定义（docs/mascot.md §5「收起与展开」）。
+/// 开了「减弱动态效果」就收紧成不回弹的（HIG Accessibility："Tightening animation springs to reduce bounce effects"）；
+/// 每次取都看一眼系统设置，改了马上生效
+/// @see https://developer.apple.com/design/human-interface-guidelines/accessibility
 enum NotchSpring {
-    static let page = Animation.spring(response: 0.42, dampingFraction: 0.84)
-    static let notchOpen = Animation.spring(response: 0.5, dampingFraction: 0.7)
-    static let notchClose = Animation.spring(response: 0.38, dampingFraction: 0.88)
+    static var page: Animation { spring(response: 0.42, dampingFraction: 0.84) }
+    static var notchOpen: Animation { spring(response: 0.5, dampingFraction: 0.7) }
+    static var notchClose: Animation { spring(response: 0.38, dampingFraction: 0.88) }
+
+    private static func spring(response: Double, dampingFraction: Double) -> Animation {
+        .spring(response: response, dampingFraction: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 1 : dampingFraction)
+    }
 }
