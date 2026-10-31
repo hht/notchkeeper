@@ -23,7 +23,6 @@
 - 设置 › 通用「在系统设置中更改语言…」跳到「语言与地区」；在「App」里给 Notchkeeper 选 English 生不生效。
 - 减弱动态效果时黑色形状不回弹（要切系统设置，先问用户）。
 - 悬停：10-31 第一次试时停 0.9 秒没展开，之后 7 次都在 0.5 秒内展开；推断那次用户正在动鼠标。再遇到记下当时鼠标在哪。
-- 空闲 CPU（见「等实机验证」）。
 
 **第 5 步：防火墙**：root 实测 → 恢复脚本并实测 → 试运行和自动回滚 → 规则、LaunchDaemon、安装脚本、App 开关；shielded 造型接线。按全局 Contract「高影响」档收工。IPv6 一起处理。
 
@@ -36,7 +35,7 @@
 - **面板**：减弱动态效果时 Pip 和徽章原地淡入淡出（要切系统设置，先问用户）；finished 的星、sleeping 的 Z 可能顶出面板上沿被裁（推断）；已停止的会话行；左耳 Pip 可能总低着头（推断）；设置页预览可能不跟鼠标（推断）。
 - **灵动岛规范**（`docs/ui.md`）：IP 换值时数字滚动、徽章图标替换、VoiceOver 弹卡播报。
 - **设置页**：`config.json` 解不开时的横幅（要临时改坏真实配置，先备份；横幅的黄和琥珀容易混）；亮色截图（要切系统外观，先问用户）。
-- **空闲 CPU**：没测到干净的数（10-29 有人操作时 2.62%）。方法：`run.sh` 后取 pid；循环读 `ioreg -c IOHIDSystem` 的 `HIDIdleTime`，≥ 30s 无人操作才用 `top -l 2 -s 1 -pid <pid> -stats pid,cpu` 取样，采样后仍无人操作才留，攒 60 个求平均。App 和 WindowServer 都量（disc 栅格化的代价算在哪边没核实），最坏用 working 造型；Instruments 的 Core Animation 工具看 disc 有没有命中缓存。验收数字见 `docs/mascot.md`「性能验收」。
+- **空闲 CPU**：App 这边 10-31 测过、达标（数在那次提交说明里）。还没做的：WindowServer 那边算不出多少是我们的（disc 栅格化的代价算在哪边没核实），最坏的 working 造型没单独测；Instruments 的 Core Animation 工具看 disc 有没有命中缓存。方法：`run.sh` 后取 pid；循环读 `ioreg -c IOHIDSystem` 的 `HIDIdleTime`，≥ 30s 无人操作才用 `top -l 2 -s 1 -pid <pid> -stats pid,cpu` 取样，采样后仍无人操作才留，攒 60 个求平均，App 和 WindowServer 都量。验收数字见 `docs/mascot.md`「性能验收」。
 
 ## 已知问题
 
