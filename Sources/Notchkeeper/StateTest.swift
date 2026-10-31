@@ -11,9 +11,9 @@ enum NotchPin: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .auto: return "自动"
-        case .open: return "固定展开"
-        case .closed: return "固定收起"
+        case .auto: return String(localized: "自动")
+        case .open: return String(localized: "固定展开")
+        case .closed: return String(localized: "固定收起")
         }
     }
 }

@@ -15,6 +15,10 @@ cp Support/Info.plist "$APP/Contents/Info.plist"
 rsync -a --exclude tests --exclude types --exclude tsconfig.json ClaudeMod/ "$APP/Contents/Resources/ClaudeMod/"
 # 终端插件（Resources/plugins/terminal）和它调的 nk：设置页安装时从这里拷出去
 rsync -a Resources/plugins/ "$APP/Contents/Resources/plugins/"
+# String Catalog：swift build 不编译 .xcstrings，在这里编进各语言的 .lproj（docs/ui.md「多语言」）
+for catalog in Resources/*.xcstrings; do
+  xcrun xcstringstool compile "$catalog" --output-directory "$APP/Contents/Resources"
+done
 cp "$(dirname "$BIN")/nk" "$APP/Contents/MacOS/nk"
 echo "==> codesign (ad-hoc)"
 # 包里另一个可执行文件要先签，再签整个包

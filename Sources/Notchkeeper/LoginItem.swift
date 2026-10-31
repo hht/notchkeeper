@@ -7,11 +7,11 @@ enum LoginItem {
 
     static func text(_ status: SMAppService.Status) -> String {
         switch status {
-        case .enabled: return "已启用"
-        case .requiresApproval: return "需要在「系统设置 › 通用 › 登录项」里允许"
-        case .notRegistered: return "未启用"
-        case .notFound: return "找不到 App，可能被移动过。关掉再打开一次即可。"
-        @unknown default: return "未知状态"
+        case .enabled: return String(localized: "已启用")
+        case .requiresApproval: return String(localized: "需要在「系统设置 › 通用 › 登录项」里允许")
+        case .notRegistered: return String(localized: "未启用")
+        case .notFound: return String(localized: "找不到 App，可能被移动过。关掉再打开一次即可。")
+        @unknown default: return String(localized: "未知状态")
         }
     }
 

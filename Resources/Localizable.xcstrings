@@ -1,0 +1,1833 @@
+{
+  "sourceLanguage": "zh-Hans",
+  "strings": {
+    "%@://": {
+      "shouldTranslate": false
+    },
+    "%@前": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ ago"
+          }
+        }
+      }
+    },
+    "%lld 秒": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld s"
+          }
+        }
+      }
+    },
+    "Claude Code": {
+      "shouldTranslate": false
+    },
+    "Claude Code 做完了": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude Code is done"
+          }
+        }
+      }
+    },
+    "Claude Code 出错了": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude Code hit an error"
+          }
+        }
+      }
+    },
+    "Claude Code 在等你回答": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude Code is waiting for your answer"
+          }
+        }
+      }
+    },
+    "Claude Code 在等你批准": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude Code is waiting for your approval"
+          }
+        }
+      }
+    },
+    "Notchkeeper": {
+      "shouldTranslate": false
+    },
+    "Pip": {
+      "shouldTranslate": false
+    },
+    "zsh 里的命令跑了 10 秒以上，结束时弹一张卡，点了跳回那个终端。只有焦点正停在跑这条命令的那个终端上（同一窗口的别的标签、分屏都不算）时不弹。只把命令名交出 shell，参数不出去。vim、ssh、top 这类全屏或交互的命令不弹。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When a zsh command that ran for 10 seconds or more finishes, a card pops up; click it to jump back to that terminal. No card if you're focused on the very terminal running the command (other tabs or splits in the same window don't count). Only the command name leaves the shell, never its arguments. Full-screen or interactive commands like vim, ssh and top don't pop cards."
+          }
+        }
+      }
+    },
+    "—": {
+      "shouldTranslate": false
+    },
+    "上下翻圈": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Flip"
+          }
+        }
+      }
+    },
+    "上次检查": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last Check"
+          }
+        }
+      }
+    },
+    "上移": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move Up"
+          }
+        }
+      }
+    },
+    "下移": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move Down"
+          }
+        }
+      }
+    },
+    "不常驻": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "None"
+          }
+        }
+      }
+    },
+    "不弹卡，面板里不列会话": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No cards, and no sessions in the panel"
+          }
+        }
+      }
+    },
+    "不弹红卡，Pip 和面板不显示出口；后台守卫照常检查": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No red card; Pip and the panel don't show the egress. The guard keeps checking in the background"
+          }
+        }
+      }
+    },
+    "不是有效的 IPv4 地址，或已在列表里。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not a valid IPv4 address, or already in the list."
+          }
+        }
+      }
+    },
+    "不是有效的 scheme，或已在列表里。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not a valid scheme, or already in the list."
+          }
+        }
+      }
+    },
+    "东张西望": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Look Around"
+          }
+        }
+      }
+    },
+    "会话列表，做完、出错、等你时弹卡": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Session list; cards when done, on errors, or when waiting for you"
+          }
+        }
+      }
+    },
+    "低头看脚": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Look Down"
+          }
+        }
+      }
+    },
+    "例如 198.51.100.10": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "e.g. 198.51.100.10"
+          }
+        }
+      }
+    },
+    "例如 raycast": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "e.g. raycast"
+          }
+        }
+      }
+    },
+    "侧身 90°": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn 90°"
+          }
+        }
+      }
+    },
+    "允许的出口 IPv4": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allowed Egress IPv4"
+          }
+        }
+      }
+    },
+    "全选": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select All"
+          }
+        }
+      }
+    },
+    "关于": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "About"
+          }
+        }
+      }
+    },
+    "关掉后左耳不画 Pip，右耳也没东西时就是一块纯黑的刘海；展开和弹卡时照常出来": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When off, the left ear has no Pip, and with nothing on the right ear the notch is plain black. Pip still appears when expanded and on cards"
+          }
+        }
+      }
+    },
+    "关掉后红卡撤下，Pip 和面板不再显示出口；后台守卫照常检查，再打开马上恢复。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The red card goes away and Pip and the panel stop showing the egress. The guard keeps checking in the background; turn it back on to restore everything right away."
+          }
+        }
+      }
+    },
+    "关掉提醒": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn Off Alerts"
+          }
+        }
+      }
+    },
+    "关掉的是提醒，不是判定：出口守卫照常检查。外部插件在 ~/Library/Application Support/Notchkeeper/plugins/<id>/manifest.json 登记，关掉后它发来的卡和活动都丢掉。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turning a plugin off silences its alerts, not its checks: the egress guard keeps checking. External plugins register in ~/Library/Application Support/Notchkeeper/plugins/<id>/manifest.json; when one is off, its cards and activities are dropped."
+          }
+        }
+      }
+    },
+    "关闭": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close"
+          }
+        }
+      }
+    },
+    "出口 IP 和预期不一致": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Egress IP isn't the expected one"
+          }
+        }
+      }
+    },
+    "出口不合规": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Egress not compliant"
+          }
+        }
+      }
+    },
+    "出口不合规时弹出红卡": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show a red card when the egress isn't compliant"
+          }
+        }
+      }
+    },
+    "出口不合规时弹红卡，面板顶上显示出口": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Red card when the egress isn't compliant; egress shown at the top of the panel"
+          }
+        }
+      }
+    },
+    "出口不符": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Egress Mismatch"
+          }
+        }
+      }
+    },
+    "出口仍不合规，确定关掉提醒？": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The egress is still not compliant. Turn off alerts anyway?"
+          }
+        }
+      }
+    },
+    "出口守卫": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Egress Guard"
+          }
+        }
+      }
+    },
+    "出口守卫固定在最上面。各段合起来至多露 %lld 行，排在前面的先拿；多的在段里滚动。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The egress guard stays on top. All sections together show at most %lld rows, earlier sections first; the rest scroll inside their section."
+          }
+        }
+      }
+    },
+    "出口已恢复": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Egress recovered"
+          }
+        }
+      }
+    },
+    "出口检查于 %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Egress checked %@"
+          }
+        }
+      }
+    },
+    "出口正常": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Egress OK"
+          }
+        }
+      }
+    },
+    "出口还没检查过": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Egress not checked yet"
+          }
+        }
+      }
+    },
+    "出错": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Error"
+          }
+        }
+      }
+    },
+    "切换 App": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switch App"
+          }
+        }
+      }
+    },
+    "列表为空时守卫无法判断出口是否正确，只能显示「暂时查不到出口」（没走隧道仍会报不合规）。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "With an empty list the guard can't tell whether the egress is right and can only show “Egress unavailable for now” (traffic outside the tunnel is still reported as not compliant)."
+          }
+        }
+      }
+    },
+    "刘海": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notch"
+          }
+        }
+      }
+    },
+    "剪切": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cut"
+          }
+        }
+      }
+    },
+    "卡片停留": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Card Duration"
+          }
+        }
+      }
+    },
+    "卡片和面板里的链接默认只打开 https。这里加的 scheme 也放行：它们能让别的 App 执行动作，只加你信得过的。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Links in cards and the panel only open https by default. Schemes added here are allowed too; they can make other apps perform actions, so only add ones you trust."
+          }
+        }
+      }
+    },
+    "危险": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Danger"
+          }
+        }
+      }
+    },
+    "卸载": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uninstall"
+          }
+        }
+      }
+    },
+    "只改 Pip 和刘海的样子，不改出口判定，也不弹红卡、不响；真的红卡照常弹出。不写任何文件，重开 App 就恢复。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only changes how Pip and the notch look: no change to the egress verdict, no red card, no sound. Real red cards still pop up. Nothing is written to disk; relaunching the app restores everything."
+          }
+        }
+      }
+    },
+    "启动": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Startup"
+          }
+        }
+      }
+    },
+    "命令跑完时弹卡": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Card When a Command Finishes"
+          }
+        }
+      }
+    },
+    "固定展开": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Always Open"
+          }
+        }
+      }
+    },
+    "固定收起": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Always Closed"
+          }
+        }
+      }
+    },
+    "在 Claude Code 里装一个 Notchkeeper 自带的 mod，它只记下每个回合怎么结束的，不记对话内容。安装会在 ~/.claude/settings.json 里加一项插件；卸载会去掉。已经开着的会话要重开或运行 /reload-plugins 才生效。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installs a mod that ships with Notchkeeper into Claude Code. It only records how each turn ended, never the conversation. Installing adds a plugin entry to ~/.claude/settings.json; uninstalling removes it. Sessions already open need a restart or /reload-plugins."
+          }
+        }
+      }
+    },
+    "在 Ghostty 中打开": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open in Ghostty"
+          }
+        }
+      }
+    },
+    "在系统设置中批准": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Approve in System Settings"
+          }
+        }
+      }
+    },
+    "在系统设置中更改语言…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Change Language in System Settings…"
+          }
+        }
+      }
+    },
+    "在访达中显示": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show in Finder"
+          }
+        }
+      }
+    },
+    "外部插件 · %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "External plugin · %@"
+          }
+        }
+      }
+    },
+    "好奇歪看": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Curious Tilt"
+          }
+        }
+      }
+    },
+    "守卫没响应": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guard Unresponsive"
+          }
+        }
+      }
+    },
+    "守卫没有响应": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The guard isn't responding"
+          }
+        }
+      }
+    },
+    "守卫没有响应，无法确认出口是否恢复": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The guard isn't responding, so recovery can't be confirmed"
+          }
+        }
+      }
+    },
+    "安装": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Install"
+          }
+        }
+      }
+    },
+    "完成": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done"
+          }
+        }
+      }
+    },
+    "完成 Glass · 出错 Funk · 等你 Ping · 出口不合规 Basso": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done: Glass · Error: Funk · Waiting: Ping · Not compliant: Basso"
+          }
+        }
+      }
+    },
+    "完成卡和出错卡": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done and Error Cards"
+          }
+        }
+      }
+    },
+    "完成跳转": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Victory Hop"
+          }
+        }
+      }
+    },
+    "工作": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Working"
+          }
+        }
+      }
+    },
+    "工作中": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Working"
+          }
+        }
+      }
+    },
+    "左右转圈": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spin"
+          }
+        }
+      }
+    },
+    "已停止": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stopped"
+          }
+        }
+      }
+    },
+    "已启用": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On"
+          }
+        }
+      }
+    },
+    "已安装，但在 Claude Code 里关掉了（/plugin 里打开）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installed, but turned off in Claude Code (turn it on in /plugin)"
+          }
+        }
+      }
+    },
+    "已安装：回合做完、出错时弹卡": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installed: cards when a turn is done or hits an error"
+          }
+        }
+      }
+    },
+    "已安装：在 ~/.zshrc 里加上下面这行，新开的终端生效": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installed: add the line below to ~/.zshrc; new terminals pick it up"
+          }
+        }
+      }
+    },
+    "常驻插件": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resident Plugin"
+          }
+        }
+      }
+    },
+    "干了很久": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Long Turn"
+          }
+        }
+      }
+    },
+    "强制显示": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Force Display"
+          }
+        }
+      }
+    },
+    "强制：%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Forced: %@"
+          }
+        }
+      }
+    },
+    "当前出口": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Current Egress"
+          }
+        }
+      }
+    },
+    "当前状态": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Current Status"
+          }
+        }
+      }
+    },
+    "思考": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thinking"
+          }
+        }
+      }
+    },
+    "恢复真实状态": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restore Real State"
+          }
+        }
+      }
+    },
+    "打开": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open"
+          }
+        }
+      }
+    },
+    "打开…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open…"
+          }
+        }
+      }
+    },
+    "打开插件": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn On Plugin"
+          }
+        }
+      }
+    },
+    "打开插件设置": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Plugin Settings"
+          }
+        }
+      }
+    },
+    "打开配置文件": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Config File"
+          }
+        }
+      }
+    },
+    "打开链接": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Link"
+          }
+        }
+      }
+    },
+    "找不到 App，可能被移动过。关掉再打开一次即可。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Can't find the app; it may have been moved. Turn this off and on again."
+          }
+        }
+      }
+    },
+    "找不到 claude": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Can't find claude"
+          }
+        }
+      }
+    },
+    "抬头看天": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Look Up"
+          }
+        }
+      }
+    },
+    "拷贝": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy"
+          }
+        }
+      }
+    },
+    "拷贝出口 IP": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy Egress IP"
+          }
+        }
+      }
+    },
+    "提示": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alerts"
+          }
+        }
+      }
+    },
+    "提示音": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sounds"
+          }
+        }
+      }
+    },
+    "插件": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plugins"
+          }
+        }
+      }
+    },
+    "摇头": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shake Head"
+          }
+        }
+      }
+    },
+    "撤销": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Undo"
+          }
+        }
+      }
+    },
+    "播放动作": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Play Motion"
+          }
+        }
+      }
+    },
+    "收起时": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When Closed"
+          }
+        }
+      }
+    },
+    "收起时显示 Pip": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Pip When Closed"
+          }
+        }
+      }
+    },
+    "文件": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Files"
+          }
+        }
+      }
+    },
+    "断网": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Offline"
+          }
+        }
+      }
+    },
+    "新增": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add"
+          }
+        }
+      }
+    },
+    "日志": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Log"
+          }
+        }
+      }
+    },
+    "显示出口状态和各插件的段": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shows the egress status and each plugin's section"
+          }
+        }
+      }
+    },
+    "晕": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dizzy"
+          }
+        }
+      }
+    },
+    "暂时查不到出口": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Egress unavailable for now"
+          }
+        }
+      }
+    },
+    "最多 %lld 行": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Up to %lld row"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Up to %lld rows"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "有插件在忙或要你看时，收起的刘海显示最急的那个；都平静时显示常驻插件的状态。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When a plugin is busy or needs you, the closed notch shows the most urgent one; when all are calm it shows the resident plugin."
+          }
+        }
+      }
+    },
+    "有流量没走 utun 隧道": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Some traffic isn't going through the utun tunnel"
+          }
+        }
+      }
+    },
+    "未启用": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Off"
+          }
+        }
+      }
+    },
+    "未知状态": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unknown"
+          }
+        }
+      }
+    },
+    "查不到装没装：%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't tell whether it's installed: %@"
+          }
+        }
+      }
+    },
+    "正在检查…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Checking…"
+          }
+        }
+      }
+    },
+    "歪头": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilt Head"
+          }
+        }
+      }
+    },
+    "没成功：%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Didn't work: %@"
+          }
+        }
+      }
+    },
+    "没找到 claude（只看 ~/.local/bin、/opt/homebrew/bin、/usr/local/bin）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "claude not found (looked in ~/.local/bin, /opt/homebrew/bin and /usr/local/bin)"
+          }
+        }
+      }
+    },
+    "没有看到正在运行的 Claude Code": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No running Claude Code"
+          }
+        }
+      }
+    },
+    "没有进行中的会话或活动": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No sessions or activities in progress"
+          }
+        }
+      }
+    },
+    "没装": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not installed"
+          }
+        }
+      }
+    },
+    "没装：只显示忙闲和等你，不弹完成卡、出错卡": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not installed: only busy and waiting states, no done or error cards"
+          }
+        }
+      }
+    },
+    "流量重新全部走 utun 隧道": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All traffic is back in the utun tunnel"
+          }
+        }
+      }
+    },
+    "添加": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add"
+          }
+        }
+      }
+    },
+    "点头": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nod"
+          }
+        }
+      }
+    },
+    "版本 %@（本机签名）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version %@ (signed locally)"
+          }
+        }
+      }
+    },
+    "状态": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Status"
+          }
+        }
+      }
+    },
+    "状态测试": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "State Test"
+          }
+        }
+      }
+    },
+    "登录时打开": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open at Login"
+          }
+        }
+      }
+    },
+    "看得见的 Pip 各播一次；开了「减弱动态效果」时只有眨眼。不写任何文件。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Every visible Pip plays it once; with Reduce Motion on, only blinking. Nothing is written to disk."
+          }
+        }
+      }
+    },
+    "真实状态": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Real State"
+          }
+        }
+      }
+    },
+    "真实状态：%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Real state: %@"
+          }
+        }
+      }
+    },
+    "眨眼": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blink"
+          }
+        }
+      }
+    },
+    "眼睛看着鼠标、身体往那边歪；鼠标到刘海上时探头。关掉后眼睛一直看正前方": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eyes follow the pointer and the body leans toward it; Pip peeks out when the pointer is on the notch. When off, Pip looks straight ahead"
+          }
+        }
+      }
+    },
+    "睡着": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Asleep"
+          }
+        }
+      }
+    },
+    "移除 %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove %@"
+          }
+        }
+      }
+    },
+    "空闲": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Idle"
+          }
+        }
+      }
+    },
+    "窗口": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Window"
+          }
+        }
+      }
+    },
+    "等你回答": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for Answer"
+          }
+        }
+      }
+    },
+    "等你批准": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for Approval"
+          }
+        }
+      }
+    },
+    "粘贴": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paste"
+          }
+        }
+      }
+    },
+    "红卡一直保留，直到恢复": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep the red card until recovered"
+          }
+        }
+      }
+    },
+    "终端": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terminal"
+          }
+        }
+      }
+    },
+    "编辑": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edit"
+          }
+        }
+      }
+    },
+    "网络不通，暂时没法检查出口": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No network, can't check the egress for now"
+          }
+        }
+      }
+    },
+    "自动": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto"
+          }
+        }
+      }
+    },
+    "被打断": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Interrupted"
+          }
+        }
+      }
+    },
+    "要你看": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Needs You"
+          }
+        }
+      }
+    },
+    "设置": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Settings"
+          }
+        }
+      }
+    },
+    "设置…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Settings…"
+          }
+        }
+      }
+    },
+    "语言": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Language"
+          }
+        }
+      }
+    },
+    "超时": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Timed out"
+          }
+        }
+      }
+    },
+    "跟随系统；也可以在「语言与地区」的「App」里单独给 Notchkeeper 选": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Follows the system. You can also pick one just for Notchkeeper under Applications in Language & Region"
+          }
+        }
+      }
+    },
+    "跟随鼠标": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Follow Pointer"
+          }
+        }
+      }
+    },
+    "还没有开启的插件": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No plugins turned on"
+          }
+        }
+      }
+    },
+    "这个插件关着": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This plugin is off"
+          }
+        }
+      }
+    },
+    "这个构建没带 mod，用 scripts/run.sh 打包的 App 才有": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This build doesn't include the mod; only apps packaged with scripts/run.sh do"
+          }
+        }
+      }
+    },
+    "这个构建没带终端插件，用 scripts/run.sh 打包的 App 才有": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This build doesn't include the terminal plugin; only apps packaged with scripts/run.sh do"
+          }
+        }
+      }
+    },
+    "进行中": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In Progress"
+          }
+        }
+      }
+    },
+    "退出": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quit"
+          }
+        }
+      }
+    },
+    "退出 Notchkeeper": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quit Notchkeeper"
+          }
+        }
+      }
+    },
+    "退出 Notchkeeper…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quit Notchkeeper…"
+          }
+        }
+      }
+    },
+    "退出 Notchkeeper？": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quit Notchkeeper?"
+          }
+        }
+      }
+    },
+    "退出后刘海和卡片提示会停止，后台守卫照常运行；要停守卫请用卸载脚本。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitting stops the notch and cards; the background guard keeps running. Use the uninstall script to stop the guard."
+          }
+        }
+      }
+    },
+    "退出码 %d": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Exit code %d"
+          }
+        }
+      }
+    },
+    "通用": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "General"
+          }
+        }
+      }
+    },
+    "配置文件": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Config File"
+          }
+        }
+      }
+    },
+    "配置文件解不开，设置暂时改不了。改好文件后自动恢复。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The config file can't be read, so settings can't be changed for now. They come back once the file is fixed."
+          }
+        }
+      }
+    },
+    "配置文件解不开，这里显示的是默认设置，不是文件里的列表。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The config file can't be read; this shows the defaults, not the list in the file."
+          }
+        }
+      }
+    },
+    "重做": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Redo"
+          }
+        }
+      }
+    },
+    "链接白名单": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allowed Link Schemes"
+          }
+        }
+      }
+    },
+    "防火墙守住": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shielded"
+          }
+        }
+      }
+    },
+    "需要在「系统设置 › 通用 › 登录项」里允许": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Needs approval in System Settings › General › Login Items"
+          }
+        }
+      }
+    },
+    "面板": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Panel"
+          }
+        }
+      }
+    },
+    "鼠标悬停时展开": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Expand on Hover"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

@@ -3,6 +3,8 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleIdentifier</key><string>local.hht.notchkeeper</string>
+    <key>CFBundleDevelopmentRegion</key><string>zh-Hans</string>
+    <key>CFBundleLocalizations</key><array><string>zh-Hans</string><string>en</string></array>
     <key>CFBundleName</key><string>Notchkeeper</string>
     <key>CFBundleDisplayName</key><string>Notchkeeper</string>
     <key>CFBundleExecutable</key><string>Notchkeeper</string>

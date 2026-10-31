@@ -49,7 +49,7 @@ enum ClaudeMod {
     }
 
     static func install() async throws {
-        guard let claude else { throw Failure(errorDescription: "找不到 claude") }
+        guard let claude else { throw Failure(errorDescription: String(localized: "找不到 claude")) }
         try copyBundled()
         _ = try await run(claude, ["plugin", "install", "notchkeeper", "--marketplace", directory.path, "--json"])
         Log.write("Claude Code mod：已安装")
@@ -57,7 +57,7 @@ enum ClaudeMod {
 
     /// 去掉 marketplace 会连带卸掉插件、去掉 `enabledPlugins` 里那一项（<https://code.claude.com/docs/en/plugins/install#manage-marketplaces>）
     static func uninstall() async throws {
-        guard let claude else { throw Failure(errorDescription: "找不到 claude") }
+        guard let claude else { throw Failure(errorDescription: String(localized: "找不到 claude")) }
         _ = try await run(claude, ["plugin", "marketplace", "remove", marketplace, "--json"])
         do {
             try FileManager.default.removeItem(at: directory)
@@ -79,7 +79,7 @@ enum ClaudeMod {
 
     /// 插件从这里原地加载：拷到一半失败时原来那份还在（`replaceItem(at:withCopyOf:)`）
     private static func copyBundled() throws {
-        guard let bundled else { throw Failure(errorDescription: "这个构建没带 mod，用 scripts/run.sh 打包的 App 才有") }
+        guard let bundled else { throw Failure(errorDescription: String(localized: "这个构建没带 mod，用 scripts/run.sh 打包的 App 才有")) }
         try FileManager.default.replaceItem(at: directory, withCopyOf: bundled)
     }
 
@@ -110,7 +110,7 @@ enum ClaudeMod {
             // 到点不管 claude 还在不在都收尾：它退出了、但它起的子进程还占着输出管道时，也等不到 EOF。已经交回过就什么也不做
             DispatchQueue.global().asyncAfter(deadline: .now() + 60) {
                 if process.isRunning { kill(process.processIdentifier, SIGKILL) }
-                run.finish(.failure(Failure(errorDescription: "超时")))
+                run.finish(.failure(Failure(errorDescription: String(localized: "超时"))))
             }
         }
     }
@@ -154,7 +154,7 @@ enum ClaudeMod {
                 guard let status, !closed.contains(false) else { return nil }
                 if status == 0 { return .success(data[0]) }
                 let last = String(decoding: data[1] + data[0], as: UTF8.self).split(whereSeparator: \.isNewline).last.map(String.init)
-                return .failure(Failure(errorDescription: last ?? "退出码 \(status)"))
+                return .failure(Failure(errorDescription: last ?? String(localized: "退出码 \(status)")))
             }
             if let result { finish(result) }
         }

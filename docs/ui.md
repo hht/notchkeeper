@@ -23,8 +23,8 @@
 ## 多语言
 
 - 简体中文（源语言）和 English，**随系统语言**，App 不自己切；设置页放「在系统设置中更改语言…」跳到系统按 App 设语言的位置（WWDC19 403："do not attempt to set the application language manually in code"）。
-- 一个 String Catalog `Localizable.xcstrings`，键就是中文原文，用默认的 `Bundle.main`。
-- 坑：先存成 `String` 再 `Text(someString)` 不会本地化，这类属性用 `LocalizedStringResource`（<https://developer.apple.com/documentation/swiftui/text/init(_:tablename:bundle:comment:)>）。
+- String Catalog 在 `Resources/`：`Localizable.xcstrings`（键就是中文原文，用默认的 `Bundle.main`）和 `InfoPlist.xcstrings`（权限说明）。改了文案跑 `scripts/strings.sh`：和 Xcode 一样靠编译器抽字符串，新的加进来、删掉的标 stale，再补 English。
+- 坑：先存成 `String` 再 `Text(someString)` 不会本地化，存之前就用 `String(localized:)` 取出译文（<https://developer.apple.com/documentation/swiftui/text/init(_:tablename:bundle:comment:)>）。
 - 坑：`swift build` 不编译 `.xcstrings`，只原样拷贝；由 `scripts/run.sh` 用 `xcrun xcstringstool compile` 编进 `.lproj`（用户同意依赖 Xcode 工具）。
 - 坑：Info.plist 写 `CFBundleDevelopmentRegion = zh-Hans`、`CFBundleLocalizations = [zh-Hans, en]`，不写 `CFBundleAllowMixedLocalizations`（实测日文环境下判成 en 却显示中文）。
 - 不翻译：出口 IP、项目名；日志、文档、注释、提交说明仍是中文。

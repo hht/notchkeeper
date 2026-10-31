@@ -143,31 +143,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// 刘海右键菜单
     private func buildMenu() -> NSMenu {
         let m = NSMenu()
-        m.addItem(item("设置…", #selector(openSettings)))
-        m.addItem(item("拷贝出口 IP", #selector(copyEgressIP)))
+        m.addItem(item(String(localized: "设置…"), #selector(openSettings)))
+        m.addItem(item(String(localized: "拷贝出口 IP"), #selector(copyEgressIP)))
         m.addItem(.separator())
-        m.addItem(item("退出 Notchkeeper", #selector(quit)))
+        m.addItem(item(String(localized: "退出 Notchkeeper"), #selector(quit)))
         return m
     }
 
     /// 主菜单不显示（accessory App），只为 App 激活后 ⌘, / ⌘Q / ⌘W 和输入框的编辑快捷键生效
     func buildMainMenu() -> NSMenu {
         let app = NSMenu()
-        app.addItem(item("设置…", #selector(openSettings), ","))
+        app.addItem(item(String(localized: "设置…"), #selector(openSettings), ","))
         app.addItem(.separator())
-        app.addItem(item("退出 Notchkeeper", #selector(quit), "q"))
+        app.addItem(item(String(localized: "退出 Notchkeeper"), #selector(quit), "q"))
 
         // target 为 nil：沿响应链交给当前窗口 / 输入框
-        let window = NSMenu(title: "窗口")
-        window.addItem(withTitle: "关闭", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
-        let edit = NSMenu(title: "编辑")
-        edit.addItem(withTitle: "撤销", action: Selector(("undo:")), keyEquivalent: "z")
-        edit.addItem(withTitle: "重做", action: Selector(("redo:")), keyEquivalent: "Z")
+        let window = NSMenu(title: String(localized: "窗口"))
+        window.addItem(withTitle: String(localized: "关闭"), action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        let edit = NSMenu(title: String(localized: "编辑"))
+        edit.addItem(withTitle: String(localized: "撤销"), action: Selector(("undo:")), keyEquivalent: "z")
+        edit.addItem(withTitle: String(localized: "重做"), action: Selector(("redo:")), keyEquivalent: "Z")
         edit.addItem(.separator())
-        edit.addItem(withTitle: "剪切", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
-        edit.addItem(withTitle: "拷贝", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
-        edit.addItem(withTitle: "粘贴", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
-        edit.addItem(withTitle: "全选", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        edit.addItem(withTitle: String(localized: "剪切"), action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        edit.addItem(withTitle: String(localized: "拷贝"), action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        edit.addItem(withTitle: String(localized: "粘贴"), action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        edit.addItem(withTitle: String(localized: "全选"), action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
 
         let main = NSMenu()
         for sub in [app, edit, window] {

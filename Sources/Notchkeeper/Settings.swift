@@ -16,14 +16,14 @@ enum SettingsPane: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .general: return "通用"
-        case .plugins: return "插件"
-        case .exitGuard: return "出口守卫"
+        case .general: return String(localized: "通用")
+        case .plugins: return String(localized: "插件")
+        case .exitGuard: return String(localized: "出口守卫")
         case .claudeCode: return "Claude Code"
-        case .terminal: return "终端"
+        case .terminal: return String(localized: "终端")
         case .mascot: return "Pip"
-        case .stateTest: return "状态测试"
-        case .about: return "关于"
+        case .stateTest: return String(localized: "状态测试")
+        case .about: return String(localized: "关于")
         }
     }
 
@@ -205,6 +205,16 @@ private struct GeneralPane: View {
                 Text("刘海")
             }
             .disabled(store.fileUnreadable)
+            // App 不自己切语言，交给系统按 App 设（docs/ui.md「多语言」）
+            Section {
+                LabeledContent {
+                    Button("在系统设置中更改语言…") { NSWorkspace.shared.open(Self.languageSettings) }
+                        .controlSize(.small)
+                } label: {
+                    Text("语言")
+                    Text("跟随系统；也可以在「语言与地区」的「App」里单独给 Notchkeeper 选")
+                }
+            }
             Section {
                 HStack {
                     Spacer()
@@ -221,6 +231,9 @@ private struct GeneralPane: View {
             Text("退出后刘海和卡片提示会停止，后台守卫照常运行；要停守卫请用卸载脚本。")
         }
     }
+
+    /// 系统设置 › 通用 › 语言与地区。id 取自 /System/Library/ExtensionKit/Extensions/Localization.appex 的 CFBundleIdentifier（macOS 26 实查）
+    private static let languageSettings = URL(string: "x-apple.systempreferences:com.apple.Localization-Settings.extension")!
 
     private func setLogin(_ on: Bool) {
         loginError = LoginItem.set(on)
@@ -339,12 +352,12 @@ private struct PluginsPane: View {
         Form {
             Section {
                 Toggle(isOn: Binding(get: { c.isEnabled(PluginID.exitGuard) }, set: setGuard)) {
-                    PluginLabel(plugin: PluginID.exitGuard, state: state, detail: "出口不合规时弹红卡，面板顶上显示出口")
+                    PluginLabel(plugin: PluginID.exitGuard, state: state, detail: String(localized: "出口不合规时弹红卡，面板顶上显示出口"))
                 }
                 ForEach(ids, id: \.self) { id in
                     Toggle(isOn: Binding(get: { c.isEnabled(id) }, set: { store.config.setEnabled($0, for: id) })) {
                         PluginLabel(plugin: id, state: state,
-                                    detail: id == PluginID.claudeCode ? "会话列表，做完、出错、等你时弹卡" : "外部插件 · \(id)")
+                                    detail: id == PluginID.claudeCode ? String(localized: "会话列表，做完、出错、等你时弹卡") : String(localized: "外部插件 · \(id)"))
                     }
                 }
             } header: {
@@ -488,7 +501,7 @@ private struct TerminalPluginSection: View {
                     do {
                         try installed ? TerminalPlugin.uninstall() : TerminalPlugin.install()
                     } catch {
-                        self.error = "没成功：\(error.localizedDescription)"
+                        self.error = String(localized: "没成功：\(error.localizedDescription)")
                         Log.write("终端插件：操作失败：\(error.localizedDescription)")
                     }
                     installed = TerminalPlugin.isInstalled
@@ -496,7 +509,7 @@ private struct TerminalPluginSection: View {
                 }
             } label: {
                 Text("命令跑完时弹卡")
-                Text(error ?? (installed ? "已安装：在 ~/.zshrc 里加上下面这行，新开的终端生效" : "没装"))
+                Text(error ?? (installed ? String(localized: "已安装：在 ~/.zshrc 里加上下面这行，新开的终端生效") : String(localized: "没装")))
             }
             if installed {
                 LabeledContent {
@@ -552,12 +565,12 @@ private struct ClaudeModSection: View {
 
     private var caption: String {
         switch status {
-        case nil: return "正在检查…"
-        case .installed?: return "已安装：回合做完、出错时弹卡"
-        case .disabled?: return "已安装，但在 Claude Code 里关掉了（/plugin 里打开）"
-        case .notInstalled?: return "没装：只显示忙闲和等你，不弹完成卡、出错卡"
-        case .noClaude?: return "没找到 claude（只看 ~/.local/bin、/opt/homebrew/bin、/usr/local/bin）"
-        case .unknown(let reason)?: return "查不到装没装：\(reason)"
+        case nil: return String(localized: "正在检查…")
+        case .installed?: return String(localized: "已安装：回合做完、出错时弹卡")
+        case .disabled?: return String(localized: "已安装，但在 Claude Code 里关掉了（/plugin 里打开）")
+        case .notInstalled?: return String(localized: "没装：只显示忙闲和等你，不弹完成卡、出错卡")
+        case .noClaude?: return String(localized: "没找到 claude（只看 ~/.local/bin、/opt/homebrew/bin、/usr/local/bin）")
+        case .unknown(let reason)?: return String(localized: "查不到装没装：\(reason)")
         }
     }
 
@@ -568,7 +581,7 @@ private struct ClaudeModSection: View {
             do {
                 try await action()
             } catch {
-                self.error = "没成功：\(error.localizedDescription)"
+                self.error = String(localized: "没成功：\(error.localizedDescription)")
                 Log.write("Claude Code mod：操作失败：\(error.localizedDescription)")
             }
             status = await ClaudeMod.status()
@@ -676,17 +689,17 @@ private struct MotionSection: View {
 private extension Motion {
     var title: String {
         switch self {
-        case .spinAround: return "左右转圈"
-        case .flip: return "上下翻圈"
-        case .lookAround: return "东张西望"
-        case .nod: return "点头"
-        case .tilt: return "歪头"
-        case .shake: return "摇头"
-        case .lookUp: return "抬头看天"
-        case .lookDown: return "低头看脚"
-        case .sideways: return "侧身 90°"
-        case .curious: return "好奇歪看"
-        case .finishJump: return "完成跳转"
+        case .spinAround: return String(localized: "左右转圈")
+        case .flip: return String(localized: "上下翻圈")
+        case .lookAround: return String(localized: "东张西望")
+        case .nod: return String(localized: "点头")
+        case .tilt: return String(localized: "歪头")
+        case .shake: return String(localized: "摇头")
+        case .lookUp: return String(localized: "抬头看天")
+        case .lookDown: return String(localized: "低头看脚")
+        case .sideways: return String(localized: "侧身 90°")
+        case .curious: return String(localized: "好奇歪看")
+        case .finishJump: return String(localized: "完成跳转")
         }
     }
 }

@@ -1,0 +1,24 @@
+{
+  "sourceLanguage" : "zh-Hans",
+  "strings" : {
+    "NSAppleEventsUsageDescription" : {
+      "comment" : "第一次切到 Ghostty 时系统弹的权限说明",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Switches to this session’s Ghostty window when you click a session or card, and checks whether you’re already looking at the terminal when a command finishes."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "点会话或卡片时切到 Ghostty 里这个会话的窗口；终端命令跑完时看你是不是正看着那个终端。"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}
