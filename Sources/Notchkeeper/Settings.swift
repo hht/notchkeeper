@@ -82,7 +82,7 @@ struct SettingsView: View {
                     }
                 }
             }
-            .toolbar(removing: .sidebarToggle)
+            // 留着侧栏开关：工具栏一个按钮都没有时，系统按普通标题栏画，滚动时是一条硬边线；有按钮才是系统设置那种柔和渐隐（10-31 原型实测）
             .navigationSplitViewColumnWidth(215)
         } detail: {
             detail
