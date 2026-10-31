@@ -40,6 +40,8 @@ struct MascotView: View {
             }
             .accessibilityElement()
             .accessibilityLabel("盾盾")
+            // 盾盾用表情表达状态，旁白要能念出来（HIG Accessibility）
+            .accessibilityValue(shown.title)
     }
 }
 

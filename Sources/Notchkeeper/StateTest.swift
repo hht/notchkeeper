@@ -19,25 +19,25 @@ enum NotchPin: String, CaseIterable, Identifiable {
 }
 
 extension Look {
-    /// 「状态测试」里的名字（docs/mascot.md §2）
+    /// 「状态测试」和旁白里的名字（docs/mascot.md §2）
     var title: String {
         switch self {
-        case .idle: return "空闲"
-        case .sleeping: return "睡着"
-        case .thinking: return "思考"
-        case .working: return "工作"
-        case .longTurn: return "干了很久"
-        case .question: return "等你回答"
-        case .approval: return "等你批准"
-        case .finished: return "完成"
-        case .error: return "出错"
-        case .interrupted: return "被打断"
-        case .dizzy: return "晕"
-        case .offline: return "断网"
-        case .mismatch: return "出口不符"
-        case .stale: return "守卫没响应"
-        case .danger: return "危险"
-        case .shielded: return "防火墙守住"
+        case .idle: return String(localized: "空闲")
+        case .sleeping: return String(localized: "睡着")
+        case .thinking: return String(localized: "思考")
+        case .working: return String(localized: "工作")
+        case .longTurn: return String(localized: "干了很久")
+        case .question: return String(localized: "等你回答")
+        case .approval: return String(localized: "等你批准")
+        case .finished: return String(localized: "完成")
+        case .error: return String(localized: "出错")
+        case .interrupted: return String(localized: "被打断")
+        case .dizzy: return String(localized: "晕")
+        case .offline: return String(localized: "断网")
+        case .mismatch: return String(localized: "出口不符")
+        case .stale: return String(localized: "守卫没响应")
+        case .danger: return String(localized: "危险")
+        case .shielded: return String(localized: "防火墙守住")
         }
     }
 }

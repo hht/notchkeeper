@@ -94,8 +94,9 @@ final class NotchModel: ObservableObject {
 
 /// 三种形态的尺寸，视图和悬停命中测试共用
 enum NotchLayout {
-    /// 卡片内容离形状黑底左右边、第一行（盾盾 + 标题 + 副标题）的高度
-    static let cardPadding: CGFloat = 18
+    /// 卡片内容离形状黑底左右边：卡上的盾盾和面板左上的那只中心对齐，两边互切时盾盾只上下走、不横移（HIG Live Activities：展开态之间元素保持相对位置）
+    static let cardPadding = contentInset + rowIcon / 2 - dashCorner / 2
+    /// 第一行（盾盾 + 标题 + 副标题）的高度
     static let cardRowHeight: CGFloat = 38
     static let cardBottom: CGFloat = 16
     /// 展开面板和卡片的黑底宽 = iOS 灵动岛展开态宽 408（HIG Live Activities；Mac 菜单栏里的 Live Activity 用同一套尺寸）。
@@ -135,27 +136,11 @@ enum NotchLayout {
     static let earWidth: CGFloat = 44
     /// 收起时形状顶角往外翻的宽度（NotchShape 的 topRadius）
     static let closedFlare: CGFloat = 4
-    /// 左耳盾盾画布 28×28，左缘在身体外边（形状左边 + 外翻）往里 6pt，离刘海也是 6pt（docs/mascot.md §1）
-    static let earCanvas: CGFloat = 28
-    static let earCanvasInset: CGFloat = 6
-    /// 画布里身体中心的纵坐标；身体中心对齐 notchSize.height / 2，所以 32pt 刘海时画布上缘在 -0.5
-    static let earBodyCenterY: CGFloat = 16.5
     /// 左耳盾盾的身体直径（docs/mascot.md §1）：面板里那只缩到这么大
     static let earMascotSize: CGFloat = 20
-    /// 右耳指示的中心离形状右边 17.5（docs/mascot.md §1）
-    static let earDotInset: CGFloat = 17.5
-
-    /// 收起态两只耳朵在形状里的位置（原点在形状左上），W = 刘海宽 + 88，H = 刘海高
-    struct Ears: Equatable {
-        var canvas: CGRect
-        var bodyCenter: CGPoint
-    }
-
-    static func ears(notch: CGSize, flare: CGFloat = closedFlare) -> Ears {
-        let mid = notch.height / 2
-        let canvas = CGRect(x: flare + earCanvasInset, y: mid - earBodyCenterY, width: earCanvas, height: earCanvas)
-        return Ears(canvas: canvas, bodyCenter: CGPoint(x: canvas.minX + earCanvas / 2, y: mid))
-    }
+    /// 左耳盾盾的身体中心、右耳指示的中心离形状外缘多远：都在耳朵看得见的部分（去掉外翻）里居中，左右对称
+    /// （docs/mascot.md §1；HIG Live Activities compact：左右平衡、紧贴摄像头）
+    static let earCenterInset = closedFlare + (earWidth - closedFlare) / 2
 
     /// 没有刘海的屏幕（高度 0）不长耳朵，保持原来从顶端中间长出来的样子
     static func hasEars(_ notch: CGSize) -> Bool { notch.height > 0 }
@@ -231,6 +216,9 @@ final class NotchController {
         window.ignoresMouseEvents = true
         window.isReleasedWhenClosed = false
         window.animationBehavior = .none
+        // 面板不激活 App，Notchkeeper 几乎从不在前台：不开这个，会话行、齿轮的 .help 永远不出现
+        // @see https://developer.apple.com/documentation/appkit/nswindow/allowstooltipswhenapplicationisinactive
+        window.allowsToolTipsWhenApplicationIsInactive = true
 
         let host = FirstMouseHostingView(rootView: NotchRoot(model: model, overrides: model.overrides, state: state, onDismiss: { [weak self] in
             // 点了卡片的 ×
@@ -353,6 +341,11 @@ final class NotchController {
             withAnimation(NotchSpring.notchOpen) { model.expanded = true }
         }
         updateMouseCapture()
+        // 弹卡时 VoiceOver 念出标题，看不见卡的人也知道发生了什么（docs/ui.md「卡片」）。
+        // 面板不激活 App、没有 main window，所以挂在面板上发，优先级高才会打断正在念的内容
+        // @see https://developer.apple.com/documentation/appkit/nsaccessibility/notification/announcementrequested
+        NSAccessibility.post(element: window, notification: .announcementRequested,
+                             userInfo: [.announcement: card.title, .priority: NSAccessibilityPriorityLevel.high.rawValue])
     }
 
     /// 熄屏或锁屏：台面上的卡停住，新卡不放、不响；回来接着放
@@ -700,7 +693,7 @@ struct NotchRoot: View {
             // 右边跟着左边实际画的造型走（犯困时左耳睡着，右耳就不亮）
             let shown = overrides.look != nil ? look : look.shown(drowsy: director.drowsy)
             let mascotAt: CGPoint = switch mode {
-            case .closed: NotchLayout.ears(notch: notch, flare: flare).bodyCenter
+            case .closed: CGPoint(x: NotchLayout.earCenterInset, y: notch.height / 2)
             case .dashboard: CGPoint(x: flare + NotchLayout.contentInset + NotchLayout.rowIcon / 2, y: top)
             case .card: CGPoint(x: flare + NotchLayout.cardPadding + c / 2, y: NotchLayout.cardTop(notch) + NotchLayout.cardRowHeight / 2)
             }
@@ -715,7 +708,7 @@ struct NotchRoot: View {
                 ZStack {
                     EarIndicatorView(indicator: .for(shown, probeFailed: state.presentation.probeFailed && overrides.look == nil),
                                      size: CGSize(width: NotchLayout.earWidth, height: notch.height),
-                                     // 外面已经把这一组的中心放在离右边 earDotInset 处，这里以自身中心为准，不再偏一次
+                                     // 外面已经把这一组的中心放在离右边 earCenterInset 处，这里以自身中心为准，不再偏一次
                                      center: CGPoint(x: NotchLayout.earWidth / 2, y: notch.height / 2),
                                      playing: mode == .closed)
                         .frame(width: NotchLayout.earWidth, height: notch.height)
@@ -726,7 +719,7 @@ struct NotchRoot: View {
                 }
                 .frame(width: c, height: c)
                 .position(open ? CGPoint(x: right, y: top)
-                               : CGPoint(x: size.width - NotchLayout.earDotInset, y: notch.height / 2))
+                               : CGPoint(x: size.width - NotchLayout.earCenterInset, y: notch.height / 2))
                 .id(reduceMotion && open)
                 .transition(.opacity)
             }
@@ -785,6 +778,7 @@ private struct Unfocus: ViewModifier {
 struct GuardBadge: View {
     let presentation: GuardPresentation
     let size: CGFloat
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var symbol: String {
         switch presentation.tone {
@@ -804,7 +798,10 @@ struct GuardBadge: View {
         let c = presentation.color
         Circle()
             .fill(c.opacity(0.16))
-            .overlay(Image(systemName: symbol).font(.system(size: size * 0.42, weight: .semibold)).foregroundStyle(c))
+            .overlay(Image(systemName: symbol).font(.system(size: size * 0.42, weight: .semibold)).foregroundStyle(c)
+                // 状态变了图标原地替换（Apple「Displaying live data」：符号用 Replace）；减弱动态效果只淡入淡出
+                .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace)))
+            .animation(.smooth, value: symbol)
             .frame(width: size, height: size)
             .accessibilityElement()
             .accessibilityLabel(presentation.title)
@@ -816,6 +813,7 @@ struct GuardBadge: View {
 struct NotchDashboard: View {
     @ObservedObject var state: AppState
     let onSettings: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         let p = state.presentation
@@ -830,6 +828,9 @@ struct NotchDashboard: View {
                 Text(state.display.egressIP ?? "—")
                     .font(.system(size: 11, weight: .medium, design: .monospaced))
                     .foregroundStyle(p.ipColor)
+                    // 出口换 IP 时数字逐位滚过去（Apple「Displaying live data」）；减弱动态效果只淡入淡出
+                    .contentTransition(reduceMotion ? .opacity : .numericText())
+                    .animation(.smooth, value: state.display.egressIP)
             }
             // 两侧让开盾盾和徽章
             .padding(.horizontal, NotchLayout.contentInset + NotchLayout.rowIcon / 2 + NotchLayout.dashCorner / 2 + 6)
@@ -842,7 +843,7 @@ struct NotchDashboard: View {
             HStack(spacing: 6) {
                 TimelineView(.periodic(from: .now, by: 1)) { _ in
                     Text(checkedText)
-                        .font(.system(size: 10.5, weight: .medium).monospacedDigit())
+                        .font(.system(size: 11, weight: .medium).monospacedDigit())
                         .foregroundStyle(.white.opacity(NotchLayout.secondaryTextOpacity))
                 }
                 Spacer()
@@ -1000,7 +1001,7 @@ struct NotchCardView: View {
             Color.clear.frame(width: NotchLayout.dashCorner, height: NotchLayout.dashCorner)
             VStack(alignment: .leading, spacing: 2) {
                 Text(card.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(.white)
-                Text(card.detail).font(.system(size: 12)).foregroundStyle(.white.opacity(0.65)).lineLimit(1)
+                Text(card.detail).font(.system(size: 12, weight: .medium)).foregroundStyle(.white.opacity(0.65)).lineLimit(1)
             }
             Spacer(minLength: 8)
             Button(action: onDismiss) {

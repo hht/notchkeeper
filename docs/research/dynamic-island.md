@@ -55,7 +55,7 @@ Apple 设计团队的公开访谈：Alan Dye 和 Craig Federighi 接受过 Axis 
 
 - **收起**：刘海加左右各 44pt 的耳朵，外翻 4，底角 8。
   - 左耳是 20pt 的盾盾（面板里 32pt 那只缩小）；右耳是指示：三蓝点、青点、青柠点、灰色空心环，或告示图标。空闲、完成时右耳没有东西。
-  - 出处：`docs/mascot.md` §1、§2；`Notch.swift` 的 `NotchLayout`（`earWidth = 44`，`earDotInset = 17.5`）。
+  - 出处：`docs/mascot.md` §1、§2；`Notch.swift` 的 `NotchLayout`（`earWidth = 44`，`earDotInset = 17.5`；10-30 已改成 `earCenterInset = 24`，此处是调研时的现状）。
 - **面板**：黑底宽 408，四周边距 14，底角 28。
   - 左上是盾盾 32pt，右上是出口徽章 32pt，上缘都离面板顶 8。
   - 刘海正下方是标题（15pt semibold rounded）和 IP（11pt medium mono）。
@@ -315,6 +315,8 @@ Apple 设计团队的公开访谈：Alan Dye 和 Craig Federighi 接受过 Axis 
 
 ## 4. 总表：我们现状 vs 灵动岛做法 vs 建议（按影响从大到小）
 
+10-30 主会话逐条定了取舍，结果和理由见 `docs/ui.md`「灵动岛调研的取舍」。
+
 | # | 方面 | 我们现状 | 灵动岛做法（出处） | 建议 | 改动 |
 |---|---|---|---|---|---|
 | 1 | Mac 系统灵动岛 | 自己画在刘海位置 | 2026-10-28 起 MacBook Pro 有系统灵动岛，承载 Spotlight / Live Activities / Siri（Newsroom、Tech Talk 111467） | 记入 HANDOFF 待定：新机器上退让还是迁移；等 HIG 的 Mac 章节和 SDK | 大（产品决策） |
@@ -338,7 +340,7 @@ Apple 设计团队的公开访谈：Alan Dye 和 Craig Federighi 接受过 Axis 
 
 ## 9. 顺带发现：文档和代码不一致（没改，留给主会话处理）
 
-10-30：第 1、2 条已解决；第 3 条还没核对。
+10-30：三条都已解决。第 3 条：28×28 画布是左耳单独画 20pt 盾盾时的说法，现在左耳是面板盾盾缩小，画布不存在了；统一成「身体中心在耳朵可见部分正中」（`docs/mascot.md` §1）。
 
 1. **描边**：`CLAUDE.md`「界面准则」写「卡片只用阴影，不加描边」，`docs/ui.md`「亮色与暗色」写「不加 key line：黑面板和卡片只用阴影，不加描边」。但是：
    - `Notch.swift:644-647` 给面板画了 `white.opacity(0.08)` 的描边；

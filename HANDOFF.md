@@ -12,7 +12,7 @@
    - 后台 agent 崩溃、出错时会不会发带 `agentId` 的 `turn.complete` 没测（TaskStop 停掉的测过，会发）；不发的话这个会话之后的完成卡都被压住，直到 `/clear` 或重开。后台 agent 还在跑时 `/reload-plugins`，mod 的计数清零，可能提前弹完成卡（推断）。
    - mod 在 `$.fs.write` 写完之后才 `next(e)`：本地写盘挂住会拖住 Claude Code 的回合（reviewer 10-30 提，认为本地写盘挂住不现实，没改）。
    - Claude Code 升级后要重跑 `ClaudeMod/plugins/notchkeeper` 里的 `claude plugin test`，并在 tmux 里按 `docs/agent-integration.md`「实测」8 重测一遍（mod API 不做兼容）。
-3. **灵动岛调研剩下的建议**（`docs/research/dynamic-island.md` §4 总表）：10-30 已定并做完的是 #1（先不动）、#2（流星保留）、#5（细边只写在 `docs/ui.md`）、#6（弹簧）、#7 的等宽、#4 的对比度。剩下的问用户挑：#3 收起态右耳空着时收窄、指示往刘海靠；#4 的卡片副标题改 medium、底栏 10.5→11；#7 卡片右侧放状态指示；#8 弹卡时状态图标 Replace 弹一下；#9 IP、徽章的内容过渡；#10 盾盾的 `accessibilityValue`、弹卡时 VoiceOver 播报；#11 悬停延迟 0.12→0.25–0.3s；#12 副标题只显示项目名（和 10-29 的决定冲突）。另外 §9 第 3 条（左耳画布尺寸，文档和代码说法不同）还没核对；卡片内容左右边距 18 要不要改成面板的 28（`contentInset`），让盾盾和 × 跟面板对齐、互切时盾盾不横移 6pt，会动布局，问用户。
+3. **灵动岛调研** 10-30 已全部定完（`docs/ui.md`「灵动岛调研的取舍」）。实机还没看：IP 换值时的数字滚动、徽章图标替换（要等出口状态变）；VoiceOver 弹卡播报。
 4. 「提醒卡待定」里剩下的几条问用户要不要做。
 5. 然后是**第 4 步**剩下的部分，见「开发计划」。第 3 步留给它的：
    - `AppState.look` 是临时的优先级合成（守卫 > agent > 空闲），晕和完整优先级进 `NotchCore` 的 MascotResolver。
@@ -53,11 +53,9 @@
 版式已定（`docs/ui.md`「面板布局」），下面几处只在代码里推过、没在实机上看：
 
 - **减弱动态效果**：盾盾和徽章换形态时应该原地淡出、新位置淡入，不飞（`NotchRoot.corners` 里盾盾的 `.id(reduceMotion ? mode : .closed)`、右边一组的 `.id(reduceMotion && open)`；卡片形态同理）。要切系统设置，先问用户。
-- **悬停提示**：会话行和齿轮的 `.help` 在 App 不在前台时可能不出现（`NSWindow.allowsToolTipsWhenApplicationIsInactive` 默认 false，推断）。
-- **英文时间列**：固定宽 66，英文「12 min. ago」约 75pt，可能被截（推断）。
 - 滚出可视区的会话行，三蓝点循环照跑（量小，暂不管）。
 - **装饰顶出面板上沿**（推断）：32pt 盾盾上缘离面板顶 8，finished 的大星最高点约在 −0.8pt、闪烁还放大 0.18，sleeping 的 Z 上浮也可能碰到，会被形状裁掉一点。实机看 finished / sleeping。
-- **删 small 尺寸**（单独一个 refactor 提交）：左耳改成面板盾盾缩小后，App 里没有 ≤ 24pt 的 `MascotView` 了。`MascotView` 的 `.small` 分支、`Size.small` 和 `decoration(.small)` 的数据只剩测试在用；`NotchLayout` 的 `earCanvas`、`earCanvasInset`、`earBodyCenterY`、`Ears.canvas` 只为算一个 `bodyCenter`。
+- **删 small 尺寸**（单独一个 refactor 提交）：左耳改成面板盾盾缩小后，App 里没有 ≤ 24pt 的 `MascotView` 了。`MascotView` 的 `.small` 分支、`Size.small` 和 `decoration(.small)` 的数据只剩测试在用；（`NotchLayout` 里左耳的画布常量 10-30 已删。）
 
 ## 工作方法备忘
 
