@@ -8,16 +8,16 @@ extension GuardPresentation {
     var title: String {
         switch status {
         case .healthy: return String(localized: "出口正常")
-        case .mismatch: return String(localized: "出口 IP 和预期不一致")
-        case .offline: return String(localized: "网络不通，暂时没法检查出口")
-        case .probeFailed: return String(localized: "暂时查不到出口")
-        case .unresponsive: return String(localized: "守卫没有响应")
+        case .mismatch: return String(localized: "出口 IP 不在允许列表里")
+        case .offline: return String(localized: "没有网络，暂时检查不了出口")
+        case .probeFailed: return String(localized: "暂时判断不了出口")
+        case .unresponsive: return String(localized: "出口守卫没响应")
         case .violated: return Self.violatedTitle
         case .violationUnconfirmed: return Alert.unresponsive.detail
         }
     }
 
-    static var violatedTitle: String { String(localized: "出口不合规") }
+    static var violatedTitle: String { String(localized: "有流量没走代理") }
 
     var color: Color { Color(nsColor: Self.nsColor(tone)) }
 
@@ -48,8 +48,8 @@ extension GuardPresentation.Alert {
     /// 红卡的副标题
     var detail: String {
         switch self {
-        case .violated: return String(localized: "有流量没走 utun 隧道")
-        case .unresponsive: return String(localized: "守卫没有响应，无法确认出口是否恢复")
+        case .violated: return String(localized: "去公网的路由没走 Clash 的隧道")
+        case .unresponsive: return String(localized: "守卫没响应，还不能确认恢复")
         }
     }
 }

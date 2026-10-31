@@ -1,6 +1,6 @@
 import Foundation
 
-/// App 该显示什么，以及为什么。`checkedAt` 只在读出了时间时才有（排查 / 显示「上次检查于」用）。
+/// App 该显示什么，以及为什么。`checkedAt` 只在读出了时间时才有（排查 / 设置页「上次检查」用）。
 public struct GuardDisplay: Equatable, Sendable {
     public enum Reason: Equatable, Sendable {
         /// 文件新鲜，`verdict` 就是 guardd 的判定

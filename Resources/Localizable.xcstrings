@@ -57,18 +57,28 @@
         }
       }
     },
+    "Claude Code 没在运行": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude Code isn't running"
+          }
+        }
+      }
+    },
     "Notchkeeper": {
       "shouldTranslate": false
     },
     "Pip": {
       "shouldTranslate": false
     },
-    "zsh 里的命令跑了 10 秒以上，结束时弹一张卡，点了跳回那个终端。只有焦点正停在跑这条命令的那个终端上（同一窗口的别的标签、分屏都不算）时不弹。只把命令名交出 shell，参数不出去。vim、ssh、top 这类全屏或交互的命令不弹。": {
+    "zsh 里跑了 10 秒以上的命令结束时弹卡，点卡片跳回那个终端。你正看着那个终端时不弹（同一窗口的其他标签、分屏不算）。命令行只交出命令名，不带参数；vim、ssh、top 这类全屏或交互的命令不弹。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "When a zsh command that ran for 10 seconds or more finishes, a card pops up; click it to jump back to that terminal. No card if you're focused on the very terminal running the command (other tabs or splits in the same window don't count). Only the command name leaves the shell, never its arguments. Full-screen or interactive commands like vim, ssh and top don't pop cards."
+            "value": "When a zsh command that ran for 10 seconds or more finishes, a card pops up; click it to jump back to that terminal. No card if you're looking at that very terminal (other tabs or splits in the same window don't count). From the command line, only the command name is sent, never its arguments. Full-screen or interactive commands like vim, ssh and top don't pop cards."
           }
         }
       }
@@ -126,7 +136,7 @@
         }
       }
     },
-    "不弹卡，面板里不列会话": {
+    "不弹卡，面板里也不显示会话": {
       "localizations": {
         "en": {
           "stringUnit": {
@@ -136,12 +146,12 @@
         }
       }
     },
-    "不弹红卡，Pip 和面板不显示出口；后台守卫照常检查": {
+    "不弹红卡，Pip 和面板也不显示出口；后台照常检查": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "No red card; Pip and the panel don't show the egress. The guard keeps checking in the background"
+            "value": "No red card, and Pip and the panel don't show the egress. Checks keep running in the background"
           }
         }
       }
@@ -172,16 +182,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Look Around"
-          }
-        }
-      }
-    },
-    "会话列表，做完、出错、等你时弹卡": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Session list; cards when done, on errors, or when waiting for you"
           }
         }
       }
@@ -226,12 +226,12 @@
         }
       }
     },
-    "允许的出口 IPv4": {
+    "允许的出口 IP（IPv4）": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Allowed Egress IPv4"
+            "value": "Allowed Egress IPs (IPv4)"
           }
         }
       }
@@ -256,22 +256,12 @@
         }
       }
     },
-    "关掉后左耳不画 Pip，右耳也没东西时就是一块纯黑的刘海；展开和弹卡时照常出来": {
+    "关掉后左耳不显示 Pip；右耳也没有内容时，刘海就是一块纯黑。展开和弹卡时照常显示": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "When off, the left ear has no Pip, and with nothing on the right ear the notch is plain black. Pip still appears when expanded and on cards"
-          }
-        }
-      }
-    },
-    "关掉后红卡撤下，Pip 和面板不再显示出口；后台守卫照常检查，再打开马上恢复。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The red card goes away and Pip and the panel stop showing the egress. The guard keeps checking in the background; turn it back on to restore everything right away."
+            "value": "When off, the left ear has no Pip, and if the right ear is empty too the notch is plain black. Pip still appears when expanded and on cards"
           }
         }
       }
@@ -286,12 +276,12 @@
         }
       }
     },
-    "关掉的是提醒，不是判定：出口守卫照常检查。外部插件在 ~/Library/Application Support/Notchkeeper/plugins/<id>/manifest.json 登记，关掉后它发来的卡和活动都丢掉。": {
+    "关掉插件只关提醒，出口守卫照常在后台检查。外部插件在 ~/Library/Application Support/Notchkeeper/plugins/<id>/manifest.json 登记；关掉后，它发来的卡片和活动都会丢掉。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Turning a plugin off silences its alerts, not its checks: the egress guard keeps checking. External plugins register in ~/Library/Application Support/Notchkeeper/plugins/<id>/manifest.json; when one is off, its cards and activities are dropped."
+            "value": "Turning a plugin off hides it from the notch; the egress guard keeps checking in the background. External plugins register in ~/Library/Application Support/Notchkeeper/plugins/<id>/manifest.json; while one is off, its cards and activities are dropped."
           }
         }
       }
@@ -306,42 +296,12 @@
         }
       }
     },
-    "出口 IP 和预期不一致": {
+    "出口 IP 不在允许列表里": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Egress IP isn't the expected one"
-          }
-        }
-      }
-    },
-    "出口不合规": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Egress not compliant"
-          }
-        }
-      }
-    },
-    "出口不合规时弹出红卡": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Show a red card when the egress isn't compliant"
-          }
-        }
-      }
-    },
-    "出口不合规时弹红卡，面板顶上显示出口": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Red card when the egress isn't compliant; egress shown at the top of the panel"
+            "value": "Unexpected egress IP"
           }
         }
       }
@@ -356,16 +316,6 @@
         }
       }
     },
-    "出口仍不合规，确定关掉提醒？": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The egress is still not compliant. Turn off alerts anyway?"
-          }
-        }
-      }
-    },
     "出口守卫": {
       "localizations": {
         "en": {
@@ -376,12 +326,22 @@
         }
       }
     },
-    "出口守卫固定在最上面。各段合起来至多露 %lld 行，排在前面的先拿；多的在段里滚动。": {
+    "出口守卫固定在最上面。各段合起来最多显示 %lld 行，排在前面的先占；多出来的在段里滚动。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The egress guard stays on top. All sections together show at most %lld rows, earlier sections first; the rest scroll inside their section."
+            "value": "The egress guard stays on top. All sections together show up to %lld rows, earlier sections first; the rest scroll within their section."
+          }
+        }
+      }
+    },
+    "出口守卫没响应": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Egress guard not responding"
           }
         }
       }
@@ -426,12 +386,22 @@
         }
       }
     },
-    "列表为空时守卫无法判断出口是否正确，只能显示「暂时查不到出口」（没走隧道仍会报不合规）。": {
+    "列出会话；做完、出错、等你时弹卡": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "With an empty list the guard can't tell whether the egress is right and can only show “Egress unavailable for now” (traffic outside the tunnel is still reported as not compliant)."
+            "value": "Lists sessions; cards when done, on errors, or when waiting for you"
+          }
+        }
+      }
+    },
+    "列表为空时，守卫判断不了出口 IP 对不对，只能显示「暂时判断不了出口」；有流量没走代理仍然会报。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "With an empty list the guard can't tell whether the egress IP is right, so it shows “Can't verify the egress”. Traffic bypassing the proxy is still reported."
           }
         }
       }
@@ -496,12 +466,22 @@
         }
       }
     },
-    "只改 Pip 和刘海的样子，不改出口判定，也不弹红卡、不响；真的红卡照常弹出。不写任何文件，重开 App 就恢复。": {
+    "去公网的路由没走 Clash 的隧道": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Only changes how Pip and the notch look: no change to the egress verdict, no red card, no sound. Real red cards still pop up. Nothing is written to disk; relaunching the app restores everything."
+            "value": "Internet traffic is routed outside Clash's tunnel"
+          }
+        }
+      }
+    },
+    "只改 Pip 和刘海的样子，不影响出口判定，也不弹红卡、不响；真的红卡照常弹出。不写入任何文件，重开 App 即恢复。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only changes how Pip and the notch look: the egress verdict is unaffected, and there's no red card or sound. Real red cards still pop up. Nothing is written to disk; relaunching the app restores everything."
           }
         }
       }
@@ -542,16 +522,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Always Closed"
-          }
-        }
-      }
-    },
-    "在 Claude Code 里装一个 Notchkeeper 自带的 mod，它只记下每个回合怎么结束的，不记对话内容。安装会在 ~/.claude/settings.json 里加一项插件；卸载会去掉。已经开着的会话要重开或运行 /reload-plugins 才生效。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Installs a mod that ships with Notchkeeper into Claude Code. It only records how each turn ended, never the conversation. Installing adds a plugin entry to ~/.claude/settings.json; uninstalling removes it. Sessions already open need a restart or /reload-plugins."
           }
         }
       }
@@ -621,27 +591,17 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Guard Unresponsive"
+            "value": "Guard Not Responding"
           }
         }
       }
     },
-    "守卫没有响应": {
+    "守卫没响应，还不能确认恢复": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The guard isn't responding"
-          }
-        }
-      }
-    },
-    "守卫没有响应，无法确认出口是否恢复": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The guard isn't responding, so recovery can't be confirmed"
+            "value": "Guard silent, can't confirm recovery"
           }
         }
       }
@@ -666,12 +626,12 @@
         }
       }
     },
-    "完成 Glass · 出错 Funk · 等你 Ping · 出口不合规 Basso": {
+    "完成 Glass · 出错 Funk · 等你 Ping · 有流量没走代理 Basso": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Done: Glass · Error: Funk · Waiting: Ping · Not compliant: Basso"
+            "value": "Done: Glass · Error: Funk · Waiting: Ping · Bypassing proxy: Basso"
           }
         }
       }
@@ -692,6 +652,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Victory Hop"
+          }
+        }
+      }
+    },
+    "展开面板，查看出口状态和各插件": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opens the panel with the egress status and each plugin"
           }
         }
       }
@@ -756,7 +726,7 @@
         }
       }
     },
-    "已安装：回合做完、出错时弹卡": {
+    "已安装：回合做完或出错时弹卡": {
       "localizations": {
         "en": {
           "stringUnit": {
@@ -766,7 +736,7 @@
         }
       }
     },
-    "已安装：在 ~/.zshrc 里加上下面这行，新开的终端生效": {
+    "已安装：把下面这行加进 ~/.zshrc，新开的终端生效": {
       "localizations": {
         "en": {
           "stringUnit": {
@@ -916,7 +886,7 @@
         }
       }
     },
-    "找不到 App，可能被移动过。关掉再打开一次即可。": {
+    "找不到 App，可能被移动过。关掉再打开这个开关即可。": {
       "localizations": {
         "en": {
           "stringUnit": {
@@ -932,6 +902,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Can't find claude"
+          }
+        }
+      }
+    },
+    "找不到 claude（找过 ~/.local/bin、/opt/homebrew/bin、/usr/local/bin）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "claude not found (looked in ~/.local/bin, /opt/homebrew/bin and /usr/local/bin)"
           }
         }
       }
@@ -996,6 +976,16 @@
         }
       }
     },
+    "插件已关闭": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plugin Off"
+          }
+        }
+      }
+    },
     "摇头": {
       "localizations": {
         "en": {
@@ -1022,6 +1012,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Play Motion"
+          }
+        }
+      }
+    },
+    "操作失败：%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed: %@"
           }
         }
       }
@@ -1076,22 +1076,22 @@
         }
       }
     },
+    "无法确认是否已安装：%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't tell whether it's installed: %@"
+          }
+        }
+      }
+    },
     "日志": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Log"
-          }
-        }
-      }
-    },
-    "显示出口状态和各插件的段": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shows the egress status and each plugin's section"
           }
         }
       }
@@ -1106,12 +1106,12 @@
         }
       }
     },
-    "暂时查不到出口": {
+    "暂时判断不了出口": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Egress unavailable for now"
+            "value": "Can't verify the egress"
           }
         }
       }
@@ -1138,7 +1138,7 @@
         }
       }
     },
-    "有插件在忙或要你看时，收起的刘海显示最急的那个；都平静时显示常驻插件的状态。": {
+    "有插件在忙或要你看时，收起的刘海显示最急的那个；都平静时显示常驻插件。": {
       "localizations": {
         "en": {
           "stringUnit": {
@@ -1148,12 +1148,32 @@
         }
       }
     },
-    "有流量没走 utun 隧道": {
+    "有流量没走代理": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Some traffic isn't going through the utun tunnel"
+            "value": "Traffic is bypassing the proxy"
+          }
+        }
+      }
+    },
+    "有流量没走代理时弹红卡": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Red Card When Traffic Bypasses the Proxy"
+          }
+        }
+      }
+    },
+    "有流量没走代理时弹红卡，面板顶上显示出口": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Red card when traffic bypasses the proxy; egress shown at the top of the panel"
           }
         }
       }
@@ -1168,22 +1188,32 @@
         }
       }
     },
+    "未安装": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not installed"
+          }
+        }
+      }
+    },
+    "未安装：面板照常显示会话状态，但不弹完成卡和出错卡": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not installed: the panel still shows session states, but there are no done or error cards"
+          }
+        }
+      }
+    },
     "未知状态": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Unknown"
-          }
-        }
-      }
-    },
-    "查不到装没装：%@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Couldn't tell whether it's installed: %@"
           }
         }
       }
@@ -1208,32 +1238,22 @@
         }
       }
     },
-    "没成功：%@": {
+    "没有开启的插件": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Didn't work: %@"
+            "value": "No plugins turned on"
           }
         }
       }
     },
-    "没找到 claude（只看 ~/.local/bin、/opt/homebrew/bin、/usr/local/bin）": {
+    "没有网络，暂时检查不了出口": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "claude not found (looked in ~/.local/bin, /opt/homebrew/bin and /usr/local/bin)"
-          }
-        }
-      }
-    },
-    "没有看到正在运行的 Claude Code": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No running Claude Code"
+            "value": "Offline, can't check the egress"
           }
         }
       }
@@ -1248,32 +1268,12 @@
         }
       }
     },
-    "没装": {
+    "流量又全部走代理了": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Not installed"
-          }
-        }
-      }
-    },
-    "没装：只显示忙闲和等你，不弹完成卡、出错卡": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Not installed: only busy and waiting states, no done or error cards"
-          }
-        }
-      }
-    },
-    "流量重新全部走 utun 隧道": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "All traffic is back in the utun tunnel"
+            "value": "All traffic is going through the proxy again"
           }
         }
       }
@@ -1338,7 +1338,7 @@
         }
       }
     },
-    "看得见的 Pip 各播一次；开了「减弱动态效果」时只有眨眼。不写任何文件。": {
+    "看得见的 Pip 各播放一次；开启「减弱动态效果」时只有眨眼。不写入任何文件。": {
       "localizations": {
         "en": {
           "stringUnit": {
@@ -1378,12 +1378,12 @@
         }
       }
     },
-    "眼睛看着鼠标、身体往那边歪；鼠标到刘海上时探头。关掉后眼睛一直看正前方": {
+    "眼睛跟着鼠标，身体也往那边转；鼠标移到刘海上时探头。关掉后一直看正前方": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Eyes follow the pointer and the body leans toward it; Pip peeks out when the pointer is on the notch. When off, Pip looks straight ahead"
+            "value": "Eyes follow the pointer and the body turns toward it; Pip peeks out when the pointer is on the notch. When off, Pip looks straight ahead"
           }
         }
       }
@@ -1463,7 +1463,17 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Keep the red card until recovered"
+            "value": "Keep Red Card Until Recovered"
+          }
+        }
+      }
+    },
+    "红卡会撤下，Pip 和面板不再显示出口；后台照常检查，重新打开立即恢复。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The red card goes away and Pip and the panel stop showing the egress. Checks keep running in the background; turn it back on to restore everything right away."
           }
         }
       }
@@ -1478,22 +1488,22 @@
         }
       }
     },
+    "给 Claude Code 装上 Notchkeeper 自带的 mod：只记录每个回合怎么结束，不记录对话内容。安装会在 ~/.claude/settings.json 里加一项插件，卸载时去掉。已经开着的会话要重开或运行 /reload-plugins 才生效。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installs the mod that ships with Notchkeeper into Claude Code. It only records how each turn ended, never the conversation. Installing adds a plugin entry to ~/.claude/settings.json; uninstalling removes it. Sessions already open need a restart or /reload-plugins."
+          }
+        }
+      }
+    },
     "编辑": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Edit"
-          }
-        }
-      }
-    },
-    "网络不通，暂时没法检查出口": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No network, can't check the egress for now"
           }
         }
       }
@@ -1568,16 +1578,6 @@
         }
       }
     },
-    "跟随系统；也可以在「语言与地区」的「App」里单独给 Notchkeeper 选": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Follows the system. You can also pick one just for Notchkeeper under Applications in Language & Region"
-          }
-        }
-      }
-    },
     "跟随鼠标": {
       "localizations": {
         "en": {
@@ -1588,42 +1588,32 @@
         }
       }
     },
-    "还没有开启的插件": {
+    "还有流量没走代理，确定关掉提醒？": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "No plugins turned on"
+            "value": "Traffic is still bypassing the proxy. Turn off alerts anyway?"
           }
         }
       }
     },
-    "这个插件关着": {
+    "这个构建不含 mod，要用 scripts/run.sh 打包": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "This plugin is off"
+            "value": "This build doesn't include the mod; package it with scripts/run.sh"
           }
         }
       }
     },
-    "这个构建没带 mod，用 scripts/run.sh 打包的 App 才有": {
+    "这个构建不含终端插件，要用 scripts/run.sh 打包": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "This build doesn't include the mod; only apps packaged with scripts/run.sh do"
-          }
-        }
-      }
-    },
-    "这个构建没带终端插件，用 scripts/run.sh 打包的 App 才有": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This build doesn't include the terminal plugin; only apps packaged with scripts/run.sh do"
+            "value": "This build doesn't include the terminal plugin; package it with scripts/run.sh"
           }
         }
       }
@@ -1678,12 +1668,12 @@
         }
       }
     },
-    "退出后刘海和卡片提示会停止，后台守卫照常运行；要停守卫请用卸载脚本。": {
+    "退出后刘海和卡片都会停止，后台的出口守卫照常运行；要停止守卫，请运行卸载脚本。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Quitting stops the notch and cards; the background guard keeps running. Use the uninstall script to stop the guard."
+            "value": "Quitting stops the notch and cards; the egress guard keeps running in the background. To stop the guard, run the uninstall script."
           }
         }
       }
@@ -1718,7 +1708,7 @@
         }
       }
     },
-    "配置文件解不开，设置暂时改不了。改好文件后自动恢复。": {
+    "配置文件读不了，暂时不能改设置。修好文件后自动恢复。": {
       "localizations": {
         "en": {
           "stringUnit": {
@@ -1728,12 +1718,12 @@
         }
       }
     },
-    "配置文件解不开，这里显示的是默认设置，不是文件里的列表。": {
+    "配置文件读不了，这里显示的是默认值，不是文件里的列表。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The config file can't be read; this shows the defaults, not the list in the file."
+            "value": "The config file can't be read, so these are the defaults, not the list in the file."
           }
         }
       }
@@ -1784,6 +1774,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Panel"
+          }
+        }
+      }
+    },
+    "默认跟随系统；也可以在「语言与地区」里单独给 Notchkeeper 选": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Follows the system by default. You can also pick one just for Notchkeeper in Language & Region"
           }
         }
       }

@@ -62,7 +62,7 @@ private let row = PanelRow(id: "r", icon: .claude, title: "~/x", indicator: .wor
         #expect(shape.list == [.init(plugin: "a", rows: 5), .init(plugin: "b", rows: 1)])
     }
 
-    /// 只开了守卫：没有列表；一个插件都没开：一行占位（「还没有开启的插件」）
+    /// 只开了守卫：没有列表；一个插件都没开：一行占位（「没有开启的插件」）
     @Test func guardOnlyAndNothing() {
         #expect(PanelShape(guardEnabled: true, sections: []) == PanelShape(header: true, list: nil))
         #expect(PanelShape(guardEnabled: false, sections: []) == PanelShape(header: false, list: []))

@@ -12,7 +12,7 @@ extension Card {
         Card(source: .exitGuard, title: GuardPresentation.violatedTitle, subtitle: detail, outcome: .violation)
     }
     static var recovered: Card {
-        Card(source: .exitGuard, title: String(localized: "出口已恢复"), subtitle: String(localized: "流量重新全部走 utun 隧道"), outcome: .recovered)
+        Card(source: .exitGuard, title: String(localized: "出口已恢复"), subtitle: String(localized: "流量又全部走代理了"), outcome: .recovered)
     }
     /// 恢复卡固定 4 秒，不跟「卡片停留」设置走（docs/ui.md「卡片」）
     static let recoveredSeconds: TimeInterval = 4
@@ -848,7 +848,7 @@ struct NotchDashboard: View {
             }
 
             // 底栏是全局的，只放齿轮：哪个插件都不是必须的，不放某个插件自己的东西（用户 10-31：去掉「出口检查于…」）。
-            // 守卫数据旧了由顶上的状态说（守卫没有响应）
+            // 守卫数据旧了由顶上的状态说（出口守卫没响应）
             HStack {
                 Spacer()
                 NotchGearButton { onSettings(nil) }
@@ -861,7 +861,7 @@ struct NotchDashboard: View {
 }
 
 /// 各插件的段：每段一个内嵌的圆角容器（HIG Live Activities：用内嵌圆角容器分隔内容），露 `PanelShape` 定的行数，多的在段里滚。
-/// 段都空着时一行占位；一个插件都没开时是「还没有开启的插件」和「打开插件设置」
+/// 段都空着时一行占位；一个插件都没开时是「没有开启的插件」和「打开插件设置」
 struct PanelList: View {
     let list: [PanelShape.Visible]
     let sections: [PanelSection]
@@ -907,8 +907,8 @@ struct PanelList: View {
     }
 
     private var placeholder: String {
-        if sections.isEmpty { return String(localized: "还没有开启的插件") }
-        if sections.map(\.plugin) == [PluginID.claudeCode] { return String(localized: "没有看到正在运行的 Claude Code") }
+        if sections.isEmpty { return String(localized: "没有开启的插件") }
+        if sections.map(\.plugin) == [PluginID.claudeCode] { return String(localized: "Claude Code 没在运行") }
         return String(localized: "没有进行中的会话或活动")
     }
 

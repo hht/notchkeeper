@@ -12,7 +12,7 @@ public struct GuardPresentation: Equatable, Sendable {
         case offline
         /// 探针没结果：不改造型，收起时右耳显示灰环
         case probeFailed
-        /// 守卫没有响应：文件不存在、读不了、过期、时钟跳变，且上次不是 violated
+        /// 守卫没响应：文件不存在、读不了、过期、时钟跳变，且上次不是 violated
         case unresponsive
         /// 违规；或守卫不响应但上次是 violated、用户还没关掉这一次
         case violated

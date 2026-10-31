@@ -79,7 +79,7 @@ enum ClaudeMod {
 
     /// 插件从这里原地加载：拷到一半失败时原来那份还在（`replaceItem(at:withCopyOf:)`）
     private static func copyBundled() throws {
-        guard let bundled else { throw Failure(errorDescription: String(localized: "这个构建没带 mod，用 scripts/run.sh 打包的 App 才有")) }
+        guard let bundled else { throw Failure(errorDescription: String(localized: "这个构建不含 mod，要用 scripts/run.sh 打包")) }
         try FileManager.default.replaceItem(at: directory, withCopyOf: bundled)
     }
 

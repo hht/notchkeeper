@@ -24,7 +24,7 @@ enum TerminalPlugin {
         guard let bundled = Bundle.main.resourceURL?.appendingPathComponent("plugins/terminal", isDirectory: true),
               FileManager.default.fileExists(atPath: bundled.path),
               let bundledNK = Bundle.main.url(forAuxiliaryExecutable: "nk")
-        else { throw Failure(errorDescription: String(localized: "这个构建没带终端插件，用 scripts/run.sh 打包的 App 才有")) }
+        else { throw Failure(errorDescription: String(localized: "这个构建不含终端插件，要用 scripts/run.sh 打包")) }
         try FileManager.default.replaceItem(at: nk, withCopyOf: bundledNK)
         try FileManager.default.replaceItem(at: directory, withCopyOf: bundled)
         Log.write("终端插件：已安装")

@@ -117,7 +117,7 @@ private struct ConfigUnreadableBanner: View {
         HStack(spacing: 8) {
             // 多色：黄三角里是黑色的 !，亮色的浅底上也看得清
             Image(systemName: "exclamationmark.triangle.fill").symbolRenderingMode(.multicolor)
-            Text("配置文件解不开，设置暂时改不了。改好文件后自动恢复。")
+            Text("配置文件读不了，暂时不能改设置。修好文件后自动恢复。")
             Spacer()
             Button("打开配置文件") { store.openFile() }.controlSize(.small)
         }
@@ -188,7 +188,7 @@ private struct GeneralPane: View {
             Section {
                 Toggle(isOn: $store.config.hoverExpand) {
                     Text("鼠标悬停时展开")
-                    Text("显示出口状态和各插件的段")
+                    Text("展开面板，查看出口状态和各插件")
                 }
                 LabeledContent("卡片停留") {
                     HStack {
@@ -199,7 +199,7 @@ private struct GeneralPane: View {
                 }
                 Toggle(isOn: $store.config.soundEnabled) {
                     Text("提示音")
-                    Text("完成 Glass · 出错 Funk · 等你 Ping · 出口不合规 Basso")
+                    Text("完成 Glass · 出错 Funk · 等你 Ping · 有流量没走代理 Basso")
                 }
             } header: {
                 Text("刘海")
@@ -212,7 +212,7 @@ private struct GeneralPane: View {
                         .controlSize(.small)
                 } label: {
                     Text("语言")
-                    Text("跟随系统；也可以在「语言与地区」的「App」里单独给 Notchkeeper 选")
+                    Text("默认跟随系统；也可以在「语言与地区」里单独给 Notchkeeper 选")
                 }
             }
             Section {
@@ -221,14 +221,14 @@ private struct GeneralPane: View {
                     Button("退出 Notchkeeper…") { confirmQuit = true }
                 }
             } footer: {
-                Text("退出后刘海和卡片提示会停止，后台守卫照常运行；要停守卫请用卸载脚本。")
+                Text("退出后刘海和卡片都会停止，后台的出口守卫照常运行；要停止守卫，请运行卸载脚本。")
             }
         }
         .onAppear { loginStatus = LoginItem.status } // 可能刚在系统设置里批准过
         .confirmationDialog("退出 Notchkeeper？", isPresented: $confirmQuit) {
             Button("退出", role: .destructive) { AppDelegate.quit(reason: "设置里点了退出") }
         } message: {
-            Text("退出后刘海和卡片提示会停止，后台守卫照常运行；要停守卫请用卸载脚本。")
+            Text("退出后刘海和卡片都会停止，后台的出口守卫照常运行；要停止守卫，请运行卸载脚本。")
         }
     }
 
@@ -294,20 +294,20 @@ private struct ExitGuardPane: View {
                     Button("添加", action: add).disabled(model.allowDraft.isEmpty)
                 }
             } header: {
-                Text("允许的出口 IPv4")
+                Text("允许的出口 IP（IPv4）")
             } footer: {
                 if invalid {
                     Text("不是有效的 IPv4 地址，或已在列表里。").foregroundStyle(.red)
                 } else if store.fileUnreadable {
                     // guardd 只解 allowlist，别的键坏了它照样读到真实列表，这里却是默认值
-                    Text("配置文件解不开，这里显示的是默认设置，不是文件里的列表。")
+                    Text("配置文件读不了，这里显示的是默认值，不是文件里的列表。")
                 } else if store.config.allowlist.isEmpty {
-                    Text("列表为空时守卫无法判断出口是否正确，只能显示「暂时查不到出口」（没走隧道仍会报不合规）。")
+                    Text("列表为空时，守卫判断不了出口 IP 对不对，只能显示「暂时判断不了出口」；有流量没走代理仍然会报。")
                 }
             }
             .disabled(store.fileUnreadable)
             Section("提示") {
-                Toggle("出口不合规时弹出红卡", isOn: $store.config.autoAlert)
+                Toggle("有流量没走代理时弹红卡", isOn: $store.config.autoAlert)
                 Toggle("红卡一直保留，直到恢复", isOn: $store.config.alertPersistent)
             }
             .disabled(store.fileUnreadable)
@@ -334,8 +334,8 @@ private struct PluginOffNote: View {
                         .controlSize(.small)
                         .disabled(store.fileUnreadable)
                 } label: {
-                    Text("这个插件关着")
-                    Text(plugin == PluginID.exitGuard ? "不弹红卡，Pip 和面板不显示出口；后台守卫照常检查" : "不弹卡，面板里不列会话")
+                    Text("插件已关闭")
+                    Text(plugin == PluginID.exitGuard ? "不弹红卡，Pip 和面板也不显示出口；后台照常检查" : "不弹卡，面板里也不显示会话")
                 }
             }
         }
@@ -356,18 +356,16 @@ private struct PluginsPane: View {
         Form {
             Section {
                 Toggle(isOn: Binding(get: { c.isEnabled(PluginID.exitGuard) }, set: setGuard)) {
-                    PluginLabel(plugin: PluginID.exitGuard, state: state, detail: String(localized: "出口不合规时弹红卡，面板顶上显示出口"))
+                    PluginLabel(plugin: PluginID.exitGuard, state: state, detail: String(localized: "有流量没走代理时弹红卡，面板顶上显示出口"))
                 }
                 ForEach(ids, id: \.self) { id in
                     Toggle(isOn: Binding(get: { c.isEnabled(id) }, set: { store.config.setEnabled($0, for: id) })) {
                         PluginLabel(plugin: id, state: state,
-                                    detail: id == PluginID.claudeCode ? String(localized: "会话列表，做完、出错、等你时弹卡") : String(localized: "外部插件 · \(id)"))
+                                    detail: id == PluginID.claudeCode ? String(localized: "列出会话；做完、出错、等你时弹卡") : String(localized: "外部插件 · \(id)"))
                     }
                 }
-            } header: {
-                Text("插件")
             } footer: {
-                Text("关掉的是提醒，不是判定：出口守卫照常检查。外部插件在 ~/Library/Application Support/Notchkeeper/plugins/<id>/manifest.json 登记，关掉后它发来的卡和活动都丢掉。")
+                Text("关掉插件只关提醒，出口守卫照常在后台检查。外部插件在 ~/Library/Application Support/Notchkeeper/plugins/<id>/manifest.json 登记；关掉后，它发来的卡片和活动都会丢掉。")
             }
             .disabled(store.fileUnreadable)
 
@@ -396,7 +394,7 @@ private struct PluginsPane: View {
                 } header: {
                     Text("面板")
                 } footer: {
-                    Text("出口守卫固定在最上面。各段合起来至多露 \(PanelShape.maxRows) 行，排在前面的先拿；多的在段里滚动。")
+                    Text("出口守卫固定在最上面。各段合起来最多显示 \(PanelShape.maxRows) 行，排在前面的先占；多出来的在段里滚动。")
                 }
                 .disabled(store.fileUnreadable)
             }
@@ -412,7 +410,7 @@ private struct PluginsPane: View {
             } header: {
                 Text("收起时")
             } footer: {
-                Text("有插件在忙或要你看时，收起的刘海显示最急的那个；都平静时显示常驻插件的状态。")
+                Text("有插件在忙或要你看时，收起的刘海显示最急的那个；都平静时显示常驻插件。")
             }
             .disabled(store.fileUnreadable)
 
@@ -444,10 +442,10 @@ private struct PluginsPane: View {
             .disabled(store.fileUnreadable)
         }
         .onAppear { state.reloadManifests() } // 可能刚装了插件
-        .confirmationDialog("出口仍不合规，确定关掉提醒？", isPresented: $confirmGuardOff) {
+        .confirmationDialog("还有流量没走代理，确定关掉提醒？", isPresented: $confirmGuardOff) {
             Button("关掉提醒", role: .destructive) { store.config.setEnabled(false, for: PluginID.exitGuard) }
         } message: {
-            Text("关掉后红卡撤下，Pip 和面板不再显示出口；后台守卫照常检查，再打开马上恢复。")
+            Text("红卡会撤下，Pip 和面板不再显示出口；后台照常检查，重新打开立即恢复。")
         }
     }
 
@@ -505,7 +503,7 @@ private struct TerminalPluginSection: View {
                     do {
                         try installed ? TerminalPlugin.uninstall() : TerminalPlugin.install()
                     } catch {
-                        self.error = String(localized: "没成功：\(error.localizedDescription)")
+                        self.error = String(localized: "操作失败：\(error.localizedDescription)")
                         Log.write("终端插件：操作失败：\(error.localizedDescription)")
                     }
                     installed = TerminalPlugin.isInstalled
@@ -513,7 +511,7 @@ private struct TerminalPluginSection: View {
                 }
             } label: {
                 Text("命令跑完时弹卡")
-                Text(error ?? (installed ? String(localized: "已安装：在 ~/.zshrc 里加上下面这行，新开的终端生效") : String(localized: "没装")))
+                Text(error ?? (installed ? String(localized: "已安装：把下面这行加进 ~/.zshrc，新开的终端生效") : String(localized: "未安装")))
             }
             if installed {
                 LabeledContent {
@@ -530,7 +528,7 @@ private struct TerminalPluginSection: View {
         } header: {
             Text("终端")
         } footer: {
-            Text("zsh 里的命令跑了 10 秒以上，结束时弹一张卡，点了跳回那个终端。只有焦点正停在跑这条命令的那个终端上（同一窗口的别的标签、分屏都不算）时不弹。只把命令名交出 shell，参数不出去。vim、ssh、top 这类全屏或交互的命令不弹。")
+            Text("zsh 里跑了 10 秒以上的命令结束时弹卡，点卡片跳回那个终端。你正看着那个终端时不弹（同一窗口的其他标签、分屏不算）。命令行只交出命令名，不带参数；vim、ssh、top 这类全屏或交互的命令不弹。")
         }
     }
 }
@@ -562,7 +560,7 @@ private struct ClaudeModSection: View {
         } header: {
             Text("Claude Code")
         } footer: {
-            Text("在 Claude Code 里装一个 Notchkeeper 自带的 mod，它只记下每个回合怎么结束的，不记对话内容。安装会在 ~/.claude/settings.json 里加一项插件；卸载会去掉。已经开着的会话要重开或运行 /reload-plugins 才生效。")
+            Text("给 Claude Code 装上 Notchkeeper 自带的 mod：只记录每个回合怎么结束，不记录对话内容。安装会在 ~/.claude/settings.json 里加一项插件，卸载时去掉。已经开着的会话要重开或运行 /reload-plugins 才生效。")
         }
         .task { status = await ClaudeMod.status() }
     }
@@ -570,11 +568,11 @@ private struct ClaudeModSection: View {
     private var caption: String {
         switch status {
         case nil: return String(localized: "正在检查…")
-        case .installed?: return String(localized: "已安装：回合做完、出错时弹卡")
+        case .installed?: return String(localized: "已安装：回合做完或出错时弹卡")
         case .disabled?: return String(localized: "已安装，但在 Claude Code 里关掉了（/plugin 里打开）")
-        case .notInstalled?: return String(localized: "没装：只显示忙闲和等你，不弹完成卡、出错卡")
-        case .noClaude?: return String(localized: "没找到 claude（只看 ~/.local/bin、/opt/homebrew/bin、/usr/local/bin）")
-        case .unknown(let reason)?: return String(localized: "查不到装没装：\(reason)")
+        case .notInstalled?: return String(localized: "未安装：面板照常显示会话状态，但不弹完成卡和出错卡")
+        case .noClaude?: return String(localized: "找不到 claude（找过 ~/.local/bin、/opt/homebrew/bin、/usr/local/bin）")
+        case .unknown(let reason)?: return String(localized: "无法确认是否已安装：\(reason)")
         }
     }
 
@@ -585,7 +583,7 @@ private struct ClaudeModSection: View {
             do {
                 try await action()
             } catch {
-                self.error = String(localized: "没成功：\(error.localizedDescription)")
+                self.error = String(localized: "操作失败：\(error.localizedDescription)")
                 Log.write("Claude Code mod：操作失败：\(error.localizedDescription)")
             }
             status = await ClaudeMod.status()
@@ -611,11 +609,11 @@ private struct MascotPane: View {
             Section {
                 Toggle(isOn: $store.config.mascotFollowsMouse) {
                     Text("跟随鼠标")
-                    Text("眼睛看着鼠标、身体往那边歪；鼠标到刘海上时探头。关掉后眼睛一直看正前方")
+                    Text("眼睛跟着鼠标，身体也往那边转；鼠标移到刘海上时探头。关掉后一直看正前方")
                 }
                 Toggle(isOn: $store.config.showsEarMascot) {
                     Text("收起时显示 Pip")
-                    Text("关掉后左耳不画 Pip，右耳也没东西时就是一块纯黑的刘海；展开和弹卡时照常出来")
+                    Text("关掉后左耳不显示 Pip；右耳也没有内容时，刘海就是一块纯黑。展开和弹卡时照常显示")
                 }
             }
             .disabled(store.fileUnreadable)
@@ -658,7 +656,7 @@ private struct StateTestPane: View {
             } header: {
                 Text("强制显示")
             } footer: {
-                Text("只改 Pip 和刘海的样子，不改出口判定，也不弹红卡、不响；真的红卡照常弹出。不写任何文件，重开 App 就恢复。")
+                Text("只改 Pip 和刘海的样子，不影响出口判定，也不弹红卡、不响；真的红卡照常弹出。不写入任何文件，重开 App 即恢复。")
             }
             MotionSection()
             Section {
@@ -685,7 +683,7 @@ private struct MotionSection: View {
         } header: {
             Text("播放动作")
         } footer: {
-            Text("看得见的 Pip 各播一次；开了「减弱动态效果」时只有眨眼。不写任何文件。")
+            Text("看得见的 Pip 各播放一次；开启「减弱动态效果」时只有眨眼。不写入任何文件。")
         }
     }
 }

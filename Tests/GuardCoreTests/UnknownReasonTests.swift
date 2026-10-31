@@ -92,7 +92,7 @@ private let unknownRound = Observation(clashRunning: true, routeInterface: nil, 
         #expect(d.verdict == .healthy && d.unknownReason == nil)
     }
 
-    /// App 侧原因（过期、缺失、时钟跳变、解不开、新格式）不带 guardd 的原因，文字走「守卫没有响应」
+    /// App 侧原因（过期、缺失、时钟跳变、解不开、新格式）不带 guardd 的原因，文字走「出口守卫没响应」
     @Test func appSideReasonsCarryNoGuarddReason() throws {
         #expect(read(try file(.unknown, path: nothing, age: 16)).unknownReason == nil)
         #expect(read(try file(.unknown, path: nothing, age: 16)).reason == .stale)
