@@ -867,7 +867,7 @@ struct NotchDashboard: View {
     /// 守卫数据新不新鲜：「未知」也要看得出来（CLAUDE.md 准则 5）
     private var checkedText: String {
         guard let at = state.display.checkedAt else { return String(localized: "出口还没检查过") }
-        return String(localized: "出口检查于 \(at.formatted(.relative(presentation: .numeric, unitsStyle: .abbreviated)))")
+        return String(localized: "出口检查于 \(AgoText.string(at))")
     }
 }
 
@@ -1069,7 +1069,7 @@ struct PanelRowView: View {
         case .since(let date):
             // TimelineView 每秒重算一次 body，按当时的现在算
             TimelineView(.periodic(from: .now, by: 1)) { _ in
-                Text(date.formatted(.relative(presentation: .numeric, unitsStyle: .abbreviated)))
+                Text(AgoText.string(date))
             }
         case .value(let v):
             Text(v)

@@ -70,3 +70,16 @@ enum NotchSpring {
         .spring(response: response, dampingFraction: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 1 : dampingFraction)
     }
 }
+
+/// 「多久以前」：面板底栏的出口检查时间、会话行的时间。只说过去：刚写完的守卫状态、时钟差一点的时间
+/// 和现在一样或稍晚，格式化出来是「0 秒后」，按 1 秒前说
+/// @see https://developer.apple.com/documentation/foundation/relativedatetimeformatter
+enum AgoText {
+    static func string(_ date: Date, now: Date = .now, locale: Locale = .autoupdatingCurrent) -> String {
+        let f = RelativeDateTimeFormatter()
+        f.dateTimeStyle = .numeric
+        f.unitsStyle = .short
+        f.locale = locale
+        return f.localizedString(for: min(date, now.addingTimeInterval(-1)), relativeTo: now)
+    }
+}

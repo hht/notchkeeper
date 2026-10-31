@@ -4,16 +4,6 @@
     "%@://": {
       "shouldTranslate": false
     },
-    "%@前": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ ago"
-          }
-        }
-      }
-    },
     "%lld 秒": {
       "localizations": {
         "en": {

@@ -269,7 +269,11 @@ private struct ExitGuardPane: View {
                 }
                 // guardd 最后一次写文件的时间；守卫不响应时它会停在过去，正好说明问题
                 LabeledContent("上次检查") {
-                    if let d = state.display.checkedAt { Text("\(d, style: .relative)前") } else { Text("—") }
+                    if let d = state.display.checkedAt {
+                        TimelineView(.periodic(from: .now, by: 1)) { _ in Text(AgoText.string(d)) }
+                    } else {
+                        Text("—")
+                    }
                 }
             }
             Section {
