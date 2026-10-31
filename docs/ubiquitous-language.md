@@ -36,3 +36,11 @@
 | block | 内容块 | 卡片第一行下面的一块：正文、日志尾巴、键值、勾叉列表、进度 |
 | card | 卡片 | 刘海下弹出的提示：完成卡、出错卡、介入卡、红卡、恢复卡 |
 | meteor | 流星 | 卡片弹出时沿边扫一趟的两道光。不叫「流光」「进度条」 |
+| firewall mode | 防火墙模式 | off 关闭 / trial 试运行 / on 开启。不叫「保护模式」 |
+| trial / keep | 试运行 / 保留 | 开启后先试运行 2 分钟，点「保留」才转 on，没点到时回滚到 off |
+| firewall state | 状态文件 | root 0600 的 `firewall.state`，守护进程照它办事。不是状态摘要 |
+| firewall status | 状态摘要 | root 0644 的 `firewall-status.json`，守护进程每轮写给 App 看 |
+| check | 核对 | 开着时每轮验证规则真的在拦（pf 开着、anchor 点在、有规则、计数在涨、隧道网卡在） |
+| pf reference | 启用引用 | `pfctl -E` 拿到的那一份，凭 token 用 `pfctl -X` 释放。不叫「锁」「句柄」 |
+| test rules | 测试规则 | block 只拦 `nobody` 的规则，测试时用，不真的断网。正式规则叫 production rules |
+| rescue script | 恢复脚本 | `scripts/firewall-rescue.sh`，卸掉防火墙的一切；演练脚本 `firewall-drill.sh` 装假防火墙来练它 |

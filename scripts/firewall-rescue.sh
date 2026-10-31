@@ -15,7 +15,9 @@ PLIST="/Library/LaunchDaemons/${LABEL}.plist"
 HELPER="/Library/PrivilegedHelperTools/notchkeeper-firewall"
 SUPPORT="/Library/Application Support/Notchkeeper"
 STATE="${SUPPORT}/firewall.state"
-FILES=("${PLIST}" "${HELPER}" "${STATE}" "${SUPPORT}/firewall-status.json" "${SUPPORT}/firewall.pf")
+# 辅助程序还会写锁文件和两个固定名字的临时文件（写到一半崩了才会留下）
+FILES=("${PLIST}" "${HELPER}" "${STATE}" "${SUPPORT}/firewall-status.json" "${SUPPORT}/firewall.pf" "${SUPPORT}/firewall.lock"
+  "${SUPPORT}/.firewall.state.tmp" "${SUPPORT}/.firewall-status.json.tmp")
 
 usage() { echo "用法: sudo $0 [--disable-pf]  或  $0 --dry-run [--disable-pf]" >&2; exit 64; }
 DRY_RUN=0

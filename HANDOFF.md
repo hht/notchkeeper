@@ -1,10 +1,28 @@
 # HANDOFF
 
-最后更新：2026-10-31（第 4 步验收完，第 5 步恢复脚本实测过）。只放接下来要做的和没解决的；做完的看 `git log`，规则看 `CLAUDE.md` 和 `docs/*`。开工前 `git log --oneline -5` 核对。实机验证的技巧见 `docs/dev-notes.md`。
+最后更新：2026-10-31（第 5 步：恢复脚本实测过，状态机和辅助程序写完）。只放接下来要做的和没解决的；做完的看 `git log`，规则看 `CLAUDE.md` 和 `docs/*`。开工前 `git log --oneline -5` 核对。实机验证的技巧见 `docs/dev-notes.md`。
 
 ## 接下来
 
-**新会话从这里开始**：插件化和第 4 步（App 外壳重写）都做完了，见 `git log`；10-31 之后又按用户反馈去掉了底栏的「出口检查于」、修了设置页滚动时字叠字、过了一遍文案。用户的偏好：文档尽量少、先做代码；整步做完再统一审、分批提交（10-31）。第 4 步的实机验收用户 10-31 全部过了。下一步：第 5 步防火墙。`demo.sh settings` 能打开设置页截图，但会把设置窗口激活、抢走用户的焦点，用户在用机器时别用。
+**新会话从这里开始**：正在做第 5 步防火墙，先看下面「第 5 步」。插件化和第 4 步都做完了（见 `git log`），第 4 步的实机验收用户 10-31 全过。
+
+**防火墙状态机和辅助程序已提交（10-31），但第二轮复审的结论还没改**：用户看过结论后让先提交。`swift build` 零警告、`swift test` 621 个全绿。**新会话先改完下面这些（必须修那条先写会红的测试），再派新的 `reviewer` 审**，还有必须修就停下交用户定；改完照 CLAUDE.md 一类改动一个提交。
+- **必须修**：开机变化后 `advance` 不再清 held 引用（`FirewallState.swift` 的 `advance`），交给 `tick` 按 References 判；但 References 读不出（`tokens == nil`）时 held 旧 token 会配上新 `bootSession` 落盘，恢复脚本据 bootSession 认为它是本次开机的，会 `pfctl -X` 上一次开机的号码；`on` 开机后也永远不再 `-E`。改法：开机变化后只有 References 读得出且含这个 token 才留 held，否则置 nil；docs §4 第 2 步跟着改。
+- **建议**：
+  - 状态摘要的 `scope` 只在 `state.loadedRules == config.rules` 时填，否则 nil（换规则那轮 load 失败时 anchor 里还是旧规则）。
+  - References 解析「成功但对不上」时会每轮 `-E` 一个：`-E` 之后下一轮还找不到这个 token 就降成 `.unknownToken`。
+  - `.unknownToken` 在 pf 已停（核对 `pfEnabled == false`）时置 nil，否则 `pfctl -d` 后卡住。
+  - `runProcess` 的临时文件在 `$TMPDIR`，osascript 提权时可能是用户目录，有符号链接替换的风险（推断）：改成 `open(O_CREAT|O_EXCL|O_NOFOLLOW, 0600)` 拿 fd 后立刻 `unlink`，只用 fd；`commandTimeout` 改成可注入，补 `cat`、`sleep` 两个测试。
+  - 锁上限 30 秒短于一轮最坏耗时（约 8 条 × 6 秒），且按墙上时间算：调大或改用单调时钟。
+  - `FirewallState.swift` 第 1 行注释还写着 `CLOCK_MONOTONIC`，跟 `FirewallSystem.swift` 统一成 RAW。
+  - 词表里「状态文件」已指 `guard-state.json`，`firewall.state` 改叫「防火墙状态文件」。
+- 复审确认无需改：`no state` 两条不影响拦截；References 解析；锁文件权限；恢复脚本清单。
+
+**和用户协作的规矩（10-31）**：
+- 测试时**不能真的断网**、**不能重启这台 Mac**（`docs/firewall.md` §7 开头）。
+- 要 root 的命令都由用户在没跑 agent 的终端里自己 `sudo` 执行，执行完 `sudo -k`；agent 不跑 sudo。请用户跑的命令单独放进代码块、写明只读与否：夹在长段落里用户会看不到。
+- 不在用户机器上模拟键盘和点击；`demo.sh settings` 会抢焦点，用户在用机器时别用。
+- 用户偏好：文档尽量少、先做代码。
 
 **插件化**：App 是「刘海 + Pip + 卡片队列 + 面板」外壳，插件产出同一种 `Card`，各报一个 `PluginStatus`（紧急程度），面板里各占一段（`PanelRow`）。内置插件是出口守卫、Claude Code（id 见 `NotchCore/PluginID.swift`，外部插件不能用）。外部插件写收件箱（`nk notify`、`nk activity`），`InboxWatcher` 读，`InboxGate` 收，活动归 `ActivityBoard`；插件开没开只在 App 主线程的收件箱回调里判。
 
@@ -17,8 +35,10 @@
 - demo 卡上「看 Swift 文档」（https）按钮。
 
 **第 5 步：防火墙**：root 实测 → 恢复脚本并实测 → 试运行和自动回滚 → 规则、LaunchDaemon、安装脚本、App 开关；shielded 造型接线。按全局 Contract「高影响」档收工。IPv6 一起处理。
-- 恢复脚本 `scripts/firewall-rescue.sh` 用演练脚本 `scripts/firewall-drill.sh` 实测过一次，全过（`docs/firewall.md` §6、§7 第 1 步）。§7 第 1 步 10-31 通过，可以开始写 block 规则。本机不能重启，重启类验收改成 §7 开头的「模拟开机」。
-- 还没查：shell 里能用的单调时钟（`kern.monotonicclock*` 这几个 sysctl 没有文档，含义没核实），决定试运行截止时间怎么记。
+- 恢复脚本 `scripts/firewall-rescue.sh` 实测通过（§7 第 1 步）。本机不能重启，重启类验收改成 §7 开头的「模拟开机」；测试时不能真的断网，用测试规则（只拦 `nobody`，§7）。
+- 已写：`FirewallCore`（状态机、规则、核对、两个 JSON）和 `firewalld`（辅助程序，`round --tunnel <网卡> [--test-rules]` / `enable` / `keep` / `disable`），全在 `swift test` 里测，还没以 root 跑过。
+- 下一刀：安装脚本 `scripts/install-firewall.sh`（编译、给用户看 plist、备份、用户自己 sudo；先只装 `--test-rules`），然后按 §7 第 2～6 步实机测：用 `--tunnel utun9999` 模拟 Clash 断开，`sudo -u nobody curl` / `dig` 看拦没拦；同时用 `pfctl -si` 量状态表占用、看空闲时 Evaluations 涨不涨（§5）。之后才接 App 开关和 shielded 造型。
+- 还没定：Evaluations 空闲不涨时怎么处理（等实测）；正式规则什么时候装（要用户拍板）。
 
 ## 等实机验证
 
@@ -43,10 +63,11 @@
 
 ## 建议用的 skill
 
-- `tdd`：每一刀先写会失败的测试、亲眼看红；纯值逻辑在临时副本里改坏几处确认会红（`docs/dev-notes.md`）。
-- `research`：第 3、4 刀动手前核实 Adaptive Cards 字段（`gh api repos/microsoft/AdaptiveCards/contents/schemas/src`）、zsh 钩子、Ghostty 行为。
+- `tdd`：每一刀先写会失败的测试、亲眼看红，再在临时副本里改坏实现确认测试会红（本会话每条新行为都这么做过）。
+- `research`：动 pf / launchd 行为前先查一手资料（XNU 源码、man page、Mullvad `talpid-core/src/firewall/macos.rs`），结论写进 `docs/firewall.md` §6。
+- `diagnosing-bugs`：实机测试规则时行为和预期不符就用它，先复现再改。
+- `ui-ux-pro-max`：接 App 开关、试运行倒计时、shielded 造型时用。
+- `domain-modeling`：防火墙的新词已进 `docs/ubiquitous-language.md`，再起名先查它。
 - `run`：打包启动、`demo.sh` 弹卡、截图。
-- `ui-ux-pro-max`：第 5、6 刀的设置页和面板分段。
-- `domain-modeling`：活动、状态、常驻插件这些新词进 `docs/ubiquitous-language.md`。
 - `writing-for-agents`：改 CLAUDE.md 时用。
 - `handoff`：换会话时更新本文件（就是 `HANDOFF.md`，不另写 `handoff.md`）。

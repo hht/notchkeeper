@@ -73,7 +73,8 @@ if [ "${DRY_RUN}" -eq 1 ]; then
   exit 0
 fi
 
-for f in "${PLIST}" "${HELPER}" "${STATE}" "${SUPPORT}/firewall-status.json" "${RULES}"; do
+for f in "${PLIST}" "${HELPER}" "${STATE}" "${SUPPORT}/firewall-status.json" "${RULES}" "${SUPPORT}/firewall.lock" \
+  "${SUPPORT}/.firewall.state.tmp" "${SUPPORT}/.firewall-status.json.tmp"; do
   if [ -e "${f}" ] || [ -L "${f}" ]; then echo "已经有 ${f}：先跑 sudo ${RESCUE}" >&2; exit 1; fi
 done
 if launchctl print "system/${LABEL}" >/dev/null 2>&1; then echo "${LABEL} 已加载：先跑 sudo ${RESCUE}" >&2; exit 1; fi

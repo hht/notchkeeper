@@ -25,6 +25,14 @@ let package = Package(
         // 出口守卫后台进程：轮询三路探针、写 guard-state.json（App 用 GuardWatch 监听这个文件）
         .executableTarget(name: "guardd", dependencies: ["GuardCore", "GuardProbes"]),
         .testTarget(name: "guarddTests", dependencies: ["guardd"]),
+        // 防火墙的纯逻辑（docs/firewall.md）：开启 / 保留 / 关闭怎么改状态、每一轮该对 pf 做什么、规则长什么样、核对结果、root 状态文件和状态摘要的格式。
+        // 纯值类型，不调 pfctl、不读文件、不取时钟
+        .target(name: "FirewallCore"),
+        .testTarget(name: "FirewallCoreTests", dependencies: ["FirewallCore"]),
+        // 防火墙的特权辅助程序（装成 /Library/PrivilegedHelperTools/notchkeeper-firewall，root 跑）：LaunchDaemon 每 10 秒跑一轮，
+        // App 用 osascript 带管理员权限调开启 / 保留 / 关闭。只做 I/O：调 pfctl、读写两个文件、加锁、取时钟；判定在 FirewallCore
+        .executableTarget(name: "firewalld", dependencies: ["FirewallCore"]),
+        .testTarget(name: "firewalldTests", dependencies: ["firewalld", "FirewallCore"]),
         // Pip 此刻是什么造型、做什么动作：造型数据、眼形补间、球面位置、动作编排（[Track]）、空闲调度、犯困 / 回正 / 晕的时钟、跟随鼠标。纯值类型，只依赖 CoreGraphics
         .target(name: "MascotCore"),
         .testTarget(name: "MascotCoreTests", dependencies: ["MascotCore"]),
