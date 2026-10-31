@@ -119,8 +119,7 @@ public struct CardQueue<Card: Equatable & Sendable>: Sendable {
         if case .notice(let e) = stage { waiting.insert(e, at: 0) }
         waiting.removeAll { $0.notice.key == .recovered }
         stage = .alert
-        countdown = CardCountdown(total: seconds, now: now)
-        syncCountdown(now)
+        start(seconds, now: now)
         alertSoundDue = sound && away
         return Change(sound: sound && !away)
     }
@@ -192,6 +191,13 @@ public struct CardQueue<Card: Equatable & Sendable>: Sendable {
         return Change(sound: alertSoundDue)
     }
 
+    /// 一张卡上台、开始倒计时。悬停按卡算：鼠标移进这张卡才停，换上来时鼠标恰好在原处不算
+    private mutating func start(_ seconds: TimeInterval, now: Date) {
+        countdown = CardCountdown(total: seconds, now: now)
+        hovering = false
+        syncCountdown(now)
+    }
+
     private mutating func syncCountdown(_ now: Date) {
         if hovering || away { countdown?.pause(at: now) } else { countdown?.resume(at: now) }
     }
@@ -203,8 +209,7 @@ public struct CardQueue<Card: Equatable & Sendable>: Sendable {
             let sound = !e.sounded
             e.sounded = true
             stage = .notice(e)
-            countdown = CardCountdown(total: e.notice.seconds, now: now)
-            syncCountdown(now)
+            start(e.notice.seconds, now: now)
             return Change(sound: sound)
         }
         stage = alert == nil ? nil : .alert

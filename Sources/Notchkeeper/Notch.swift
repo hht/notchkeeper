@@ -353,8 +353,6 @@ final class NotchController {
             withAnimation(NotchSpring.notchOpen) { model.expanded = true }
         }
         updateMouseCapture()
-        // 卡片弹到鼠标底下：当作停在卡上，先不倒计时
-        if shapeRect.contains(NSEvent.mouseLocation) { _ = queue.setHovering(true, now: Date()) }
     }
 
     /// 熄屏或锁屏：台面上的卡停住，新卡不放、不响；回来接着放

@@ -82,6 +82,7 @@
 - **点卡片**（用户 10-30）：完成卡、出错卡、介入卡点 × 以外的地方，跳到 Ghostty 里这个会话的窗口（`docs/agent-integration.md`「跳转到 Ghostty」），这张卡算关掉；红卡、恢复卡点了不做事。
 - **颜色**（流星和细边）：完成卡低饱和银白，出错卡浅橙（error 造型身体下端的 `#EDB892`），介入卡等你回答青 / 等你批准青柠，恢复卡绿，红卡红。绿色只给出口正常；Claude 橙在黑底上晕开发红，不用。卡片外圈阴影一律黑色。
 - **文案**：标题说谁怎么了（「Claude Code 做完了」「Claude Code 在等你回答」「Claude Code 在等你批准」），副标题是会话的路径（同会话行，`~` 缩写）。
+- **悬停**按卡算：鼠标在这张卡上动了才暂停倒计时；卡弹到不动的鼠标底下、或上一张被点掉后鼠标没动，都照常倒计时（10-30 修：原来会一直停着，后面的卡都排着等）。
 - 依据：HIG Live Activities，提醒「light up the screen and by default play the notification sound」，多个活动时常驻的那个不被挤掉（<https://developer.apple.com/design/human-interface-guidelines/live-activities>）；仓里原有的「常驻红卡 + 临时卡插在上面、放完回到红卡」。
 
 ## 截图

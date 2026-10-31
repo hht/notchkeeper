@@ -67,6 +67,34 @@ private let silent = Queue.Change()
         _ = q.tick(now: at(14))
         #expect(q.showing == nil)
     }
+
+    /// 悬停按卡算：换上来的卡照常倒计时，鼠标移进它才停。否则点掉一张卡后鼠标不动，下一张就一直不收（docs/ui.md「卡片」）
+    @Test func nextCardStartsUnhovered() {
+        var q = Queue()
+        _ = q.post(notice("a"), now: t0)
+        _ = q.post(notice("b"), now: t0)
+        _ = q.setHovering(true, now: at(1))
+        _ = q.dismiss(now: at(2))
+        #expect(q.showing == .notice("b"))
+        #expect(q.deadline(now: at(2)) == at(8))
+    }
+
+    @Test func cardAfterCollapseStartsUnhovered() {
+        var q = Queue()
+        _ = q.post(notice("a"), now: t0)
+        _ = q.setHovering(true, now: at(1))
+        _ = q.dismiss(now: at(2))
+        _ = q.post(notice("b"), now: at(10))
+        #expect(q.deadline(now: at(10)) == at(16))
+    }
+
+    @Test func alertStartsUnhovered() {
+        var q = Queue()
+        _ = q.post(notice("a"), now: t0)
+        _ = q.setHovering(true, now: at(1))
+        _ = q.raiseAlert(persistent: true, sound: true, seconds: 6, now: at(2))
+        #expect(q.deadline(now: at(2)) == at(8))
+    }
 }
 
 /// docs/ui.md「卡片」2：还没放的、同一个会话的旧卡被它后来的卡原地替换
