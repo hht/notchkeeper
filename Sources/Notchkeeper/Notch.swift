@@ -116,7 +116,8 @@ enum CardActions {
 final class NotchModel: ObservableObject {
     @Published var card: Card?
     @Published var expanded = false      // 卡片是否展开
-    @Published var hovering = false      // 鼠标悬停展开的“岛”
+    /// 悬停（或点击）展开了面板：`PanelHover` 的镜像，只由 `NotchController.updateHover` 写
+    @Published var hovering = false
     @Published var notchSize: CGSize = CGSize(width: 190, height: 32)
     @Published var countdown: CardCountdown?
     /// 卡片内容按自然大小排，量出来的高度；形状和悬停命中区都按它
@@ -161,8 +162,8 @@ final class NotchController {
     private var moveMonitors: [Any] = []
     private let tracker = NotchMouseTracker()
     private var hoverEnabled = false
-    private var hoverIntent: DispatchWorkItem?
-    private var leaveWork: DispatchWorkItem?
+    private var hover = PanelHover()
+    private var hoverWork: DispatchWorkItem?
     private var screenFrame: NSRect = .zero
 
     /// 齿轮按钮、「打开插件设置」：打开设置（nil 是上次的页）
@@ -199,7 +200,7 @@ final class NotchController {
         }, onCardResized: { [weak self] in
             self?.cardResized()
         }, onSettings: { [weak self] pane in
-            self?.setHovering(false)
+            self?.updateHover { $0.close() }
             self?.onOpenSettings(pane)
         }))
         host.sizingOptions = []
@@ -399,13 +400,11 @@ final class NotchController {
     /// 固定展开 / 固定收起 / 自动。换的时候清掉悬停，回到自动时按当前鼠标重新判断
     func setPin(_ p: NotchPin) {
         guard overrides.pin != p else { return }
-        hoverIntent?.cancel(); hoverIntent = nil
-        leaveWork?.cancel(); leaveWork = nil
         let opening = p == .open && model.mode == .closed
         if opening { orderFront() }
         withAnimation(opening ? NotchSpring.notchOpen : NotchSpring.notchClose) {
             overrides.pin = p
-            model.hovering = false
+            updateHover { $0.close() }
         }
         updateMouseCapture()
     }
@@ -420,10 +419,7 @@ final class NotchController {
 
     func setHoverEnabled(_ on: Bool) {
         hoverEnabled = on
-        if !on {
-            hoverIntent?.cancel(); hoverIntent = nil
-            setHovering(false)
-        }
+        if !on { updateHover { $0.close() } }
     }
 
     /// 鼠标监听常驻：卡片的点击穿透也靠它，所以不随「悬停展开」开关装卸。
@@ -454,8 +450,7 @@ final class NotchController {
             return true
         }
         guard model.mode == .closed, overrides.pin == .auto else { return false }
-        hoverIntent?.cancel(); hoverIntent = nil
-        setHovering(true)
+        updateHover { $0.open() }
         return true
     }
 
@@ -519,40 +514,23 @@ final class NotchController {
         let p = NSEvent.mouseLocation
         MascotDirector.shared.mouseMoved(to: p)
         setCardHover(model.mode == .card && shapeRect.contains(p))
-        // 点击展开的岛不受「悬停展开」开关影响，离开时照样收起
-        if model.hovering {
-            if visibleRect.contains(p) || triggerRect.contains(p) {
-                leaveWork?.cancel(); leaveWork = nil
-            } else if leaveWork == nil {
-                let w = DispatchWorkItem { [weak self] in self?.setHovering(false) }
-                leaveWork = w
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: w)
-            }
-        } else if hoverEnabled, overrides.pin == .auto, triggerRect.contains(p) {
-            guard hoverIntent == nil else { return }
-            let w = DispatchWorkItem { [weak self] in
-                guard let self else { return }
-                self.hoverIntent = nil
-                if self.triggerRect.contains(NSEvent.mouseLocation) { self.setHovering(true) }
-            }
-            hoverIntent = w
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: w)
-        } else {
-            hoverIntent?.cancel(); hoverIntent = nil
-        }
+        let (onNotch, nearShape, canOpen) = (triggerRect.contains(p), visibleRect.contains(p), hoverEnabled && overrides.pin == .auto)
+        updateHover { $0.mouseMoved(onNotch: onNotch, nearShape: nearShape, canOpen: canOpen, now: Date()) }
     }
 
-    func setHovering(_ on: Bool) {
-        leaveWork?.cancel(); leaveWork = nil
-        guard model.hovering != on else { return }
-        if on {
-            orderFront()
-            withAnimation(NotchSpring.notchOpen) { model.hovering = true }
-            updateMouseCapture()
-        } else {
-            withAnimation(NotchSpring.notchClose) { model.hovering = false }
+    /// 悬停状态机改完：面板跟着展开或收起，定下一次到点
+    private func updateHover(_ change: (inout PanelHover) -> Void) {
+        change(&hover)
+        if hover.isOpen != model.hovering {
+            if hover.isOpen { orderFront() }
+            withAnimation(hover.isOpen ? NotchSpring.notchOpen : NotchSpring.notchClose) { model.hovering = hover.isOpen }
             updateMouseCapture()
         }
+        hoverWork?.cancel(); hoverWork = nil
+        guard let at = hover.deadline else { return }
+        let work = DispatchWorkItem { [weak self] in self?.updateHover { $0.tick(now: Date()) } }
+        hoverWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + max(0, at.timeIntervalSinceNow), execute: work)
     }
 }
 
