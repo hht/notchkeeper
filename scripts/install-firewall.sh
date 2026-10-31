@@ -116,6 +116,16 @@ PLIST_CONTENT="<?xml version=\"1.0\" encoding=\"UTF-8\"?>
 </plist>"
 printf '%s\n' "${PLIST_CONTENT}" | plutil -lint - >/dev/null || die "plist 不合法"
 
+# check_syntax <规则全文> <临时目录>：pfctl -n 只解析不加载。规则引用的表文件开启时才有，换成临时目录里的空表。
+# 跑在 macOS 自带的 bash 3.2 上（RescueScriptTests 用 /bin/bash 跑这个函数）
+check_syntax() {
+  local t
+  for t in clash.table cn.table test.table; do : > "$2/${t}"; done
+  # 替换部分不加引号：bash 3.2 会把引号原样留进结果里（bash 5.2 起不加引号时 & 有特殊含义，shebang 是 /bin/bash，碰不到）
+  printf '%s\n' "${1//"${SUPPORT}"/$2}" > "$2/rules.pf"
+  pfctl -q -a "${ANCHOR}" -nf "$2/rules.pf"
+}
+
 show() { echo "----- $1 -----"; printf '%s\n' "$2"; echo "----- end -----"; }
 [ "${DRY_RUN}" -eq 1 ] && echo "== dry-run：只打印，不改任何东西"
 echo "== 要装的东西（全是新文件；已经装了任何一样就拒绝）"
@@ -126,8 +136,13 @@ echo "测试表 ${SUPPORT}/test.table（root:wheel 0644）：${TEST_ADDRESS}"
 echo "LaunchDaemon ${PLIST}（root:wheel 0644）："; show "${PLIST}" "${PLIST_CONTENT}"
 echo "开启后（trial / on）每一轮装进 anchor ${ANCHOR} 的测试规则（装完是 off，不装）："; show "规则" "${RULES}"
 
+# 语法检查不要 root，dry-run 也做：不等到真装才发现规则装不上
+echo "（pfctl -n 只检查语法、不加载；它打出的「could result in flushing of rules」「No ALTQ support」是固定提示，不是错误）"
+check_syntax "${RULES}" "${SNAPSHOT_DIR}" || die "pfctl 认为规则有语法错误（见上面）"
+echo "== 规则语法正确"
+
 if [ "${DRY_RUN}" -eq 1 ]; then
-  echo "+ 检查：${LABEL} 没加载、上面的文件都不存在；pfctl -n 检查规则语法"
+  echo "+ 检查：${LABEL} 没加载、上面的文件都不存在"
   echo "+ 问一次「输入 yes 继续」"
   echo "+ 写辅助程序和 plist，launchctl bootstrap system ${PLIST}，等第一份状态摘要"
   exit 0
@@ -137,12 +152,7 @@ for f in "${FILES[@]}"; do
   if [ -e "${f}" ] || [ -L "${f}" ]; then die "已经有 ${f}：要重装先跑 sudo ${RESCUE}"; fi
 done
 if launchctl print "system/${LABEL}" >/dev/null 2>&1; then die "${LABEL} 已加载：要重装先跑 sudo ${RESCUE}"; fi
-# 规则引用的表文件开启时才有：语法检查换成临时目录里的空表
-for t in clash.table cn.table test.table; do : > "${SNAPSHOT_DIR}/${t}"; done
-printf '%s\n' "${RULES//"${SUPPORT}"/"${SNAPSHOT_DIR}"}" > "${SNAPSHOT_DIR}/rules.pf"
-echo "（pfctl -n 只检查语法、不加载；它打出的「could result in flushing of rules」「No ALTQ support」是固定提示，不是错误）"
-pfctl -q -a "${ANCHOR}" -nf "${SNAPSHOT_DIR}/rules.pf" || die "pfctl 认为规则有语法错误（见上面）"
-echo "== 检查通过：没装过，规则语法正确"
+echo "== 检查通过：没装过"
 
 read -r -p "确认安装？输入 yes 继续：" answer
 [ "${answer}" = "yes" ] || { echo "没装，什么都没改"; exit 1; }

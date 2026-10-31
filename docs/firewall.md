@@ -203,7 +203,7 @@ root 实测（`scripts/firewall-drill.sh`，10-31）：
 
 1. **恢复脚本**：装上测试 anchor 和 LaunchDaemon，执行恢复脚本，确认都清掉了；核对开机时会读的地方都没有它（`/etc/pf.conf`、`/etc/pf.anchors/`、`/Library/LaunchDaemons`、launchd 的 `disabled.plist`、后台项目登记 `BackgroundItems-v*.btm`）；什么都没装时再跑一次，每步都是「跳过」。
 2. **试运行**：开启后不点「保留」，确认到时间自动关闭、外网恢复；试运行期间模拟开机，之后状态是 `off`。
-3. **测试规则下模拟 Clash 断开**：`curl` 测试地址立刻失败（`block return`），`dig @<测试地址>` 被拦；去别处的流量照常。隧道网卡名换回 `utun1024` 后，测试地址也能走隧道连上。
+3. **测试规则下模拟 Clash 断开**：测试地址连不上（`block return` 下 TCP 也要等满超时，§6），`dig @<测试地址>` 被拦；去别处的流量照常。隧道网卡名换回 `utun1024` 后，测试地址也能走隧道连上。
 4. **关闭后**：测试地址恢复，anchor 为空。
 5. **`on` 状态下模拟开机**：之后防护仍在。
 6. **fail-open 检测**：不在实机上停 pf；核对逻辑吃 `pfctl` 的输出，用 `swift test` 喂「anchor 点不见了」「计数不涨」「网卡不存在」几种输出来测。
@@ -211,5 +211,7 @@ root 实测（`scripts/firewall-drill.sh`，10-31）：
 每一步的命令和结果都记在这里。第 2～5 步由 `sudo scripts/firewall-test.sh` 一次跑完（第 3 步的「换回 utun1024」是重装）。
 
 - 第 1 步（10-31）：`sudo scripts/firewall-drill.sh` 装上假防火墙，手动清空 anchor 后 11 秒内被守护进程装回；`sudo scripts/firewall-rescue.sh` 依次 bootout、清 anchor、`pfctl -X` 释放自己的引用（`pfd` 的引用留着，pf 仍启用）、删文件，核对全过，目录也删掉了。开机会读的地方都没有它：`/etc/pf.conf` 和 `/etc/pf.anchors/com.apple` 只有 Apple 的 anchor，`/Library/LaunchDaemons`、`disabled.plist` 里没有，`BackgroundItems-v16.btm` 在恢复脚本跑完后更新过、只剩 guardd。什么都没装时再跑一次：第 1 到 3 步都是「跳过」，第 4 步没东西可删，核对全过。**第 1 步通过。**
-- 第 2～5 步（10-31，`scripts/firewall-test.sh`，测试规则）：41 项通过。试运行开启后 125 秒自动回到 off，规则清空、引用释放、`nobody` 恢复上网；隧道网卡名为不存在的 `utun9999` 时 `nobody` 的外网和直连 DNS 被拦，本用户、局域网照常；试运行中模拟开机后是 off、不再拿引用；`on` 时模拟开机后规则和引用都回来；关闭后 anchor 为空、引用释放；重装成 `utun1024` 后 `nobody` 走隧道能上网。没过的：开启、保留、关闭里的 `kickstart` 每次都超过 5 秒被结束、命令报错（状态已写进去，守护进程几秒内自己跑了那一轮），原因是 launchd 的启动节流，plist 加 `ThrottleInterval` 1 后待复测。
-- **10-31 事故**：agent 用 osascript 提权跑 `firewall-test.sh`（当时的测试规则用 `user nobody`），「`on` 时模拟开机」之后约 3 分钟整机断网：所有 `pfctl`（连只读的 `-sr`）都不返回，Clash 内核 IPC 超时，恢复脚本卡在第 2 步，只能重启。重启后 `on` 把规则装了回来（网络正常），用恢复脚本卸干净。根因是 `user` 规则的内核死锁（§5、§6）。之后：规则里不再有 `user` / `group`；恢复脚本先删开机会加载的文件、每条 `launchctl` / `pfctl` 都限时，pf 卡死时不卡终端、提示重启。上面第 2～5 步的结果是旧测试规则下的，要用新测试规则重做。
+- 第 2～5 步（10-31，`scripts/firewall-test.sh`，测试规则）：41 项通过。试运行开启后 125 秒自动回到 off，规则清空、引用释放、`nobody` 恢复上网；隧道网卡名为不存在的 `utun9999` 时 `nobody` 的外网和直连 DNS 被拦，本用户、局域网照常；试运行中模拟开机后是 off、不再拿引用；`on` 时模拟开机后规则和引用都回来；关闭后 anchor 为空、引用释放；重装成 `utun1024` 后 `nobody` 走隧道能上网。没过的：开启、保留、关闭里的 `kickstart` 每次都超过 5 秒被结束、命令报错（状态已写进去，守护进程几秒内自己跑了那一轮），原因是 launchd 的启动节流，plist 加 `ThrottleInterval` 1 后复测通过（见下面重做的那条）。
+- 第 1 步重做（10-31 晚，事故后的新版恢复脚本：先删开机会加载的文件、每条命令限时）：用户当轮明确让 agent 执行（「你来帮我执行」），agent 用 osascript 提权、用户输密码，`firewall-drill.sh` 装假防火墙后紧接着跑 `firewall-rescue.sh`。演练：pf 原来就开着（只有 `pfd` 的引用），`-E` 拿到引用，anchor 的 Evaluations 10 秒从 295 涨到 5468，手动清空后 11 秒内被装回。恢复脚本依次删 plist 和辅助程序、bootout、清 anchor、`-X` 释放自己的引用（`pfd` 的留着）、删其余文件，核对全过，退出码 0，目录也删了，网络照常。什么都没装时再跑一次：每步都是「跳过」，退出码 0。**新版第 1 步通过。**
+- 第 2～5 步重做（10-31 晚，新测试规则：只拦去测试表的流量，测试地址用境外公共 DNS；用户当轮明确让 agent 执行，agent 用 osascript 提权、`SUDO_USER` 指向用户）：**44 项全过**。开启时 root 读得了用户的 Clash Verge 目录、拍快照成功，测试地址不在 `<cn>` / `<clash>` 里；隧道网卡不存在时测试地址的 443 被拦（`block return` 下 `nc` 等满 8 秒）、53 被拦，去别处照常；试运行 121 秒后自动回到 off、规则清空、引用释放；试运行中模拟开机后是 off；`on` 时模拟开机后规则和引用都回来；关闭后守护进程退出（off 时不轮询）；重装成 `utun1024` 后测试地址走隧道能连上。开启、保留、关闭的 `kickstart` 没再超时（`ThrottleInterval` 1 起作用）。空闲 20 秒 Evaluations 从 6.5 万涨到 13.8 万；状态表 39 条。跑完用恢复脚本卸干净，网络全程正常。第一次跑时安装脚本的语法检查在 bash 3.2 下把表文件路径拼坏、装之前就停了（什么都没改），已修并加测试。还没实测：真开机（只模拟过）、守护进程崩溃后被 `KeepAlive` 拉起、`-F rules` 后表是否跟着消失（`pfctl -s Tables`）。
+- **10-31 事故**：agent 用 osascript 提权跑 `firewall-test.sh`（当时的测试规则用 `user nobody`），「`on` 时模拟开机」之后约 3 分钟整机断网：所有 `pfctl`（连只读的 `-sr`）都不返回，Clash 内核 IPC 超时，恢复脚本卡在第 2 步，只能重启。重启后 `on` 把规则装了回来（网络正常），用恢复脚本卸干净。根因是 `user` 规则的内核死锁（§5、§6）。之后：规则里不再有 `user` / `group`；恢复脚本先删开机会加载的文件、每条 `launchctl` / `pfctl` 都限时，pf 卡死时不卡终端、提示重启。第 1 步和第 2～5 步已用新版脚本和新测试规则重做，见上。

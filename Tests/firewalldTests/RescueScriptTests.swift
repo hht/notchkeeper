@@ -72,6 +72,31 @@ private let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().d
         #expect(text.contains("quick=0 done"))
     }
 
+    /// 安装脚本的语法检查：从脚本里原样取出 `check_syntax`，用 macOS 自带的 /bin/bash（3.2）跑，喂辅助程序打印的测试规则。
+    /// 10-31 实机：bash 3.2 把 `${…//模式/"替换"}` 的引号原样留下，表文件路径变成 `""/private/tmp/…"`，pfctl 报 cannot load
+    @Test func installerSyntaxCheckRunsOnSystemBash() throws {
+        let script = try String(contentsOf: root.appendingPathComponent("scripts/install-firewall.sh"), encoding: .utf8)
+        let start = try #require(script.range(of: "check_syntax() {"))
+        let end = try #require(script.range(of: "\n}\n", range: start.upperBound..<script.endIndex))
+        let function = String(script[start.lowerBound..<end.upperBound])
+        let rules = try #require(FirewallRules(tunnel: "utun1024", scope: .testTable, directory: FirewallPaths.directory.path)).text
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("syntax-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/bin/bash")
+        p.arguments = ["-c", "SUPPORT='\(FirewallPaths.directory.path)'; ANCHOR='\(FirewallPaths.anchor)'\n" + function + "check_syntax \"$1\" \"$2\"",
+                       "syntax-test", rules, dir.path]
+        p.environment = ["PATH": "/usr/bin:/bin:/usr/sbin:/sbin"] // 同脚本：不靠调用方的 PATH 找 pfctl
+        p.standardOutput = FileHandle.nullDevice
+        let err = Pipe()
+        p.standardError = err
+        try p.run()
+        let stderr = String(decoding: err.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        p.waitUntilExit()
+        #expect(p.terminationStatus == 0, "\(stderr)")
+    }
+
     /// 安装脚本装下的东西，恢复脚本都得认得；安装脚本见到恢复脚本会删的任何一样都拒绝。两边各写一份，逐行比：
     /// 路径六行，加上 `FILES=(` 到 `)` 的文件清单
     @Test func installerUsesTheRescuePaths() throws {

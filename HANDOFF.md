@@ -1,18 +1,18 @@
 # HANDOFF
 
-最后更新：2026-10-31 夜（第 5 步：规则按事故后的决定重做完并提交，不含 `user` / `group`；实机还没测。App 显示名改成 Pip）。只放接下来要做的和没解决的；做完的看 `git log`，规则看 `CLAUDE.md` 和 `docs/*`。开工前 `git log --oneline -5` 核对。实机验证的技巧见 `docs/dev-notes.md`。
+最后更新：2026-10-31 深夜（第 5 步：规则重做完，测试规则下实机验收通过；App 显示名改成 Pip）。只放接下来要做的和没解决的；做完的看 `git log`，规则看 `CLAUDE.md` 和 `docs/*`。开工前 `git log --oneline -5` 核对。实机验证的技巧见 `docs/dev-notes.md`。
 
 ## 接下来
 
-**新会话从这里开始**：先读下面「第 5 步」，再读 `docs/firewall.md` 全文（硬规则；§4 规则草稿、§5 `user` 死锁、§7 事故都已更新）。插件化和第 4 步都做完了（见 `git log`），第 4 步的实机验收用户 10-31 全过。
+**新会话从这里开始**：先读下面「第 5 步」和「等用户定」，再读 `docs/firewall.md` 全文（硬规则；§4 规则、§5 `user` 死锁、§7 事故和实测记录）。插件化和第 4 步都做完了（见 `git log`），第 4 步的实机验收用户 10-31 全过。
 
 **和用户协作的规矩（10-31）**：
 - 测试时**不能真的断网**、**不能重启这台 Mac**（`docs/firewall.md` §7 开头）。
 - 要 root 的命令都由用户在没跑 agent 的终端里自己 `sudo` 执行，执行完 `sudo -k`；agent 不跑 sudo。请用户跑的命令单独放进代码块、写明只读与否：夹在长段落里用户会看不到。
 - 不在用户机器上模拟键盘和点击；`demo.sh settings` 会抢焦点，用户在用机器时别用。
 - 用户偏好：文档尽量少、先做代码。
-- **10-31 事故后的约束**：会动 pf 的实机测试不在这台 Mac 上跑，除非用户在当轮明确同意；同意了也先把要做的事给用户看。用户 10-31 只授权过那一次由 agent 运行（已用掉）。
-- agent 提权只能用 `osascript -e 'do shell script "…" with administrator privileges'`（用户在系统密码框输密码；agent 的 shell 没有 tty，sudo 弹不出提示）。提权进程读不了 `~/Documents`（TCC，报 Operation not permitted）：要跑的脚本先 `rsync` 到 `/private/tmp/…` 再跑，命令前加 `cd /private/tmp`。
+- **10-31 事故后的约束**：会动 pf 的实机测试不在这台 Mac 上跑，除非用户在当轮明确同意；同意了也先把要做的事给用户看。10-31 晚用户当轮让 agent 跑了演练、恢复脚本和 `firewall-test.sh`（已用掉，下次重新问）。
+- agent 提权只能用 `osascript -e 'do shell script "…" with administrator privileges'`（用户在系统密码框输密码；agent 的 shell 没有 tty，sudo 弹不出提示）。提权进程读不了 `~/Documents`（TCC，报 Operation not permitted），读得了 `~/Library/Application Support`（10-31 实测）：要跑的脚本连同仓库 `rsync -a --exclude .build --exclude build --exclude .git ./ /private/tmp/<目录>/` 再跑，命令前加 `cd /private/tmp`；要降回用户身份的脚本（安装、`firewall-test.sh`）在命令前加 `SUDO_USER=ava`，提权进程里没有它。脚本跑在 macOS 自带的 bash 3.2 上，别在 zsh 里验 bash 语法。
 
 **插件化**：App 是「刘海 + Pip + 卡片队列 + 面板」外壳，插件产出同一种 `Card`，各报一个 `PluginStatus`（紧急程度），面板里各占一段（`PanelRow`）。内置插件是出口守卫、Claude Code（id 见 `NotchCore/PluginID.swift`，外部插件不能用）。外部插件写收件箱（`nk notify`、`nk activity`），`InboxWatcher` 读，`InboxGate` 收，活动归 `ActivityBoard`；插件开没开只在 App 主线程的收件箱回调里判。
 
@@ -24,20 +24,22 @@
 - 终端插件在 Ghostty 里的两件事：点卡片跳回 shell 所在的终端（按 tty 认）；焦点正停在跑命令的那个终端上时不弹（用户 10-31 定：只按那一个终端算，同窗口别的标签、分屏、别的窗口都照常弹；日志「正看着要跳回的终端」；同目录只开一个终端时才认得出）。10-31 用 AppleScript 在 Ghostty 里开新窗口试时，窗口在命令跑完前没了、原因没查；`script` 伪终端里跑的端到端已通。
 - demo 卡上「看 Swift 文档」（https）按钮。
 
-**第 5 步：防火墙**：恢复脚本 → 状态机和辅助程序 → 安装脚本 → 规则重新设计（代码做完，**实机没测**）→ 「恢复网络」→ App 开关；shielded 造型接线。按全局 Contract「高影响」档收工。
+**第 5 步：防火墙**：恢复脚本 → 状态机和辅助程序 → 安装脚本 → 规则重新设计（测试规则下实机通过）→ 「恢复网络」→ App 开关；shielded 造型接线。按全局 Contract「高影响」档收工。
 
-*10-31 事故*（`docs/firewall.md` §5、§7，记忆 `firewall-pf-freeze-incident`）：`user` 规则让 pf 内核死锁，整机断网、只能重启。本机现在**什么都没装**。
+*10-31 事故*（`docs/firewall.md` §5、§7，记忆 `firewall-pf-freeze-incident`）：`user` 规则让 pf 内核死锁，整机断网、只能重启。本机 pf 上现在**什么都没装**。
 
 *10-31 用户定的*（都已写进 `docs/firewall.md` 和 CLAUDE.md 硬规则）：任何规则不写 `user` / `group`；放行改成按目的地址：`<clash>`（节点 + mihomo 的 IP 上游）和 `<cn>`（`Country.mmdb` 里 CN 的网段，让 DIRECT 照常）；**开启时拍快照**（用户目录里的配置和 mmdb 谁都能改，守护进程不读它们），不定时重新解析；守护进程 off 时不跑、trial / on 时每 10 秒一轮（用户要求不做没必要的轮询，on 时仍每 10 秒核对）；测试规则只拦去测试表 `<test>` 的流量；`on` 跨重启保留；设置里加「恢复网络」（还没做）。
 
-*现状*：规则、放行表快照、守护循环、安装和测试脚本的代码都做完、reviewer 审过四轮，**实机一次都没跑过**（本机 pf 上什么都没装）。不要 root 的实测数字在提交说明里。
-
 *下一步*：
-1. **先实测新版恢复脚本**（硬规则：先实测恢复脚本才能写 block 规则；它在事故后改成先删文件、限时，以 root 只跑过 dry-run）：把步骤给用户看，用户自己 `sudo scripts/firewall-drill.sh` 装假防火墙、`sudo scripts/firewall-rescue.sh` 卸掉，重做 §7 第 1 步。
-2. 之后才是 `sudo scripts/firewall-test.sh <测试地址>`：先把它要做的事给用户看、拿到当轮同意再由用户跑（测试地址要境外、开着 443 和 53、不是系统 DNS；脚本会拒绝落在 `<cn>` / `<clash>` 里的）。要核实：off 后守护进程不再被拉起、`kickstart -k` 立刻跑一轮、开机 `on` 时装回规则、root 能读 `~/Library/Application Support`（推断 TCC 不拦）、`-F rules` 后 `pfctl -a … -s Tables` 为空。
-3. 「恢复网络」（`ui-ux-pro-max`，先读 `docs/ui.md`「原则」）：做恢复脚本同样的事，只弹一次系统密码框，后台、有超时，脚本打包进 App。
-4. App 开关：开启时传 `--clash <Clash Verge 目录>`；App 只信说 trial / on 的新鲜摘要（§2）。
-5. 没做、按需再定：订阅换了要关掉再开；`nameserver-policy` 里的上游不读；写成域名的境外 DoH 上游开着防火墙时不通（开启时可以提示）；IPv6 fake-ip 段不查；DNS 上游回得慢但回应时，拍快照没有总时限；`firewall-test.sh` 里的 pfctl 没限时；安装脚本打印测试地址（两轮审查都认为可保留，用户未定）。
+1. 实机还没测：真开机、守护进程崩溃后被 `KeepAlive` 拉起、`-F rules` 后 `pfctl -a … -s Tables` 是否为空。正式规则（整机拦截）一次都没加载过，加载前先问用户。
+2. 「恢复网络」（`ui-ux-pro-max`，先读 `docs/ui.md`「原则」）：做恢复脚本同样的事，只弹一次系统密码框，后台、有超时，脚本打包进 App。
+3. App 开关：开启时传 `--clash <Clash Verge 目录>`；App 只信说 trial / on 的新鲜摘要（§2）。
+4. 没做、按需再定（第四轮 reviewer 的建议修里没做的也在这）：订阅换了要关掉再开；`nameserver-policy` 里的上游不读；写成域名的境外 DoH 上游开着防火墙时不通（开启时可以提示）；IPv6 fake-ip 段不查；DNS 上游回得慢但回应时，拍快照没有总时限；`firewall-test.sh` 里的 pfctl 没限时。
+
+*等用户定*（10-31 问过、没回答）：
+- CLAUDE.md 硬规则写「安装和任何规则改动……由用户自己执行」，10-31 晚是用户当轮让 agent 用 osascript 提权执行的。要不要把硬规则改成「用户执行，或用户当轮明确让 agent 用 osascript 提权执行」。
+- 设置侧栏有一页叫「Pip」（管吉祥物），App 现在也叫 Pip，要不要改叫「吉祥物」之类。
+- 安装脚本把测试地址打到 stdout（两轮审查都认为可保留）。
 
 ## 等实机验证
 
@@ -64,7 +66,7 @@
 ## 建议用的 skill
 
 - `tdd`：每一刀先写会失败的测试、亲眼看红，再在临时副本里改坏实现确认测试会红（本会话每条新行为都这么做过）。
-- `research`：动 pf / launchd 行为前先查一手资料（XNU 源码、man page、Mullvad `talpid-core/src/firewall/macos.rs`），**连锁行为一起查**（10-31 只查了 `user root` 能匹配、没查它的内核锁，酿成事故）；结论写进 `docs/firewall.md` §6。下一刀先用它核实 Clash Verge 运行时配置的路径和节点格式。
+- `research`：动 pf / launchd 行为前先查一手资料（XNU 源码、man page、Mullvad `talpid-core/src/firewall/macos.rs`），**连锁行为一起查**（10-31 只查了 `user root` 能匹配、没查它的内核锁，酿成事故）；结论写进 `docs/firewall.md` §6。Clash Verge 运行时配置的事实（路径、节点格式、mihomo 的 GEOIP）已记在 §4、§6。
 - `diagnosing-bugs`：实机测试规则时行为和预期不符就用它，先复现再改。
 - `ui-ux-pro-max`：做设置里的「恢复网络」、接 App 开关、试运行倒计时、shielded 造型时用。
 - `domain-modeling`：防火墙的新词已进 `docs/ubiquitous-language.md`，再起名先查它。
