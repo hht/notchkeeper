@@ -1,8 +1,8 @@
 import AppKit
 import NotchCore
 
-/// 回答：点了一个终端里的会话，Ghostty 里哪个窗口是它、怎么切过去（docs/agent-integration.md「跳转到 Ghostty」）。
-/// 只在用户点击时发 Apple Event，不轮询；都在一条专用队列上发，第一次用时系统问权限、Ghostty 卡住时都不挡主线程。
+/// 回答：点了一个终端里的会话，Ghostty 里哪个窗口是它、怎么切过去；外部插件说的终端此刻是不是就在眼前（docs/agent-integration.md「跳转到 Ghostty」）。
+/// 只在用户点击时、和外部插件的卡到达且 Ghostty 在前台时（`isFocused`，只读目录）发 Apple Event，不轮询；都在一条专用队列上发，第一次用时系统问权限、Ghostty 卡住时都不挡主线程。
 /// 不知道卡片和面板。
 /// @see /Applications/Ghostty.app/Contents/Resources/Ghostty.sdef（Ghostty 1.3：terminal 的 id、name、working directory，focus 命令；没有 tty、pid）
 enum Ghostty {
@@ -69,13 +69,47 @@ enum Ghostty {
         }
     }
 
+    /// 这个终端此刻就在眼前：Ghostty 在前台，并且前台窗口选中的标签里聚焦的就是它（照 Ghostty 的 `notify-on-command-finish = unfocused`）。
+    /// 只按这一个 terminal 算：同窗口别的标签、分屏、别的窗口都不算（用户 10-31 定）。
+    /// 卡片到达时用户没点任何东西：只读 id 和 working directory，不读标题、不写标记（CLAUDE.md 硬规则：标题只在点击跳转时读）。
+    /// 所以先查进程（shell 的 tty 对得上、是 Ghostty 直接开的终端），再按目录认：聚焦的 terminal 目录对得上、并且是唯一在这个目录的（`pick`）才算；
+    /// 同目录开着两个、有 terminal 不报目录、shell 不在 Ghostty 里，都认不准，照常弹。
+    /// Ghostty 不在前台时不发 Apple Event。`answer` 在内部队列上调用
+    /// @see /Applications/Ghostty.app/Contents/Resources/Ghostty.sdef（tab 的 focused terminal）
+    @MainActor
+    static func isFocused(_ terminal: TerminalRef, answer: @escaping @Sendable (Bool) -> Void) {
+        guard let front = NSWorkspace.shared.frontmostApplication, front.bundleIdentifier == bundleID else { return answer(false) }
+        let ghosttyPIDs = Set(NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).map(\.processIdentifier))
+        queue.async {
+            // 先确认这个 shell 就跑在 Ghostty 直接开的终端里（不在 VS Code、Terminal.app、tmux 里）：否则同目录的别的 terminal 会被当成它
+            guard case .tty(let expected) = terminal.identity, tty(of: terminal.pid) == expected,
+                  markableTTY(terminal.pid, ghostty: ghosttyPIDs, parent: { process($0)?.kp_eproc.e_ppid }, tty: tty(of:)) != nil
+            else { return answer(false) }
+            // 一个 Apple Event 拿三样：{ 聚焦的 id, {id…}, {working directory…} }
+            guard let result = execute("tell application id \"\(bundleID)\"\n\(timeout)\nget {id of focused terminal of selected tab of front window, id of every terminal, working directory of every terminal}\nend timeout\nend tell"),
+                  result.numberOfItems == 3, let focused = result.atIndex(1)?.stringValue,
+                  let ids = result.atIndex(2), let directories = result.atIndex(3)
+            else { return answer(false) }
+            let all = (0..<ids.numberOfItems).compactMap { i in
+                // 标题没读，留空
+                ids.atIndex(i + 1)?.stringValue.map { Terminal(id: $0, title: "", workingDirectory: directories.atIndex(i + 1)?.stringValue ?? "") }
+            }
+            // 有 terminal 不报目录（没开 shell 集成）就说不准它是不是同目录的另一个：认不准，照常弹
+            answer(!all.contains { $0.workingDirectory.isEmpty } && pick(all, cwd: terminal.cwd) == focused)
+        }
+    }
+
     /// 往会话的 tty 写一个一次性的标题，看 Ghostty 里哪个 terminal 换成了它，再把那个 terminal 的原标题写回去。
     /// Ghostty 的 AppleScript 不给 tty（1.3，main 上也还没有），tty 是唯一认得准的东西。
     /// @see https://github.com/kovoor/claude-code-notifier（同一招：临时标题当标记，找到后恢复原标题）
     private static func marked(_ terminal: TerminalRef, ghostty: Set<Int32>, in terminals: [Terminal]) -> String? {
-        // 卡片里存的是会话快照：进程没了、pid 被别的终端复用了，就不能往那个 tty 写
-        guard AgentWatcher.isRunning(pid: terminal.pid, since: terminal.processStart),
-              let tty = markableTTY(terminal.pid, ghostty: ghostty, parent: { process($0)?.kp_eproc.e_ppid }, tty: tty(of:))
+        // 卡片里存的是快照：进程没了、pid 被别的终端复用了，就不能往那个 tty 写
+        let alive: Bool
+        switch terminal.identity {
+        case .started(let start): alive = AgentWatcher.isRunning(pid: terminal.pid, since: start)
+        case .tty(let expected): alive = tty(of: terminal.pid) == expected
+        }
+        guard alive, let tty = markableTTY(terminal.pid, ghostty: ghostty, parent: { process($0)?.kp_eproc.e_ppid }, tty: tty(of:))
         else { return nil }
         let marker = "notchkeeper-\(UUID().uuidString)"
         guard write(titleSequence(marker), to: tty) else { return nil }

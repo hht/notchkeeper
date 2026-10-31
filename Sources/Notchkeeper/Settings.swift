@@ -331,6 +331,49 @@ private struct NotificationsPane: View {
             }
             .disabled(store.fileUnreadable)
             ClaudeModSection()
+            TerminalPluginSection()
+        }
+    }
+}
+
+/// 装、卸终端插件，给出要加进 ~/.zshrc 的一行。Notchkeeper 不改 ~/.zshrc（CLAUDE.md 硬规则）
+private struct TerminalPluginSection: View {
+    @State private var installed = TerminalPlugin.isInstalled
+    @State private var error: String?
+
+    var body: some View {
+        Section {
+            LabeledContent {
+                Button(installed ? "卸载" : "安装") {
+                    error = nil
+                    do {
+                        try installed ? TerminalPlugin.uninstall() : TerminalPlugin.install()
+                    } catch {
+                        self.error = "没成功：\(error.localizedDescription)"
+                        Log.write("终端插件：操作失败：\(error.localizedDescription)")
+                    }
+                    installed = TerminalPlugin.isInstalled
+                }
+            } label: {
+                Text("命令跑完时弹卡")
+                Text(error ?? (installed ? "已安装：在 ~/.zshrc 里加上下面这行，新开的终端生效" : "没装"))
+            }
+            if installed {
+                LabeledContent {
+                    Button("拷贝") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(TerminalPlugin.sourceLine, forType: .string)
+                    }
+                } label: {
+                    Text(TerminalPlugin.sourceLine)
+                        .font(.system(.body, design: .monospaced))
+                        .textSelection(.enabled)
+                }
+            }
+        } header: {
+            Text("终端")
+        } footer: {
+            Text("zsh 里的命令跑了 10 秒以上，结束时弹一张卡，点了跳回那个终端。只有焦点正停在跑这条命令的那个终端上（同一窗口的别的标签、分屏都不算）时不弹。只把命令名交出 shell，参数不出去。vim、ssh、top 这类全屏或交互的命令不弹。")
         }
     }
 }

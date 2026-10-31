@@ -139,6 +139,19 @@ private func minimal(_ extra: String = "") -> String {
         #expect(m.action == .activate(bundleID: "com.apple.finder"))
     }
 
+    /// 跳回终端：tty 用来认 Ghostty 里是哪个窗口（往它写一次性标题），pid 和 tty 对得上才写
+    @Test func focusTerminal() throws {
+        let m = try parse(minimal(#","action":{"type":"focusTerminal","tty":"/dev/ttys003","pid":4242,"cwd":"/Users/x/p"}"#))
+        #expect(m.action == .focusTerminal(tty: "/dev/ttys003", pid: 4242, cwd: "/Users/x/p"))
+    }
+
+    /// tty 会被打开来写：只认 /dev/ttys 加数字（macOS 的伪终端）
+    @Test(arguments: [#""tty":"/etc/passwd","pid":4242"#, #""tty":"/dev/ttys","pid":4242"#, #""tty":"/dev/ttys003/../disk0","pid":4242"#,
+                      #""tty":"/dev/disk0","pid":4242"#, #""tty":"/dev/ttys003","pid":1"#, #""tty":"/dev/ttys003","pid":0"#])
+    func badTerminalRejected(_ fields: String) {
+        #expect(throws: MessageError.badAction) { try parse(minimal(#","action":{"type":"focusTerminal",\#(fields),"cwd":"/"}"#)) }
+    }
+
     /// 按钮是带 title 的动作（Adaptive Cards 的 actions）
     @Test func buttons() throws {
         let m = try parse(minimal(#","buttons":[{"type":"Action.OpenUrl","title":"看文档","url":"raycast://x"},{"type":"activate","title":"打开访达","bundleID":"com.apple.finder"}]"#))

@@ -40,5 +40,7 @@ let package = Package(
         // 外部插件的命令行：`nk notify …` 把一张卡写进收件箱（先写 tmp/ 再 rename 到 new/），格式由 PluginCore 校验
         .executableTarget(name: "nk", dependencies: ["PluginCore"]),
         .testTarget(name: "nkTests", dependencies: ["nk", "PluginCore", "NotchCore"]),
+        // 终端插件（Resources/plugins/terminal/notchkeeper.zsh）：用真的 zsh 跑，假的 nk 记下参数
+        .testTarget(name: "TerminalPluginTests"),
     ]
 )

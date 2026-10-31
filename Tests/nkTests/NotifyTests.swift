@@ -27,6 +27,18 @@ private func notify(_ args: [String]) throws -> Message {
         #expect(m.action == .open(URL(string: "https://example.com/x")!))
     }
 
+    /// zsh 插件传 `--tty $TTY --pid $$ --cwd $PWD`：点卡片跳回这个终端
+    @Test func focusTerminal() throws {
+        let m = try notify(["--plugin", "terminal", "--title", "x", "--tty", "/dev/ttys003", "--pid", "4242", "--cwd", "/Users/x"])
+        #expect(m.action == .focusTerminal(tty: "/dev/ttys003", pid: 4242, cwd: "/Users/x"))
+    }
+
+    @Test(arguments: [["--tty", "/dev/ttys003"], ["--tty", "/dev/ttys003", "--pid", "abc", "--cwd", "/"], ["--pid", "4242", "--cwd", "/"],
+                      ["--tty", "/dev/ttys003", "--pid", "4242", "--cwd", "/", "--open", "https://example.com"]])
+    func incompleteTerminalRejected(_ extra: [String]) {
+        #expect(throws: NotifyError.self) { try Notify.message(["--plugin", "terminal", "--title", "x"] + extra, id: id, now: t0) }
+    }
+
     @Test(arguments: [[], ["--plugin", "terminal"], ["--title", "x"], ["--plugin", "terminal", "--title"],
                       ["--plugin", "terminal", "--title", "x", "--fact", "没有等号"], ["--plugin", "terminal", "--title", "x", "--color", "red"]])
     func usageErrors(_ args: [String]) {

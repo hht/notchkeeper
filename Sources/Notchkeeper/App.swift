@@ -2,6 +2,7 @@ import AppKit
 import AgentCore
 import Combine
 import NotchCore
+import PluginCore
 
 @main
 @MainActor
@@ -28,6 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         ClaudeMod.refreshIfInstalled()
+        TerminalPlugin.refreshIfInstalled()
         notch = NotchController()
         settings = SettingsWindowController(state: state, notch: notch)
         notch.onOpenSettings = { [weak self] in self?.openSettings() }
@@ -58,7 +60,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // 外部插件的卡（docs/ui.md「卡片」）：红卡挂着时排着，由 `CardQueue` 按 `coversAlert` 管
         let inbox = InboxWatcher { admitted in
             DispatchQueue.main.async { [weak self] in
-                for a in admitted { self?.notch.post(a.card, key: a.key, staleAt: a.staleAt) }
+                for a in admitted { self?.postExternal(a) }
             }
         }
         inbox.start()
@@ -165,6 +167,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let i = NSMenuItem(title: title, action: sel, keyEquivalent: key)
         i.target = self
         return i
+    }
+
+    /// 点了要跳回的那个终端正在眼前（shell 发来的卡）：不弹
+    private func postExternal(_ a: InboxGate.Admitted) {
+        guard case .terminal(let terminal) = a.card.action, case .tty = terminal.identity else {
+            notch.post(a.card, key: a.key, staleAt: a.staleAt)
+            return
+        }
+        Ghostty.isFocused(terminal) { focused in
+            DispatchQueue.main.async { [weak self] in
+                if focused {
+                    Log.write("插件：正看着要跳回的终端，这张卡不弹")
+                } else {
+                    self?.notch.post(a.card, key: a.key, staleAt: a.staleAt)
+                }
+            }
+        }
     }
 
     @objc func openSettings() { settings.show() }

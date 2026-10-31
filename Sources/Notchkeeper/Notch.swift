@@ -68,7 +68,7 @@ extension Card {
 }
 
 extension TerminalRef {
-    init(_ session: Session) { self.init(pid: session.pid, processStart: session.processStart, cwd: session.cwd) }
+    init(_ session: Session) { self.init(pid: session.pid, identity: .started(session.processStart), cwd: session.cwd) }
 }
 
 enum NotchMode: Hashable { case closed, card, dashboard }

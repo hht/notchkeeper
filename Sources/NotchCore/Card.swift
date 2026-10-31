@@ -135,13 +135,20 @@ public struct Card: Identifiable, Equatable, Sendable {
 
 /// 终端里的哪个会话：点卡片跳回它的 Ghostty 窗口
 public struct TerminalRef: Equatable, Sendable {
+    /// 防 pid 复用：往 pid 的 tty 写标记之前，先确认它还是那个进程
+    public enum Identity: Equatable, Sendable {
+        /// Claude Code 会话：进程启动时刻对得上
+        case started(Date)
+        /// 外部插件说的 shell（没有启动时刻）：pid 的控制终端还是这个 tty
+        case tty(String)
+    }
+
     public var pid: Int32
-    /// 防 pid 复用：进程启动时刻对不上就不往它的 tty 写标记
-    public var processStart: Date
+    public var identity: Identity
     public var cwd: String
-    public init(pid: Int32, processStart: Date, cwd: String) {
+    public init(pid: Int32, identity: Identity, cwd: String) {
         self.pid = pid
-        self.processStart = processStart
+        self.identity = identity
         self.cwd = cwd
     }
 }

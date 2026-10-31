@@ -100,7 +100,7 @@ Claude Code 官方插件里的 JS 模块（2.1.287 起默认开启），事件�
 
 ## 跳转到 Ghostty（用户定）
 
-点会话行或卡片（× 以外），切到这个会话所在的 Ghostty 窗口、标签和分屏。
+点会话行或卡片（× 以外），切到这个会话所在的 Ghostty 窗口、标签和分屏。会话是终端里的 claude，或终端插件发来的 shell（`focusTerminal`）。
 
 - Ghostty 的 AppleScript（1.3 起）：`terminal` 有 `id`、`working directory`、`name`（标题），`focus` 拉到前面；**没有 tty、pid**。第一次用系统会问权限（`NSAppleEventsUsageDescription`）。
 - **认窗口靠 tty 标记**（照 [kovoor/claude-code-notifier](https://github.com/kovoor/claude-code-notifier)，改用 AppleScript 查标题）：
@@ -108,12 +108,13 @@ Claude Code 官方插件里的 JS 模块（2.1.287 起默认开启），事件�
   2. 往 tty 非阻塞写一次 OSC 2，标题设成 `notchkeeper-<UUID>`。
   3. AppleScript 找标题等于它的 terminal，最多等 1 秒。
   4. 把原标题（第 3 步前读的，去掉控制字符）写回去。必须写回：Claude Code 只在标题变了时才重写。
-  - 只在 claude 直接跑在 Ghostty 终端里时写（父进程链到得了 Ghostty，且 `login` 和 claude 同一个 tty）。tmux、nvim `:terminal` 会吃掉 OSC 2，写了会盖掉它们的标题。
-  - 写之前按启动时刻核对进程还是这个会话：卡片存的是快照。
+  - 只在会话直接跑在 Ghostty 终端里时写（父进程链到得了 Ghostty，且 `login` 和会话进程同一个 tty）。tmux、nvim `:terminal` 会吃掉 OSC 2，写了会盖掉它们的标题。
+  - 写之前核对进程还是这个会话（卡片存的是快照）：claude 按启动时刻，shell 没有启动时刻，按「pid 的 tty 还是消息里的 tty」。
   - 标题可能从对话推出来：只在内存里找标记、原样写回，不显示、不进日志。
   - 已知小风险（推断）：OSC 插进一帧中间会花一帧；读到写回之间 Claude 换了状态字符，写回旧字符；Ghostty 卡 1 秒以上，标题停在标记上直到 Claude 下次改。
 - **退路**：没写标记或没等到，按 `working directory` 等于 `cwd` 找，唯一才算；还认不出就只把 Ghostty 拉到前面。会话不在 Ghostty 里也只打开 Ghostty，不报错。
-- Apple Event 只在点击时发，在专用队列上，每个 `with timeout` 3 秒，不挡主线程。terminal id 拼进脚本前按 UUID 校验。
+- **正看着就不弹**（用户 10-31 定，照 Ghostty `notify-on-command-finish = unfocused`）：终端插件的卡到达时，Ghostty 在前台、焦点正停在跑这条命令的那个 terminal 上才不弹；同窗口别的标签、分屏、别的窗口都照常弹。这时用户没点任何东西，所以不读标题、不写标记：先查进程（shell 的 tty 对得上、父进程链到得了 Ghostty，排除 VS Code、Terminal.app、tmux），再只读 `id` 和 `working directory`，聚焦的 terminal 目录对得上且是唯一在这个目录的才算；同目录开着两个、有 terminal 不报目录都算认不准，照常弹。
+- Apple Event 只在点击时和上一条发，在专用队列上，每个 `with timeout` 3 秒，不挡主线程。terminal id 拼进脚本前按 UUID 校验。
 
 ## 提醒
 

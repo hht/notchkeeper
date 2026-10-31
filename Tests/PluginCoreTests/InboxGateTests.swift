@@ -58,6 +58,16 @@ private func message(plugin: String = "terminal", id: UUID = UUID(), sent: Date 
         #expect(admitted.key == .group(plugin: "terminal", name: "tty1"))
     }
 
+    /// shell 没有进程启动时刻：按「pid 的 tty 还是这个」认它
+    @Test func focusTerminalBecomesTerminalAction() throws {
+        var gate = InboxGate()
+        var m = message()
+        m.action = .focusTerminal(tty: "/dev/ttys003", pid: 4242, cwd: "/Users/x")
+        m.buttons = []
+        let card = try gate.admit(m, plugins: plugins, now: t0).card
+        #expect(card.action == .terminal(TerminalRef(pid: 4242, identity: .tty("/dev/ttys003"), cwd: "/Users/x")))
+    }
+
     @Test func ungroupedHasNoKey() throws {
         var gate = InboxGate()
         #expect(try gate.admit(message(), plugins: plugins, now: t0).key == nil)

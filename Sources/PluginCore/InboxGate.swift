@@ -50,6 +50,7 @@ public struct InboxGate: Sendable {
         switch a {
         case .open(let url): return .open(url)
         case .activate(let id): return .activate(bundleID: id)
+        case .focusTerminal(let tty, let pid, let cwd): return .terminal(TerminalRef(pid: pid, identity: .tty(tty), cwd: cwd))
         }
     }
 }

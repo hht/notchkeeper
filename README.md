@@ -8,6 +8,7 @@ Haitao 本机自用的刘海应用（SwiftPM，macOS 14+），没有菜单栏图
 
 - **出口守卫（只监测）**：后台进程 `guardd` 每 5 秒检查一次 Clash、utun 路由和出口 IP，结果写进 `guard-state.json`。App 读这个文件：出口违规时刘海亮红卡，恢复后弹出绿色恢复卡。
 - **状态变化提醒**：终端里的 Claude Code 回合结束、需要你介入时，刘海展开弹卡并响提示音，停几秒自动收回；几张卡排队放，红卡挂着时提醒卡盖在上面、放完回到红卡（`docs/ui.md`「卡片」）。
+- **外部插件**：脚本用 `nk notify --plugin <id> --title …` 往收件箱写一张卡，插件要先在 `~/Library/Application Support/Notchkeeper/plugins/<id>/manifest.json` 登记（`{"id","name","symbol"}`）。自带一个终端插件：设置 › 通知 › 终端「安装」后，把给出的 `source …` 一行加进 `~/.zshrc`，zsh 里跑了 10 秒以上的命令结束时弹卡。
 - **会话列表**：鼠标悬停在刘海上会展开面板，显示出口 IP 和正在运行的终端 Claude Code 会话（超过 5 个可滚动）。
 - **Pip**：刘海、卡片和设置页里的吉祥物，表情随守卫状态变化。动画交给 Core Animation，空闲时呼吸、眨眼、做小动作，眼睛跟随鼠标（设置里可关）。
 

@@ -3,12 +3,14 @@ import NotchCore
 
 /// 回答：收件箱里的一份文件说了什么——哪个插件、哪张卡、同哪组替换、什么时候过期。
 /// 只解析 v1 消息（只有卡片）；不读文件，不知道插件登没登记、限没限流（`InboxGate`）。
-/// 内容块和动作照 Adaptive Cards 起名（TextBlock、FactSet、Action.OpenUrl，按钮是带 title 的动作），进度、勾叉列表、activate 是扩展。
+/// 内容块和动作照 Adaptive Cards 起名（TextBlock、FactSet、Action.OpenUrl，按钮是带 title 的动作），进度、勾叉列表、activate、focusTerminal 是扩展。
 /// @see https://github.com/microsoft/AdaptiveCards/tree/main/schemas/src
 public struct Message: Equatable, Sendable {
     public enum Action: Equatable, Sendable {
         case open(URL)
         case activate(bundleID: String)
+        /// 跳回这个终端：tty 是 `/dev/ttys` 加数字，pid 是用它的进程（shell）
+        case focusTerminal(tty: String, pid: Int32, cwd: String)
     }
 
     public struct Button: Equatable, Sendable {
@@ -124,6 +126,11 @@ extension Message {
         case "activate":
             guard let id = a.bundleID, !id.isEmpty else { throw .badAction }
             return .activate(bundleID: id)
+        case "focusTerminal":
+            // tty 会被打开来写标记：只认 macOS 伪终端的名字，拼不出别的路径
+            guard let tty = a.tty, tty.hasPrefix("/dev/ttys"), tty.count > 9, tty.dropFirst(9).allSatisfy({ $0.isASCII && $0.isNumber }),
+                  let pid = a.pid, pid > 1, let cwd = a.cwd else { throw .badAction }
+            return .focusTerminal(tty: tty, pid: pid, cwd: cwd)
         default:
             throw .badAction
         }
@@ -184,11 +191,14 @@ private struct Wire: Decodable {
         }
     }
 
-    /// `type` 是 Action.OpenUrl（`url`）或 activate（`bundleID`）；做按钮时要有 `title`
+    /// `type` 是 Action.OpenUrl（`url`）、activate（`bundleID`）或 focusTerminal（`tty`、`pid`、`cwd`）；做按钮时要有 `title`
     struct Action: Decodable {
         var type: String
         var title: String?
         var url: String?
         var bundleID: String?
+        var tty: String?
+        var pid: Int32?
+        var cwd: String?
     }
 }
