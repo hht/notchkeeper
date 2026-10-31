@@ -13,6 +13,9 @@ public struct CardQueue<Item: Equatable & Sendable>: Sendable {
         case group(plugin: String, name: String)
     }
 
+    /// 每个外部插件至多排这么多张，再来就丢它最旧的那张（用户 10-31）：红卡挂久了，撤掉后不补放一长串
+    public static var maxWaitingPerPlugin: Int { 3 }
+
     /// 一张临时卡
     public struct Notice: Equatable, Sendable {
         public var card: Item
@@ -22,17 +25,17 @@ public struct CardQueue<Item: Equatable & Sendable>: Sendable {
         public var seconds: TimeInterval
         /// 说的是此刻的状态（介入卡）：同一个会话来了新卡、或被 `withdraw`，排着的、正在放的都作废
         public var lapses: Bool
-        /// false：外部插件的卡，红卡挂着时排着不放，红卡撤了再放（CLAUDE.md 硬规则「插件」）
-        public var coversAlert: Bool
+        /// 外部插件的 id；nil 是内置插件的卡。外部的卡红卡挂着时排着不放，红卡撤了再放（CLAUDE.md 硬规则「插件」）
+        public var externalPluginID: String?
         /// 排到这个时刻还没放就不放了（外部插件的消息过期，红卡挂着或熄屏时可能排很久）
         public var staleAt: Date?
 
-        public init(card: Item, key: Key?, seconds: TimeInterval, lapses: Bool = false, coversAlert: Bool = true, staleAt: Date? = nil) {
+        public init(card: Item, key: Key?, seconds: TimeInterval, lapses: Bool = false, externalPluginID: String? = nil, staleAt: Date? = nil) {
             self.card = card
             self.key = key
             self.seconds = seconds
             self.lapses = lapses
-            self.coversAlert = coversAlert
+            self.externalPluginID = externalPluginID
             self.staleAt = staleAt
         }
     }
@@ -106,9 +109,12 @@ public struct CardQueue<Item: Equatable & Sendable>: Sendable {
             waiting[i] = Entry(notice: notice)
         } else if notice.key == .recovered {
             // 恢复卡说的是守卫的事：排在违规期间攒下的外部卡前面
-            waiting.insert(Entry(notice: notice), at: waiting.firstIndex { !$0.notice.coversAlert } ?? waiting.endIndex)
+            waiting.insert(Entry(notice: notice), at: waiting.firstIndex { $0.notice.externalPluginID != nil } ?? waiting.endIndex)
         } else {
             waiting.append(Entry(notice: notice))
+            if let plugin = notice.externalPluginID, waiting.count(where: { $0.notice.externalPluginID == plugin }) > Self.maxWaitingPerPlugin {
+                waiting.remove(at: waiting.firstIndex { $0.notice.externalPluginID == plugin }!)
+            }
         }
         return yieldable ? next(now) : Change()
     }
@@ -212,7 +218,7 @@ public struct CardQueue<Item: Equatable & Sendable>: Sendable {
 
     /// 下一张能上台的：红卡挂着时跳过不能盖它的
     private var nextIndex: Int? {
-        alert == nil ? waiting.indices.first : waiting.firstIndex { $0.notice.coversAlert }
+        alert == nil ? waiting.indices.first : waiting.firstIndex { $0.notice.externalPluginID == nil }
     }
 
     /// 台面上这张放完了：丢掉排着过期的，放能上台的第一张临时卡；没有就回到挂着的红卡（一直放着、不再响）；都没有就收起

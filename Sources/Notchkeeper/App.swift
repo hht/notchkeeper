@@ -57,7 +57,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         MascotDirector.shared.onPausedChange = { [weak self] in self?.notch.setScreenAway($0) }
         MascotDirector.shared.start(notchRect: { [weak self] in self?.notch.anchorRect ?? .zero })
         state.start()
-        // 外部插件的卡（docs/ui.md「卡片」）：红卡挂着时排着，由 `CardQueue` 按 `coversAlert` 管
+        // 外部插件的卡（docs/ui.md「卡片」）：红卡挂着时排着，由 `CardQueue` 按 `externalPluginID` 管
         let inbox = InboxWatcher { admitted in
             DispatchQueue.main.async { [weak self] in
                 for a in admitted { self?.postExternal(a) }

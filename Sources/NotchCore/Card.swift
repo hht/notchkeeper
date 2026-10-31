@@ -107,10 +107,10 @@ public struct Card: Identifiable, Equatable, Sendable {
         return c
     }
 
-    /// 外部插件的卡：红卡挂着时排着，不盖它
-    public var isExternal: Bool {
-        if case .plugin = source { return true }
-        return false
+    /// 外部插件的 id，内置插件的卡是 nil：外部的卡红卡挂着时排着，不盖它
+    public var externalPluginID: String? {
+        if case .plugin(let id, _, _) = source { return id }
+        return nil
     }
 
     static func capped(_ s: String, to limit: Int = maxText) -> String {

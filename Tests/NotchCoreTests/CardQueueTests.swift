@@ -134,7 +134,7 @@ private let silent = Queue.Change()
     /// 外部插件同组的卡只留最新（照 terminal-notifier `-group`）；组名只在一个插件里算数
     @Test func sameGroupOfSamePluginIsReplaced() {
         func grouped(_ card: String, _ plugin: String, _ name: String) -> Queue.Notice {
-            Queue.Notice(card: card, key: .group(plugin: plugin, name: name), seconds: 6, coversAlert: false)
+            Queue.Notice(card: card, key: .group(plugin: plugin, name: name), seconds: 6, externalPluginID: plugin)
         }
         var q = Queue()
         _ = q.post(notice("a"), now: t0)
@@ -409,7 +409,7 @@ private let silent = Queue.Change()
 /// 外部插件的卡不盖红卡（CLAUDE.md 硬规则「插件」）：红卡挂着时排着，内置的卡照常插队放，红卡撤了再放
 @Suite struct ExternalNoticesWaitForAlert {
     private func external(_ card: String) -> Queue.Notice {
-        Queue.Notice(card: card, key: nil, seconds: 6, coversAlert: false)
+        Queue.Notice(card: card, key: nil, seconds: 6, externalPluginID: "ext")
     }
 
     @Test func waitsBehindHangingAlert() {
@@ -444,8 +444,8 @@ private let silent = Queue.Change()
     @Test func staleWhileWaitingIsDropped() {
         var q = Queue()
         _ = q.raiseAlert(persistent: true, sound: true, seconds: 6, now: t0)
-        _ = q.post(Queue.Notice(card: "old", key: nil, seconds: 6, coversAlert: false, staleAt: at(60)), now: at(1))
-        _ = q.post(Queue.Notice(card: "new", key: nil, seconds: 6, coversAlert: false, staleAt: at(600)), now: at(2))
+        _ = q.post(Queue.Notice(card: "old", key: nil, seconds: 6, externalPluginID: "ext", staleAt: at(60)), now: at(1))
+        _ = q.post(Queue.Notice(card: "new", key: nil, seconds: 6, externalPluginID: "ext", staleAt: at(600)), now: at(2))
         #expect(q.clearAlert(now: at(60)) == sound)
         #expect(q.showing == .notice("new"))
         _ = q.tick(now: at(66))
@@ -458,11 +458,44 @@ private let silent = Queue.Change()
     @Test func recoveredJumpsAheadOfExternal() {
         var q = Queue()
         _ = q.raiseAlert(persistent: true, sound: true, seconds: 6, now: t0)
-        _ = q.post(Queue.Notice(card: "ext", key: nil, seconds: 6, coversAlert: false), now: at(1))
+        _ = q.post(Queue.Notice(card: "ext", key: nil, seconds: 6, externalPluginID: "ext"), now: at(1))
         _ = q.post(Queue.Notice(card: "恢复", key: .recovered, seconds: 4), now: at(2))
         _ = q.clearAlert(now: at(2))
         #expect(q.showing == .notice("恢复"))
         _ = q.tick(now: at(6))
         #expect(q.showing == .notice("ext"))
+    }
+}
+
+/// 外部插件每个至多排 3 张（用户 10-31）：红卡挂久了，撤掉后不该补放一长串，也不该把内置的卡压在后面
+@Suite struct ExternalWaitingCap {
+    private func external(_ card: String, _ plugin: String = "build") -> Queue.Notice {
+        Queue.Notice(card: card, key: nil, seconds: 6, externalPluginID: plugin)
+    }
+
+    @Test func keepsNewestThreePerPlugin() {
+        var q = Queue()
+        _ = q.raiseAlert(persistent: true, sound: true, seconds: 6, now: t0)
+        for i in 1...5 { _ = q.post(external("b\(i)"), now: at(1)) }
+        _ = q.post(external("t1", "terminal"), now: at(1))
+        _ = q.clearAlert(now: at(2))
+        var shown: [String] = []
+        for i in 0..<5 {
+            if case .notice(let c)? = q.showing { shown.append(c) }
+            _ = q.tick(now: at(2 + 6 * Double(i + 1)))
+        }
+        #expect(shown == ["b3", "b4", "b5", "t1"])
+    }
+
+    /// 正在放的那张不算在排着的里面
+    @Test func showingCardIsNotCounted() {
+        var q = Queue()
+        for i in 1...4 { _ = q.post(external("b\(i)"), now: t0) }
+        var shown: [String] = []
+        for i in 0..<4 {
+            if case .notice(let c)? = q.showing { shown.append(c) }
+            _ = q.tick(now: at(6 * Double(i + 1)))
+        }
+        #expect(shown == ["b1", "b2", "b3", "b4"])
     }
 }
