@@ -378,12 +378,16 @@ final class NotchController {
         }
     }
 
+    /// 卡片的内容留到收起动画做完才清掉，收的时候看得见缩回去的是哪张卡；中途又弹了卡就不清
+    /// @see https://developer.apple.com/documentation/swiftui/withanimation(_:completioncriteria:_:completion:)
     private func collapse() {
-        withAnimation(model.hovering ? NotchSpring.page : NotchSpring.notchClose) { model.expanded = false }
-        updateMouseCapture()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            if !self.model.expanded { self.model.card = nil }
+        withAnimation(model.hovering ? NotchSpring.page : NotchSpring.notchClose) {
+            model.expanded = false
+        } completion: { [weak self] in
+            guard let self, !self.model.expanded else { return }
+            self.model.card = nil
         }
+        updateMouseCapture()
     }
 
     // MARK: 状态测试（只在内存里，见 StateTest.swift）
