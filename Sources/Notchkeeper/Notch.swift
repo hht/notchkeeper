@@ -669,7 +669,7 @@ struct NotchRoot: View {
             let look = card?.look ?? overrides.mascot(real: lead?.look ?? .idle)
             let shown = overrides.look != nil || card != nil ? look : director.shown(look)
             let ear = overrides.ear(real: lead?.indicator ?? .none)
-            // 右边跟着左边实际画的造型走（犯困时左耳睡着，右耳就不亮）；探针没结果的灰环不随造型变
+            // 右边跟着左边实际画的造型走（犯困时左耳睡着、晕的时候，右耳就不亮）；探针没结果的灰环不随造型变
             let indicator = shown == look ? ear : EarIndicator.for(shown, probeFailed: ear == .ring)
             let guardOn = store.config.isEnabled(PluginID.exitGuard)
             // 关掉了左耳的 Pip：收起时不画，展开时照常飞出来
@@ -709,6 +709,15 @@ struct NotchRoot: View {
             }
             .frame(width: size.width, height: size.height, alignment: .topLeading)
             .allowsHitTesting(false)
+            // 点一下面板里的 Pip 晕一会儿（docs/mascot.md §2）。只在面板上：收起时点刘海是展开，卡片上点了是打开卡片
+            if open {
+                Circle().fill(.clear)
+                    .contentShape(Circle())
+                    .frame(width: c, height: c)
+                    .position(mascotAt)
+                    .onTapGesture { director.poke() }
+                    .accessibilityHidden(true)
+            }
         }
     }
 

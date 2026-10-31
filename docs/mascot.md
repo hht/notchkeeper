@@ -54,7 +54,7 @@ pose 放造型的静止朝向；yaw / pitch 给跟随鼠标；动作叠加（add
 | finished 完成 | agent 回合结束；出口恢复（弹恢复卡时）。5.2s 后按优先级回落 | 得意地抬头 | mood：星星 | 无 |
 | error 出错 | 出错卡上；收起态不画 | 一缩 | sign：× | 告示图标 |
 | interrupted 被打断 | 暂不接线 | 正 | 无 | 无 |
-| dizzy 晕 | 点一下面板里的 Pip（第 4 步接上），1.6s | 正 | 无 | 无 |
+| dizzy 晕 | 点一下面板里的 Pip，1.6s | 正 | 无 | 无 |
 | offline 断网 | 守卫 unknown，原因是断网 | 正 | sign：Wi-Fi 加斜杠 | 告示图标 |
 | mismatch 出口不符 | 出口 IP 不在允许列表 | 正 | sign：▲! | 告示图标 |
 | stale 守卫没响应 | 状态文件不存在、读不了、过期或时钟跳变，且上次不是 violated | 没精神 | sign：沙漏 | 告示图标 |

@@ -3,14 +3,15 @@ import QuartzCore
 import MascotCore
 
 /// 所有 Pip 共用的一份：登记看得见的 Pip、按 `MascotClock` 给的时刻醒来把提示发给它们、转发鼠标、熄屏锁屏时停下。
-/// 什么时候眨眼、做小动作、回正、犯困都由 `MascotClock` 定；不知道 Pip 怎么画、动作长什么样。
+/// 什么时候眨眼、做小动作、回正、犯困、晕完都由 `MascotClock` 定；不知道 Pip 怎么画、动作长什么样。
 /// 一只都看不见、或者熄屏锁屏时，时钟停掉（docs/mascot.md §5「渲染」）。
 @MainActor
 final class MascotDirector: ObservableObject {
     static let shared = MascotDirector()
 
-    /// `MascotClock` 的镜像，变了才发布：视图按它叠睡着（`shown`）
+    /// `MascotClock` 的镜像，变了才发布：视图按它们叠晕和睡着（`shown`）
     @Published private(set) var drowsy = false
+    @Published private(set) var dizzy = false
     /// 熄屏或锁屏。没有视图读它，所以不发布：每只 Pip 由 `refreshActive` 逐个看
     var paused: Bool { !away.isEmpty }
     /// 熄屏或锁屏变了：卡片队列跟着停、跟着放（docs/ui.md「卡片」8）
@@ -69,8 +70,8 @@ final class MascotDirector: ObservableObject {
         onPausedChange?(paused)
     }
 
-    /// 实际画哪个造型：睡着叠在给的造型上
-    func shown(_ look: Look) -> Look { look.shown(drowsy: drowsy) }
+    /// 实际画哪个造型：晕、睡着叠在给的造型上
+    func shown(_ look: Look) -> Look { look.shown(drowsy: drowsy, dizzy: dizzy) }
 
     /// 点到矩形的距离，点在矩形里为 0
     nonisolated static func distance(from p: NSPoint, to r: NSRect) -> CGFloat {
@@ -98,11 +99,20 @@ final class MascotDirector: ObservableObject {
         if on {
             clock.resume(at: CACurrentMediaTime())
             schedule()
-        } else {
+        } else if !clock.dizzy {
+            // 晕着先不停（最多再跑 1.6 秒）：这里常在 SwiftUI 更新视图时被调（`playing` 变了），
+            // 晕留给到点的 tick 收，镜像的发布就只在定时器回调里
             timer?.invalidate()
-            timer = nil
-            timerAt = nil
+            stopClock()
         }
+    }
+
+    /// 停时钟。到点的 tick 发现 Pip 都看不见了时晕可能还在：一起收掉（`MascotClock.suspend`），镜像跟着变
+    private func stopClock() {
+        timer = nil
+        timerAt = nil
+        clock.suspend()
+        clockChanged()
     }
 
     // MARK: 时钟
@@ -124,17 +134,14 @@ final class MascotDirector: ObservableObject {
     /// 时钟改完：镜像跟上；在跑并且要早于定好的时刻醒就改定时器（推迟的不用改：到点 tick 会按新的时刻再定）
     private func clockChanged() {
         if drowsy != clock.drowsy { drowsy = clock.drowsy }
+        if dizzy != clock.dizzy { dizzy = clock.dizzy }
         if let at = timerAt, clock.nextWake < at { schedule() }
     }
 
     private func tick() {
         let views = live
         // 看得见的 Pip 没走 refreshActive 就没了：时钟停掉
-        guard !views.isEmpty else {
-            timer = nil
-            timerAt = nil
-            return
-        }
+        guard !views.isEmpty else { return stopClock() }
         let t = clock.tick(now: CACurrentMediaTime(), mouseNear: mouseNear(NSEvent.mouseLocation))
         if t.gazeRested { all.forEach { $0.follow(mouse: nil) } }
         for cue in t.cues { views.forEach { $0.perform(cue) } }
@@ -145,6 +152,12 @@ final class MascotDirector: ObservableObject {
     /// 「播放动作」：看得见的 Pip 各播一次，不管当前造型
     func play(_ cue: Cue) {
         live.forEach { $0.perform(cue, force: true) }
+    }
+
+    /// 点了面板里的 Pip：晕一会儿
+    func poke() {
+        clock.poke(now: CACurrentMediaTime())
+        clockChanged()
     }
 
     // MARK: 鼠标

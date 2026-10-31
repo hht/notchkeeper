@@ -1,7 +1,7 @@
 import Testing
 @testable import MascotCore
 
-/// 所有 Pip 共用的时钟：除了眨眼和小动作（IdleDirectorTests），还管注视回正、犯困（docs/mascot.md §2、§5）
+/// 所有 Pip 共用的时钟：除了眨眼和小动作（IdleDirectorTests），还管注视回正、犯困、晕（docs/mascot.md §2、§5）
 @Suite struct MascotClockTests {
     /// 鼠标 120s 没靠近刘海就睡着；一靠近就醒
     @Test func drowsyAfterMouseStaysAway() {
@@ -63,6 +63,35 @@ import Testing
         #expect(!c.tick(now: 1 + Choreography.gazeRestAfter, mouseNear: false).gazeRested)
     }
 
+    /// 点一下 Pip 晕 1.6s
+    @Test func pokeMakesDizzyForAWhile() {
+        var c = MascotClock(seed: 1, now: 0)
+        c.poke(now: 10)
+        #expect(c.dizzy)
+        #expect(c.nextWake <= 10 + MascotClock.dizzyFor)
+        _ = c.tick(now: 10 + MascotClock.dizzyFor - 0.01, mouseNear: false)
+        #expect(c.dizzy)
+        _ = c.tick(now: 10 + MascotClock.dizzyFor, mouseNear: false)
+        #expect(!c.dizzy)
+    }
+
+    /// 晕的时候再点：从这一下重新算
+    @Test func pokeAgainExtends() {
+        var c = MascotClock(seed: 1, now: 0)
+        c.poke(now: 10)
+        c.poke(now: 11)
+        _ = c.tick(now: 10 + MascotClock.dizzyFor, mouseNear: false)
+        #expect(c.dizzy)
+    }
+
+    /// 晕着时 Pip 都看不见了（收起时不画左耳的 Pip）：时钟停掉前晕就算过去，不留到下次看得见时还盖着别的造型
+    @Test func suspendEndsDizzy() {
+        var c = MascotClock(seed: 1, now: 0)
+        c.poke(now: 10)
+        c.suspend()
+        #expect(!c.dizzy)
+    }
+
     /// 时钟按 nextWake 醒，眨眼照常发
     @Test func blinksStillCome() {
         var c = MascotClock(seed: 1, now: 0)
@@ -74,12 +103,25 @@ import Testing
     }
 }
 
-/// 睡着叠在插件给的造型上（docs/mascot.md §2「优先级」）
+/// 晕、睡着叠在插件给的造型上（docs/mascot.md §2「优先级」）：守卫 > 晕 > agent > 睡着 > 空闲
 @Suite struct MascotOverlay {
+    @Test func dizzyBeatsAgentAndSleep() {
+        for look in [Look.idle, .working, .longTurn, .question, .approval, .finished] {
+            #expect(look.shown(drowsy: true, dizzy: true) == .dizzy)
+        }
+    }
+
+    /// 告示造型（守卫的、出错卡上的）不被晕盖掉
+    @Test func signsBeatDizzy() {
+        for look in [Look.danger, .shielded, .mismatch, .stale, .offline, .error] {
+            #expect(look.shown(drowsy: true, dizzy: true) == look)
+        }
+    }
+
     /// 只有空闲时才睡着
     @Test func onlyIdleFallsAsleep() {
-        #expect(Look.idle.shown(drowsy: true) == .sleeping)
-        #expect(Look.working.shown(drowsy: true) == .working)
-        #expect(Look.idle.shown(drowsy: false) == .idle)
+        #expect(Look.idle.shown(drowsy: true, dizzy: false) == .sleeping)
+        #expect(Look.working.shown(drowsy: true, dizzy: false) == .working)
+        #expect(Look.idle.shown(drowsy: false, dizzy: false) == .idle)
     }
 }
