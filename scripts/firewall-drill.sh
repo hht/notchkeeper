@@ -2,7 +2,7 @@
 # 恢复脚本的演练：在真实路径装一套只放行、什么都不拦的假防火墙，再用 scripts/firewall-rescue.sh 卸掉它。docs/firewall.md §3、§7 第 1 步。
 # 用法：sudo scripts/firewall-drill.sh；--dry-run 不要 root，只打印会写的文件和步骤。
 # 装的东西：LaunchDaemon 每 10 秒看一次本 anchor，空了就装回一条永远匹配不到的规则（去 198.51.100.1:9 的 TCP），
-#   模拟真守护进程「被清掉的规则会被装回去」；再 pfctl -E 拿一个启用引用，token 记进状态文件。
+#   模拟真守护进程「被清掉的规则会被装回去」；再 pfctl -E 拿一个启用引用，token 记进防火墙状态文件。
 #   这条规则不放行也不拦截任何真实流量。pf 原来是停着的，pfctl -E 会把它打开，系统 com.apple/* 下已有的
 #   规则（AirDrop、应用防火墙）随之生效；恢复脚本释放 token 后 pf 回到原状。
 # 顺带打印 docs/firewall.md §6 要 root 实测的几项：pfctl -E 的输出、-s References、anchor 的 Evaluations 会不会涨、pf 原来是否启用。

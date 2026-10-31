@@ -10,7 +10,7 @@ import FirewallCore
         let status = try #require(rig.round())
         #expect(rig.pf.anchor == rig.rules.text)
         #expect(rig.pf.references == ["1864012227745836441"])
-        guard case .valid(let s) = rig.state else { Issue.record("状态文件读不出"); return }
+        guard case .valid(let s) = rig.state else { Issue.record("防火墙状态文件读不出"); return }
         #expect(s.reference == .held(token: "1864012227745836441"))
         #expect(status.mode == .trial)
         #expect(status.check?.passed == true)
@@ -29,7 +29,7 @@ import FirewallCore
         #expect(status.check?.evaluationsGrowing == true)
     }
 
-    /// 拿到 token 就落盘：-E 之后的下一步（再读一次引用列表）之前，状态文件里已经有它。
+    /// 拿到 token 就落盘：-E 之后的下一步（再读一次引用列表）之前，防火墙状态文件里已经有它。
     /// 恢复脚本 bootout 时正好杀在这一步，也找得到这个 token 去释放
     @Test func tokenIsOnDiskBeforeTheNextStep() throws {
         let rig = try Rig()
@@ -41,11 +41,11 @@ import FirewallCore
         }
         _ = rig.round()
         #expect(next == ["/sbin/pfctl", "-s", "References"])
-        guard case .valid(let s) = seen else { Issue.record("下一步时状态文件读不出"); return }
+        guard case .valid(let s) = seen else { Issue.record("下一步时防火墙状态文件读不出"); return }
         #expect(s.reference == .held(token: "1864012227745836441"))
     }
 
-    /// 状态文件坏了：按 off 办（清掉残留规则），不覆盖原文件，摘要里报出来
+    /// 防火墙状态文件坏了：按 off 办（清掉残留规则），不覆盖原文件，摘要里报出来
     @Test func unreadableStateIsTreatedAsOffAndKept() throws {
         let rig = try Rig()
         let url = rig.directory.appendingPathComponent(FirewallState.fileName)
@@ -102,14 +102,14 @@ import FirewallCore
         #expect(rig.round()?.trialEndsAt == rig.system.now().addingTimeInterval(90))
     }
 
-    /// 命令只改状态文件，再让守护进程马上跑一轮
+    /// 命令只改防火墙状态文件，再让守护进程马上跑一轮
     @Test func commandsKickstartTheDaemon() throws {
         let rig = try Rig()
         try Helper.command(.enable, rig.system)
         #expect(rig.pf.calls == [["/bin/launchctl", "kickstart", "system/com.notchkeeper.firewall"]])
     }
 
-    /// 状态文件只有 root 可读（里面有 token）；摘要给 App 读
+    /// 防火墙状态文件只有 root 可读（里面有 token）；摘要给 App 读
     @Test func filePermissions() throws {
         let rig = try Rig()
         try Helper.command(.enable, rig.system)
@@ -158,7 +158,7 @@ import FirewallCore
         #expect(rig.pf.calls.isEmpty)
     }
 
-    /// 坏掉的状态文件谁都不覆盖：开启被拒（先跑恢复脚本）；关闭照样算成功（每一轮本来就按 off 办）
+    /// 坏掉的防火墙状态文件谁都不覆盖：开启被拒（先跑恢复脚本）；关闭照样算成功（每一轮本来就按 off 办）
     @Test func commandsDoNotOverwriteAnUnreadableState() throws {
         let rig = try Rig()
         let url = rig.directory.appendingPathComponent(FirewallState.fileName)
@@ -188,7 +188,7 @@ import FirewallCore
         #expect(rig.pf.anchor == FirewallRules(tunnel: "utun1024", scope: .testUser)?.text)
     }
 
-    /// 读不出开机标识：开启报错、说得出原因；一轮照常按 off 办，状态文件里不写开机标识
+    /// 读不出开机标识：开启报错、说得出原因；一轮照常按 off 办，防火墙状态文件里不写开机标识
     @Test func unreadableBootSession() throws {
         let rig = try Rig()
         rig.bootSession = nil
@@ -196,7 +196,7 @@ import FirewallCore
         rig.pf.anchor = "pass all\n"
         #expect(rig.round()?.mode == .off)
         #expect(rig.pf.anchor == "")
-        guard case .valid(let s) = rig.state else { Issue.record("状态文件读不出"); return }
+        guard case .valid(let s) = rig.state else { Issue.record("防火墙状态文件读不出"); return }
         #expect(s.bootSession == nil)
     }
 
@@ -210,7 +210,7 @@ import FirewallCore
         #expect(rig.round(scope: .everyone)?.scope == nil)
     }
 
-    /// 状态文件写不进去时不 -E：拿到的 token 记不下来，下一轮又会 -E，引用越涨越多
+    /// 防火墙状态文件写不进去时不 -E：拿到的 token 记不下来，下一轮又会 -E，引用越涨越多
     @Test func doesNotEnableWhenStateCannotBeSaved() throws {
         let rig = try Rig()
         try Helper.command(.enable, rig.system)

@@ -1,12 +1,12 @@
 import Foundation
 
-/// 回答：root 状态文件 `firewall.state` 长什么样、读出来算什么（docs/firewall.md §4）。
+/// 回答：防火墙状态文件 `firewall.state` 长什么样、读出来算什么（docs/firewall.md §4）。
 /// 恢复脚本 `scripts/firewall-rescue.sh` 用 plutil 从里面读 `token`（数字串）和 `bootSession`，这两个字段改名或改类型要两边一起改。
 /// 不知道文件放在哪、怎么写。
 extension FirewallState {
     public static let fileName = "firewall.state"
 
-    /// 读状态文件的结果。读不出来（坏了、格式对不上）和没有文件分开：没有是常态（刚安装），坏了要报出来、不覆盖原文件
+    /// 读防火墙状态文件的结果。读不出来（坏了、格式对不上）和没有文件分开：没有是常态（刚安装），坏了要报出来、不覆盖原文件
     public enum Restored: Equatable, Sendable {
         case valid(FirewallState)
         case missing
@@ -67,6 +67,6 @@ extension FirewallState {
 }
 
 extension FirewallRules {
-    /// 状态文件里记的「上次装进去的规则」：只拿来和这一轮该装的比，不再装进 pf
+    /// 防火墙状态文件里记的「上次装进去的规则」：只拿来和这一轮该装的比，不再装进 pf
     init(loaded text: String) { self.text = text }
 }

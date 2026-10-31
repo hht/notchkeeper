@@ -7,7 +7,7 @@ public struct FirewallStatus: Codable, Equatable, Sendable {
 
     public enum Mode: String, Codable, Sendable {
         case off, trial, on
-        /// root 状态文件读不出来：按 off 办（清规则、不覆盖原文件），要报出来
+        /// 防火墙状态文件读不出来：按 off 办（清规则、不覆盖原文件），要报出来
         case stateUnreadable
     }
 

@@ -78,12 +78,12 @@ if [ -n "${session}" ] && [ -r "${STATE}" ] && [ "$(plutil -extract bootSession 
   case "${token}" in ''|*[!0-9]*) token="" ;; esac
 fi
 if [ "${DRY_RUN}" -eq 1 ]; then
-  echo "+ （如果状态文件里有本次开机的 token）pfctl -X <token>"
+  echo "+ （如果防火墙状态文件里有本次开机的 token）pfctl -X <token>"
 elif [ -n "${token}" ]; then
   # pf 已经停了时 pfctl -X 会报错，忽略
   run pfctl -X "${token}" || true
 else
-  echo "   状态文件里没有本次开机的 token，跳过"
+  echo "   防火墙状态文件里没有本次开机的 token，跳过"
 fi
 
 echo "== 4/5 删除已安装的文件（等于卸载，想再用就重新安装）"

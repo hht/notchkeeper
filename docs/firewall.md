@@ -13,7 +13,7 @@
 
 ## 2. 状态机
 
-只有三种状态，记在 root 所有的状态文件里，只有 root 能改。LaunchDaemon 和脚本都照它办事。
+只有三种状态，记在 root 所有的防火墙状态文件里，只有 root 能改。LaunchDaemon 和脚本都照它办事。
 
 | 状态 | 规则 | 怎么进入 | 怎么离开 |
 |---|---|---|---|
@@ -23,7 +23,7 @@
 
 不变量：
 
-- **只有 `trial` 和 `on` 会加载规则。** LaunchDaemon 每一轮都看状态文件，状态是 `off` 就卸掉规则，绝不重新加载。所以自动回滚一旦把状态改成 `off`，规则不会被装回来。
+- **只有 `trial` 和 `on` 会加载规则。** LaunchDaemon 每一轮都看防火墙状态文件，状态是 `off` 就卸掉规则，绝不重新加载。所以自动回滚一旦把状态改成 `off`，规则不会被装回来。
 - **开机时 `trial` 一律当成 `off`。** 试运行期间重启，开机后不会带着没确认过的规则上线。
 - **试运行到期由 root 的 LaunchDaemon 执行**，不靠 App，也不靠 osascript 的子进程。App 退出之后，到点照样回滚。LaunchDaemon 的 `StartInterval` 设为 10 秒，每轮幂等，回滚最多晚 10 秒左右。
 - **截止时间按单调时钟算，不按墙上时间。** 试运行期间系统时间被往回调（手动改，或者 NTP 校时），也不能把回滚往后推。
@@ -37,8 +37,8 @@
 1. **恢复脚本先行。** `scripts/firewall-rescue.sh` 是第一个交付物，比任何 block 规则都早。它按顺序做：
    1. `launchctl bootout system/<label>`。这一步必须最先做，否则 LaunchDaemon 会把规则装回去。
    2. `pfctl -a com.apple/300.Notchkeeper -F rules`，清空本防火墙的 anchor。
-   3. 状态文件里记了 pf 启用 token 的，执行 `pfctl -X <token>` 释放。pf 已经停了时会报错，忽略即可。
-   4. 删掉 LaunchDaemon 的 plist、特权脚本、状态文件和状态摘要。这一步等于卸载，想再用就重新安装。
+   3. 防火墙状态文件里记了 pf 启用 token 的，执行 `pfctl -X <token>` 释放。pf 已经停了时会报错，忽略即可。
+   4. 删掉 LaunchDaemon 的 plist、特权脚本、防火墙状态文件和状态摘要。这一步等于卸载，想再用就重新安装。
    5. 打印 `pfctl -a com.apple/300.Notchkeeper -sr`（应为空）和 LaunchDaemon 的状态，供人核对。
 
    脚本本身的要求：
@@ -100,18 +100,18 @@ block drop   in  quick all
 **特权部分**：
 - 一个 root 所有的辅助程序 `/Library/PrivilegedHelperTools/notchkeeper-firewall`，Swift 编译（用户定，10-31）：状态机放纯值 target `FirewallCore` 用 `swift test` 测，`firewalld` 只做 I/O。截止时间用 `clock_gettime(CLOCK_MONOTONIC_RAW)`：man page 写明它「不受频率和时间调整影响」、睡眠也走（`CLOCK_MONOTONIC` 没这么写），开机归零，开机本来就把 `trial` 当 `off`。没选 shell 里的 `sysctl kern.monotonicclock_usecs`：XNU 注释说它只增不减、改不了（[clock.c](https://github.com/apple-oss-distributions/xnu/blob/main/osfmk/kern/clock.c)），但没有文档。恢复脚本仍是纯 bash，不依赖它；
 - 一个 LaunchDaemon（`RunAtLoad`，`StartInterval` 10），启动参数里写隧道网卡名，测试时加 `--test-rules`（§7）；
-- 开启、保留、关闭三条命令只改状态文件，再 `launchctl kickstart` 让守护进程马上跑一轮：对 pf 做什么只在一轮里决定；
+- 开启、保留、关闭三条命令只改防火墙状态文件，再 `launchctl kickstart` 让守护进程马上跑一轮：对 pf 做什么只在一轮里决定；
 - 目录 `/Library/Application Support/Notchkeeper/`，所有者 root，权限 0755。普通用户进程不能在里面写文件，也就伪造不了状态摘要。
-  - 状态文件 `firewall.state`，root 0600，JSON。恢复脚本从里面读 `token`（数字串）和 `bootSession`（`kern.bootsessionuuid`，每次开机都换；不用 `kern.boottime`，因为改系统时间时内核会跟着调它（推断），会被误判成重启；不知道是哪次开机的就不写这个字段，恢复脚本读不到就不释放）。读不出来时按 `off` 办、不覆盖，开启和保留被拒，要先跑恢复脚本；
+  - 防火墙状态文件 `firewall.state`，root 0600，JSON。恢复脚本从里面读 `token`（数字串）和 `bootSession`（`kern.bootsessionuuid`，每次开机都换；不用 `kern.boottime`，因为改系统时间时内核会跟着调它（推断），会被误判成重启；不知道是哪次开机的就不写这个字段，恢复脚本读不到就不释放）。读不出来时按 `off` 办、不覆盖，开启和保留被拒，要先跑恢复脚本；
   - 状态摘要 `firewall-status.json`，root 0644，记录模式、装的是正式规则还是测试规则、截止时间、核对结果、做失败的动作、`checkedAt`。只有正式规则才能显示「已保护」；
   - 锁文件 `firewall.lock`，root 0600：一轮和命令互斥。普通用户打不开它，也就锁不住、卡不死守护进程（锁目录本身不行：普通用户也能对 root 0755 的目录 `flock`，审查时实测）。每条子命令最多 5 秒，一轮总会结束。
 
 LaunchDaemon 每一轮做这几件事：
 1. 读 `pfctl -s References`：我们的 token 不在列表里（有人 `pfctl -d`，或者重启过），就当没有引用。读不出列表时照旧，不 `-E`、不释放；开机标识变了的那一轮例外，见第 2 步。
-2. 开机标识和状态文件里的不一样（重启过）：`trial` 改成 `off`。引用只有第 1 步的列表读得出、并且里面有我们的 token 才留，所以开机标识读错一次也不会多 `-E` 一个引用；列表读不出就当没有：旧 token 不能配上新开机标识落盘，恢复脚本会把它当成本次开机的去释放。开启、保留两条命令不读列表，开机后旧 token 一律作废。读不出开机标识时不知道换没换开机：`trial` 照样改成 `off`，引用和记下的开机标识不动，开启、保留直接报错。
+2. 开机标识和防火墙状态文件里的不一样（重启过）：`trial` 改成 `off`。引用只有第 1 步的列表读得出、并且里面有我们的 token 才留，所以开机标识读错一次也不会多 `-E` 一个引用；列表读不出就当没有：旧 token 不能配上新开机标识落盘，恢复脚本会把它当成本次开机的去释放。开启、保留两条命令不读列表，开机后旧 token 一律作废。读不出开机标识时不知道换没换开机：`trial` 照样改成 `off`，引用和记下的开机标识不动，开启、保留直接报错。
 3. `mode` 不是 `off`：
    - 规则变了（换了隧道网卡名）或者 anchor 被清空了才加载：每次加载都换上一批新规则，Evaluations 从 0 数起，「在增长」就核对不了；
-   - 没有引用就 `pfctl -E`，拿到 token 立刻落盘。这一轮状态文件写不进去时不 `-E`，否则记不下 token，下一轮又 `-E`；
+   - 没有引用就 `pfctl -E`，拿到 token 立刻落盘。这一轮防火墙状态文件写不进去时不 `-E`，否则记不下 token，下一轮又 `-E`；
    - 核对：pf 开着、主规则集里还有 `anchor "com.apple/*"`、本 anchor 有规则、Evaluations 在增长、TUN 网卡存在。
 4. `mode` 是 `trial` 且已过截止时间：按 `off` 办。
 5. `mode` 是 `off`：先清规则，再释放 pf 里还在的那个 token。
@@ -178,7 +178,7 @@ root 实测（`scripts/firewall-drill.sh`，10-31）：
 
 **测试时不能真的断网（用户定，10-31）**：整机拦截的规则在测试中一次都不加载。真实流量上的验证用「测试规则」：和正式规则只差两处，所有 block 只拦一个测试用户（`nobody`），隧道网卡名换成不存在的名字来模拟 Clash 断开；然后 `sudo -u nobody curl …`、`dig` 看拦没拦，本机其他进程照常上网。不用 `pfctl -d`：它会作废系统 `pfd` 的引用。
 
-**本机不能重启（用户定，10-31）**，凡是要重启的验收都换成「模拟开机」：开机时内核里的 pf 规则和 token 全丢、launchd 按 `/Library/LaunchDaemons` 里现有的 plist 重新加载守护进程（[launchd(8)](https://keith.github.io/xcode-man-pages/launchd.8.html)）。所以模拟时清空本 anchor、`pfctl -X` 释放自己的 token、把状态文件的 `bootSession` 改成别的值，再 `launchctl bootout` + `bootstrap`。真开机时 launchd 会不会加载 `/Library/LaunchDaemons` 里的 plist，只靠 Apple 文档，不实测。
+**本机不能重启（用户定，10-31）**，凡是要重启的验收都换成「模拟开机」：开机时内核里的 pf 规则和 token 全丢、launchd 按 `/Library/LaunchDaemons` 里现有的 plist 重新加载守护进程（[launchd(8)](https://keith.github.io/xcode-man-pages/launchd.8.html)）。所以模拟时清空本 anchor、`pfctl -X` 释放自己的 token、把防火墙状态文件的 `bootSession` 改成别的值，再 `launchctl bootout` + `bootstrap`。真开机时 launchd 会不会加载 `/Library/LaunchDaemons` 里的 plist，只靠 Apple 文档，不实测。
 
 1. **恢复脚本**：装上测试 anchor 和 LaunchDaemon，执行恢复脚本，确认都清掉了；核对开机时会读的地方都没有它（`/etc/pf.conf`、`/etc/pf.anchors/`、`/Library/LaunchDaemons`、launchd 的 `disabled.plist`、后台项目登记 `BackgroundItems-v*.btm`）；什么都没装时再跑一次，每步都是「跳过」。
 2. **试运行**：开启后不点「保留」，确认到时间自动关闭、外网恢复；试运行期间模拟开机，之后状态是 `off`。

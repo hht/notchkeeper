@@ -12,7 +12,7 @@ enum Helper {
 
     enum Failure: Error, Equatable {
         case command(FirewallCommandError)
-        /// 状态文件读不出来：不覆盖它（原文件留给人看），先跑恢复脚本
+        /// 防火墙状态文件读不出来：不覆盖它（原文件留给人看），先跑恢复脚本
         case stateUnreadable
         case busy
         case io(String)
@@ -40,7 +40,7 @@ enum Helper {
             let restored = restore(stateURL)
             var state = FirewallState(bootSession: moment.bootSession)
             if case .valid(let s) = restored { state = s }
-            // 读不出来的状态文件不覆盖：按 off 办，原文件留给人看
+            // 读不出来的防火墙状态文件不覆盖：按 off 办，原文件留给人看
             let writable = restored != .unreadable
             func save() -> Bool {
                 guard writable else { return false }
@@ -48,7 +48,7 @@ enum Helper {
                     try AtomicFile.write(state.encoded(), to: stateURL, mode: 0o600)
                     return true
                 } catch {
-                    log.error("写状态文件失败：\(error, privacy: .public)")
+                    log.error("写防火墙状态文件失败：\(error, privacy: .public)")
                     return false
                 }
             }
@@ -63,7 +63,7 @@ enum Helper {
             let snapshot = PFSnapshot(anchorEmpty: anchor.succeeded && anchor.stdout.allSatisfy(\.isWhitespace), tokens: references())
             var actions = state.tick(at: moment, pf: snapshot, rules: config.rules)
             var failed: [PFStep] = []
-            // 先确认状态文件写得进去：写不进去时拿到的 token 记不下来，下一轮又 -E，引用越涨越多
+            // 先确认防火墙状态文件写得进去：写不进去时拿到的 token 记不下来，下一轮又 -E，引用越涨越多
             if !save(), actions.contains(.enable) {
                 actions.removeAll { $0 == .enable }
                 failed.append(.enable)
@@ -119,7 +119,7 @@ enum Helper {
         }
     }
 
-    /// 开启 / 保留 / 关闭：只改状态文件，再让守护进程马上跑一轮。对 pf 做什么只在一轮里决定
+    /// 开启 / 保留 / 关闭：只改防火墙状态文件，再让守护进程马上跑一轮。对 pf 做什么只在一轮里决定
     static func command(_ command: Command, _ sys: FirewallSystem) throws(Failure) {
         let done: Void? = try locked(sys) { () throws(Failure) in
             let moment = sys.moment()
@@ -140,7 +140,7 @@ enum Helper {
             } catch {
                 throw .command(error)
             }
-            do { try AtomicFile.write(state.encoded(), to: stateURL, mode: 0o600) } catch { throw .io("写状态文件失败：\(error)") }
+            do { try AtomicFile.write(state.encoded(), to: stateURL, mode: 0o600) } catch { throw .io("写防火墙状态文件失败：\(error)") }
         }
         guard done != nil else { throw .busy }
         let kick = sys.run("/bin/launchctl", ["kickstart", "system/\(FirewallPaths.label)"], nil)
@@ -153,7 +153,7 @@ enum Helper {
         } catch CocoaError.fileReadNoSuchFile {
             return .missing
         } catch {
-            log.error("读不了状态文件：\(error, privacy: .public)")
+            log.error("读不了防火墙状态文件：\(error, privacy: .public)")
             return .unreadable
         }
     }
