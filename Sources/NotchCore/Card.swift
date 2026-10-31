@@ -48,9 +48,18 @@ public struct Card: Identifiable, Equatable, Sendable {
         case progress(Double, label: String?)
     }
 
-    /// 点卡片去哪
+    /// 点卡片或按钮去哪：只有这三种（CLAUDE.md 硬规则「插件」）。打开 URL 放不放行看 `URLPolicy`
     public enum Action: Equatable, Sendable {
+        case open(URL)
+        case activate(bundleID: String)
         case terminal(TerminalRef)
+    }
+
+    /// 卡片右下的按钮，至多两个；点了也算关掉这张卡
+    public struct Button: Equatable, Sendable {
+        public var title: String
+        public var action: Action
+        public init(title: String, action: Action) { self.title = title; self.action = action }
     }
 
     public static let maxText = 200
@@ -58,6 +67,7 @@ public struct Card: Identifiable, Equatable, Sendable {
     public static let maxValue = 24
     public static let maxLines = 3
     public static let maxFacts = 4
+    public static let maxButtons = 2
 
     public let id = UUID()
     public let source: Source
@@ -67,9 +77,10 @@ public struct Card: Identifiable, Equatable, Sendable {
     public let outcome: Outcome
     public let block: Block?
     public let action: Action?
+    public let buttons: [Button]
 
     public init(source: Source, title: String, subtitle: String? = nil, value: String? = nil, outcome: Outcome,
-                block: Block? = nil, action: Action? = nil) {
+                block: Block? = nil, action: Action? = nil, buttons: [Button] = []) {
         if case .plugin(let id, let name, let symbol) = source {
             self.source = .plugin(id: id, name: Self.capped(name, to: Self.maxValue), symbol: Self.capped(symbol, to: Self.maxValue))
         } else {
@@ -86,6 +97,7 @@ public struct Card: Identifiable, Equatable, Sendable {
         }
         self.block = block.flatMap(Self.capped)
         self.action = action
+        self.buttons = buttons.prefix(Self.maxButtons).map { Button(title: Self.capped($0.title, to: Self.maxValue), action: $0.action) }
     }
 
     /// 守卫的红卡挂着时换副标题：同一张卡（id 不变），不重弹

@@ -206,9 +206,14 @@ extension AppDelegate {
         return [
             Card(source: source, title: "npm 跑完了", subtitle: "~/Projects/notchkeeper", value: "2 分 13 秒", outcome: .done,
                  block: .facts([.init(title: "退出码", value: "0"), .init(title: "分支", value: "design/panel"),
-                                .init(title: "耗时", value: "2:13"), .init(title: "测试", value: "373 个")])),
+                                .init(title: "耗时", value: "2:13"), .init(title: "测试", value: "373 个")]),
+                 buttons: [.init(title: "打开访达", action: .activate(bundleID: "com.apple.finder")),
+                           .init(title: "看 Swift 文档", action: .open(URL(string: "https://www.swift.org/documentation/")!))]),
             Card(source: source, title: "swift test 失败了", subtitle: "~/Projects/notchkeeper", value: "41 秒", outcome: .failed,
-                 block: .log(["✘ Test cardGrowsWithBlock() failed", "Expectation failed: 156 <= 150", "NotchLayoutTests.swift:21"])),
+                 block: .log(["✘ Test cardGrowsWithBlock() failed", "Expectation failed: 156 <= 150", "NotchLayoutTests.swift:21"]),
+                 // 卡片和按钮都是被拦的 scheme（不同的两个）：点按钮只该记一次 ftp，点空白处只该记一次 http
+                 action: .open(URL(string: "http://example.com")!),
+                 buttons: [.init(title: "看日志", action: .open(URL(string: "ftp://example.com/log")!))]),
             Card(source: source, title: "部署", subtitle: "app 0.3.1", outcome: .info,
                  block: .checklist([.init(text: "编译", state: .ok), .init(text: "单元测试", state: .failed), .init(text: "上传", state: .pending)])),
             Card(source: source, title: "下载中", subtitle: "Xcode_27.xip", value: "剩 1 分", outcome: .info,

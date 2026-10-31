@@ -239,10 +239,20 @@ final class NotchController {
             guard let self else { return }
             self.apply(self.queue.dismiss(now: Date()))
         }, onOpenCard: { [weak self] action in
-            // 点了卡片 × 以外的地方：去这张卡说的地方，这张卡算关掉（docs/ui.md「卡片」）
+            // 点了卡片 × 以外的地方或按钮：去它说的地方，这张卡算关掉（docs/ui.md「卡片」）。
+            // 动作只有三种（CLAUDE.md 硬规则「插件」）；打开 URL 按 `urlSchemes` 白名单放行，拦下时只记 scheme（截短：外部来源）
             guard let self else { return }
             switch action {
-            case .terminal(let terminal): Ghostty.focus(terminal)
+            case .open(let url):
+                if URLPolicy(schemes: ConfigStore.shared.config.urlSchemes).allows(url) {
+                    NSWorkspace.shared.open(url)
+                } else {
+                    Log.write("卡片：链接的 scheme 不在白名单里，没打开（\((url.scheme ?? "无").prefix(32))）")
+                }
+            case .activate(let bundleID):
+                if !Apps.activate(bundleID) { Log.write("卡片：没装要切换的 App") }
+            case .terminal(let terminal):
+                Ghostty.focus(terminal)
             }
             self.apply(self.queue.dismiss(now: Date()))
         }, onCardResized: { [weak self] in
@@ -754,7 +764,7 @@ struct NotchRoot: View {
         switch mode {
         case .card:
             if let card = model.card {
-                NotchCardView(card: card, onDismiss: onDismiss, onOpen: card.action.map { a in { onOpenCard(a) } })
+                NotchCardView(card: card, onDismiss: onDismiss, onAction: onOpenCard)
                     .fixedSize(horizontal: false, vertical: true)
                     // 内容多高，形状就用弹簧长到多高：换卡、内容变了都平滑过渡
                     // @see https://developer.apple.com/documentation/swiftui/view/ongeometrychange(for:of:action:)
@@ -1019,8 +1029,8 @@ struct SessionRow: View {
 struct NotchCardView: View {
     let card: Card
     let onDismiss: () -> Void
-    /// nil：点了不做事（守卫的卡）
-    let onOpen: (() -> Void)?
+    /// 点卡片（有 `action` 时）或按钮
+    let onAction: (Card.Action) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -1048,12 +1058,29 @@ struct NotchCardView: View {
             if let block = card.block {
                 CardBlockView(block: block, tint: card.tint)
             }
+            if !card.buttons.isEmpty {
+                HStack(spacing: 8) {
+                    Spacer()
+                    ForEach(card.buttons.indices, id: \.self) { i in
+                        Button { onAction(card.buttons[i].action) } label: {
+                            Text(card.buttons[i].title)
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .lineLimit(1)
+                                .padding(.horizontal, 12)
+                                .frame(height: 26)
+                                .background(Capsule().fill(.white.opacity(0.14)))
+                        }
+                        .buttonStyle(PressableStyle())
+                    }
+                }
+            }
         }
         .padding(.horizontal, NotchLayout.cardPadding)
         // × 是按钮，自己先接住点击；其余地方点了去这张卡说的地方
         .contentShape(Rectangle())
-        .onTapGesture { onOpen?() }
-        .accessibilityAddTraits(onOpen == nil ? [] : .isButton)
+        .onTapGesture { card.action.map(onAction) }
+        .accessibilityAddTraits(card.action == nil ? [] : .isButton)
     }
 
     /// 外部插件的卡标明是谁发的（CLAUDE.md 硬规则「外部插件可信但受限」）

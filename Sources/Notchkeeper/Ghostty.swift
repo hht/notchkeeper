@@ -56,9 +56,7 @@ enum Ghostty {
         let ghostty = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
         guard !ghostty.isEmpty else {
             // 没开：只打开 Ghostty，里面没有这个会话
-            if let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
-                NSWorkspace.shared.openApplication(at: app, configuration: NSWorkspace.OpenConfiguration())
-            }
+            Apps.activate(bundleID)
             return
         }
         let ghosttyPIDs = Set(ghostty.map(\.processIdentifier))

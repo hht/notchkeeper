@@ -68,3 +68,14 @@ private func card(_ outcome: Card.Outcome = .done, source: Card.Source = .plugin
         #expect(card(.recovered, source: .claudeCode).outcome == .done)
     }
 }
+
+/// 按钮至多两个，标题和短值一样短（ntfy 的 actions、Adaptive Cards 的 ActionSet）
+@Suite struct CardButtons {
+    @Test func atMostTwoShortButtons() {
+        let long = String(repeating: "按", count: 100)
+        let buttons = (1...4).map { Card.Button(title: "\($0)\(long)", action: .activate(bundleID: "com.example.app")) }
+        let c = Card(source: .claudeCode, title: "t", outcome: .done, buttons: buttons)
+        #expect(c.buttons.count == 2)
+        #expect(c.buttons.allSatisfy { $0.title.count == Card.maxValue })
+    }
+}

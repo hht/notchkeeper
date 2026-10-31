@@ -17,6 +17,8 @@ struct NKConfig: Codable, Equatable {
     var alertPersistent = true
     // 通知
     var cardAutoDismissSeconds = 6.0
+    /// 卡片上「打开 URL」除 https 外还放行的 scheme（`URLPolicy`）
+    var urlSchemes: [String] = []
 
     init() {}
 
@@ -33,6 +35,7 @@ struct NKConfig: Codable, Equatable {
         autoAlert = try v(.autoAlert, d.autoAlert)
         alertPersistent = try v(.alertPersistent, d.alertPersistent)
         cardAutoDismissSeconds = min(10, max(2, try v(.cardAutoDismissSeconds, d.cardAutoDismissSeconds)))
+        urlSchemes = try v(.urlSchemes, d.urlSchemes)
     }
 }
 

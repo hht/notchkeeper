@@ -77,6 +77,13 @@ private final class Lines { var all: [String] = [] }
         #expect(store(url).config == expected)
     }
 
+    /// URL 白名单默认是空的：只放行 https
+    @Test func urlSchemesDefaultEmptyAndLoad() throws {
+        #expect(NKConfig().urlSchemes.isEmpty)
+        let url = try tempConfig(#"{"urlSchemes":["raycast"]}"#)
+        #expect(store(url).config.urlSchemes == ["raycast"])
+    }
+
     /// 改坏后又原样改回：坏着时在内存里的改动要被文件内容取代，界面和 guardd 读的是同一份
     @Test func restoringOriginalBytesReloadsThem() throws {
         let original = #"{"allowlist":["198.51.100.8"]}"#
