@@ -12,7 +12,6 @@ import MascotCore
 /// 眼睛图层锚点在眼睛中心、`anchorPointZ` 退到球心，按经纬度转到球面上；转到背面由 `isDoubleSided = false` 藏掉。
 @MainActor
 final class MascotFigureView: MascotLayerView {
-    private let size: Size
     private let pt: CGFloat
     private let stage = CALayer(), body = CALayer(), disc = CALayer(), gradient = CAGradientLayer()
     private let poseLayer = CATransformLayer(), yawLayer = CATransformLayer(), pitchLayer = CATransformLayer(), rollLayer = CATransformLayer()
@@ -32,16 +31,15 @@ final class MascotFigureView: MascotLayerView {
     private var entranceDue: Bool
 
     /// unit：1 画布单位多少 pt。entrance：第一次看得见时播不播当前造型的进场
-    init(look: Look, size: Size, unit: CGFloat, reduceMotion: Bool, entrance: Bool, hidesSigns: Bool) {
+    init(look: Look, unit: CGFloat, reduceMotion: Bool, entrance: Bool, hidesSigns: Bool) {
         self.look = look
-        self.size = size
         self.pt = unit
         self.reduceMotion = reduceMotion
         self.hidesSigns = hidesSigns
         entranceDue = entrance
         let e = look.eyes
         shapes = [e.left, e.right]
-        super.init(frame: CGRect(origin: .zero, size: CGSize(width: size.canvas.width * unit, height: size.canvas.height * unit)))
+        super.init(frame: CGRect(origin: .zero, size: CGSize(width: Anatomy.canvas.width * unit, height: Anatomy.canvas.height * unit)))
         build()
     }
 
@@ -50,11 +48,11 @@ final class MascotFigureView: MascotLayerView {
     // MARK: 图层树
 
     private func point(_ p: CGPoint) -> CGPoint {
-        CGPoint(x: (p.x - size.canvas.minX) * pt, y: (p.y - size.canvas.minY) * pt)
+        CGPoint(x: (p.x - Anatomy.canvas.minX) * pt, y: (p.y - Anatomy.canvas.minY) * pt)
     }
 
     private var toPoints: CGAffineTransform {
-        CGAffineTransform(scaleX: pt, y: pt).translatedBy(x: -size.canvas.minX, y: -size.canvas.minY)
+        CGAffineTransform(scaleX: pt, y: pt).translatedBy(x: -Anatomy.canvas.minX, y: -Anatomy.canvas.minY)
     }
 
     /// 子层和父层同大小、同坐标，只是锚点（缩放、旋转的中心）不同
@@ -124,7 +122,7 @@ final class MascotFigureView: MascotLayerView {
     }
 
     private func makeDeco(_ l: Look) -> DecoLayer? {
-        let parts = Self.decoration(l, size: size, hidesSigns: hidesSigns)
+        let parts = Self.decoration(l, hidesSigns: hidesSigns)
         guard !parts.isEmpty else { return nil }
         return DecoLayer(parts, in: stage, center: Anatomy.decoCenter, map: toPoints, unit: pt, scale: scale)
     }
@@ -346,19 +344,19 @@ final class MascotFigureView: MascotLayerView {
     }
 
     /// 画哪些装饰：收起态的左耳不画 sign（挪到右耳）。挂哪些装饰循环也只看这里，两边不会对不上
-    nonisolated static func decoration(_ look: Look, size: Size, hidesSigns: Bool) -> [DecoPart] {
-        hidesSigns && look.isSign ? [] : look.decoration(size)
+    nonisolated static func decoration(_ look: Look, hidesSigns: Bool) -> [DecoPart] {
+        hidesSigns && look.isSign ? [] : look.decoration
     }
 
     /// 要挂的循环：只给画出来的装饰部件挂
-    nonisolated static func loops(_ look: Look, size: Size, reduceMotion: Bool, hidesSigns: Bool) -> [Track] {
-        let drawn = decoration(look, size: size, hidesSigns: hidesSigns).count
-        return Choreography.loop(look, size: size, reduceMotion: reduceMotion).filter {
+    nonisolated static func loops(_ look: Look, reduceMotion: Bool, hidesSigns: Bool) -> [Track] {
+        let drawn = decoration(look, hidesSigns: hidesSigns).count
+        return Choreography.loop(look, reduceMotion: reduceMotion).filter {
             if case .decoPart(let i) = $0.part { return i < drawn } else { return true }
         }
     }
 
-    private var loops: [Track] { Self.loops(look, size: size, reduceMotion: reduceMotion, hidesSigns: hidesSigns) }
+    private var loops: [Track] { Self.loops(look, reduceMotion: reduceMotion, hidesSigns: hidesSigns) }
 
     // MARK: 看得见 / 看不见
 

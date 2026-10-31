@@ -11,19 +11,8 @@ public enum Anatomy {
     public static let rightEye = CGPoint(x: 17.5, y: 17)
     /// 右上装饰区的中心，整组装饰弹出时以它为锚点
     public static let decoCenter = CGPoint(x: 23.25, y: 4.5)
-}
-
-/// 两种画法：20pt（左耳）和 40pt（面板、卡片、设置页）。几何相同，40pt 画布更大、装饰多几笔
-public enum Size: CaseIterable, Sendable {
-    case small, large
-
-    /// 画布范围：20pt 是 28 × 28；40pt 是 viewBox -4 -6 40 34
-    public var canvas: CGRect {
-        switch self {
-        case .small: return CGRect(x: 0, y: 0, width: 28, height: 28)
-        case .large: return CGRect(x: -4, y: -6, width: 40, height: 34)
-        }
-    }
+    /// 画布范围 viewBox -4 -6 40 34：比身体大一圈，装饰在右上方出框。左耳那只是同一张画布缩小（docs/mascot.md §1）
+    public static let canvas = CGRect(x: -4, y: -6, width: 40, height: 34)
 }
 
 public enum Paint: Equatable, Sendable {
@@ -61,12 +50,12 @@ public struct DecoPart: Equatable, Sendable {
 
 extension Look {
     /// 右上装饰，按画的先后排。下标是固定的：`Choreography` 按下标点名会动的部件
-    public func decoration(_ size: Size) -> [DecoPart] {
+    public var decoration: [DecoPart] {
         func at(_ anchor: CGPoint, _ specs: [ShapeSpec]) -> [DecoPart] { specs.map { DecoPart(spec: $0, anchor: anchor) } }
         switch self {
         case .sleeping:
-            let zs = [(20.0, 4.9, 3.0, 2.2, CGPoint(x: 21.5, y: 6)), (23.5, 1.4, 4.0, 3.2, CGPoint(x: 25.5, y: 3))]
-                + (size == .large ? [(28.5, -3.6, 5.0, 4.2, CGPoint(x: 31, y: -1.5))] : [])
+            let zs = [(20.0, 4.9, 3.0, 2.2, CGPoint(x: 21.5, y: 6)), (23.5, 1.4, 4.0, 3.2, CGPoint(x: 25.5, y: 3)),
+                      (28.5, -3.6, 5.0, 4.2, CGPoint(x: 31, y: -1.5))]
             return zs.map { x, y, w, h, anchor in
                 let p = CGMutablePath()
                 p.addLines(between: [CGPoint(x: x, y: y), CGPoint(x: x + w, y: y), CGPoint(x: x, y: y + h), CGPoint(x: x + w, y: y + h)])
@@ -88,7 +77,6 @@ extension Look {
             let bubble = ShapeSpec(union([CGPath(roundedRect: CGRect(x: 20, y: 1, width: 7.5, height: 5), cornerWidth: 2, cornerHeight: 2, transform: nil), tail]),
                                    .fill, RGB(0xCFF3F7))
             let anchor = CGPoint(x: 23.8, y: 3.6)
-            guard size == .large else { return at(anchor, [bubble]) }
             let q = CGMutablePath()
             q.move(to: CGPoint(x: 22.75, y: 2.75))
             q.addQuadCurve(to: CGPoint(x: 23.85, y: 1.85), control: CGPoint(x: 22.9, y: 1.85))

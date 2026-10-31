@@ -4,7 +4,6 @@ import MascotCore
 
 /// Pip 嵌进 SwiftUI 的地方。
 /// 布局占 size × size，正好是身体圆的外框；画布按 docs/mascot.md §1 的比例画在 overlay 里，装饰在右上方出框。
-/// size ≤ 24 用 20pt 画法（左耳），更大用 40pt 画法按比例缩放（面板、卡片、设置页）。
 /// 这里只决定画哪个造型（晕、睡着盖不盖过调用方给的造型）；怎么画、怎么动见 `MascotFigureView`。
 struct MascotView: View {
     let look: Look
@@ -22,12 +21,11 @@ struct MascotView: View {
     private var shown: Look { literal ? look : director.shown(look) }
 
     /// 画布相对身体外框（原点 = 身体左上）的位置，单位 pt。身体外框在画布里是 (4, 6.5) 起的 20 × 20 单位
-    private var canvas: (size: Size, unit: CGFloat, frame: CGRect) {
-        let s: Size = size <= 24 ? .small : .large
+    private var canvas: (unit: CGFloat, frame: CGRect) {
         let k = size / (2 * Anatomy.bodyRadius)
-        let c = s.canvas
+        let c = Anatomy.canvas
         let x = Anatomy.bodyCenter.x - Anatomy.bodyRadius, y = Anatomy.bodyCenter.y - Anatomy.bodyRadius
-        return (s, k, CGRect(x: (c.minX - x) * k, y: (c.minY - y) * k, width: c.width * k, height: c.height * k))
+        return (k, CGRect(x: (c.minX - x) * k, y: (c.minY - y) * k, width: c.width * k, height: c.height * k))
     }
 
     var body: some View {
@@ -35,7 +33,7 @@ struct MascotView: View {
         Color.clear
             .frame(width: size, height: size)
             .overlay(alignment: .topLeading) {
-                MascotLayer(look: shown, size: c.size, unit: c.unit, reduceMotion: reduceMotion, hidesSigns: hidesSigns, playing: playing)
+                MascotLayer(look: shown, unit: c.unit, reduceMotion: reduceMotion, hidesSigns: hidesSigns, playing: playing)
                     .frame(width: c.frame.width, height: c.frame.height)
                     .offset(x: c.frame.minX, y: c.frame.minY)
                     .allowsHitTesting(false)
@@ -49,14 +47,13 @@ struct MascotView: View {
 
 private struct MascotLayer: NSViewRepresentable {
     let look: Look
-    let size: Size
     let unit: CGFloat
     let reduceMotion: Bool
     let hidesSigns: Bool
     let playing: Bool
 
     func makeNSView(context: Context) -> MascotFigureView {
-        let v = MascotFigureView(look: look, size: size, unit: unit, reduceMotion: reduceMotion, entrance: true, hidesSigns: hidesSigns)
+        let v = MascotFigureView(look: look, unit: unit, reduceMotion: reduceMotion, entrance: true, hidesSigns: hidesSigns)
         v.playing = playing
         return v
     }

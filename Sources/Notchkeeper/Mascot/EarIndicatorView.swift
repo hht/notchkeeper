@@ -77,7 +77,7 @@ final class EarLayerView: MascotLayerView {
         switch indicator {
         case .dots: return Choreography.earDots(reduceMotion: reduceMotion)
         case .decoration(let look):
-            return Choreography.loop(look, size: .large, reduceMotion: reduceMotion).filter {
+            return Choreography.loop(look, reduceMotion: reduceMotion).filter {
                 if case .decoPart = $0.part { return true } else { return false }
             }
         case .none, .dot, .ring: return []
@@ -108,7 +108,7 @@ final class EarLayerView: MascotLayerView {
             parts = [circle(center, diameter: 7, .stroke(1), .grey)]
         case .decoration(let look):
             // 装饰外框的中心对准右耳中心，1 画布单位 = 2pt
-            parts = look.decoration(.large)
+            parts = look.decoration
             let box = parts.map { $0.spec.path.boundingBoxOfPath }.reduce(CGRect.null) { $0.union($1) }
             map = CGAffineTransform(translationX: center.x, y: center.y).scaledBy(x: 2, y: 2).translatedBy(x: -box.midX, y: -box.midY)
             return DecoLayer(parts, in: root, center: CGPoint(x: box.midX, y: box.midY), map: map, unit: 2, scale: scale)

@@ -6,15 +6,15 @@ private let deg = Double.pi / 180
 /// 某次编排里所有 Track（循环、进场、动作、右耳的点）
 private func everything(reduceMotion: Bool) -> [Track] {
     let looks = Look.allCases.flatMap { l in
-        Size.allCases.flatMap { s in Choreography.loop(l, size: s, reduceMotion: reduceMotion) }
+        Choreography.loop(l, reduceMotion: reduceMotion)
             + Choreography.entrance(l, reduceMotion: reduceMotion)
     }
     return looks + Motion.allCases.flatMap { Choreography.tracks(for: $0, reduceMotion: reduceMotion) }
         + Choreography.earDots(reduceMotion: reduceMotion)
 }
 
-private func loop(_ l: Look, _ part: Part, _ p: Property, size: Size = .large) -> Track? {
-    Choreography.loop(l, size: size, reduceMotion: false).first { $0.part == part && $0.property == p }
+private func loop(_ l: Look, _ part: Part, _ p: Property) -> Track? {
+    Choreography.loop(l, reduceMotion: false).first { $0.part == part && $0.property == p }
 }
 
 private func near(_ a: [Double]?, _ b: [Double]) -> Bool {
@@ -49,13 +49,11 @@ private func near(_ a: [Double]?, _ b: [Double]) -> Bool {
     /// 同一部件首尾时刻完全透明的（Z 和汗珠回到原处时看不见）
     @Test func loopsAreSeamless() {
         for l in Look.allCases {
-            for s in Size.allCases {
-                let tracks = Choreography.loop(l, size: s, reduceMotion: false)
-                for t in tracks where t.values.first != t.values.last {
-                    let star = l == .finished && t.part == .decoPart(0) && t.property == .rotationZ
-                    let hidden = tracks.contains { $0.part == t.part && $0.property == .opacity && $0.values.first == -1 && $0.values.last == -1 }
-                    #expect(isFullTurn(t) || star || hidden, "\(l) \(t)")
-                }
+            let tracks = Choreography.loop(l, reduceMotion: false)
+            for t in tracks where t.values.first != t.values.last {
+                let star = l == .finished && t.part == .decoPart(0) && t.property == .rotationZ
+                let hidden = tracks.contains { $0.part == t.part && $0.property == .opacity && $0.values.first == -1 && $0.values.last == -1 }
+                #expect(isFullTurn(t) || star || hidden, "\(l) \(t)")
             }
         }
     }
@@ -138,11 +136,9 @@ private func isFullTurn(_ t: Track) -> Bool {
     /// 编排里点名的装饰部件都得真的存在
     @Test func referencedPartsExist() {
         for l in Look.allCases {
-            for s in Size.allCases {
-                let n = l.decoration(s).count
-                for t in Choreography.loop(l, size: s, reduceMotion: false) {
-                    if case .decoPart(let i) = t.part { #expect(i < n, "\(l) \(s) \(t)") }
-                }
+            let n = l.decoration.count
+            for t in Choreography.loop(l, reduceMotion: false) {
+                if case .decoPart(let i) = t.part { #expect(i < n, "\(l) \(t)") }
             }
         }
     }
@@ -233,7 +229,7 @@ private func isFullTurn(_ t: Track) -> Bool {
     }
 
     @Test func multiSegment() {
-        let t = Choreography.loop(.dizzy, size: .large, reduceMotion: false).first { $0.part == .roll }!
+        let t = Choreography.loop(.dizzy, reduceMotion: false).first { $0.part == .roll }!
         #expect(abs(t.value(at: 0.6) - 6 * deg) < 1e-6 && abs(t.value(at: 1.8) + 6 * deg) < 1e-6)
     }
 }

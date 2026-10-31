@@ -8,8 +8,8 @@ import CoreGraphics
 /// @see https://developer.apple.com/documentation/quartzcore/capropertyanimation/isadditive
 public enum Choreography {
     /// 停在某个造型时一直循环的动作：身体呼吸、头的小动作、装饰的节奏
-    public static func loop(_ look: Look, size: Size, reduceMotion: Bool) -> [Track] {
-        let tracks = breath(look) + head(look) + deco(look, count: look.decoration(size).count)
+    public static func loop(_ look: Look, reduceMotion: Bool) -> [Track] {
+        let tracks = breath(look) + head(look) + deco(look, count: look.decoration.count)
         return reduceMotion ? tracks.filter(\.isStill) : tracks
     }
 

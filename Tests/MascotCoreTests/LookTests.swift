@@ -43,29 +43,27 @@ private let deg = Double.pi / 180
 }
 
 @Suite struct DecorationTests {
-    /// 装饰只在右上 x 18.5–28、y 0.5–8.5（40pt 第三个 Z 例外），不压身体圆
+    /// 装饰只在右上 x 18.5–28、y 0.5–8.5（第三个 Z 例外），不压身体圆
     @Test func staysInCorner() {
         let corner = CGRect(x: 18.5, y: 0.5, width: 9.5, height: 8)
         let thirdZ = CGRect(x: 28.5, y: -3.6, width: 5, height: 4.2)
         for l in Look.allCases {
-            for s in Size.allCases {
-                for (i, part) in l.decoration(s).enumerated() {
-                    let b = part.spec.path.boundingBoxOfPath
-                    let area = (l == .sleeping && i == 2) ? thirdZ : corner
-                    #expect(area.insetBy(dx: -0.01, dy: -0.01).contains(b), "\(l) \(s) #\(i) \(b)")
-                }
+            for (i, part) in l.decoration.enumerated() {
+                let b = part.spec.path.boundingBoxOfPath
+                let area = (l == .sleeping && i == 2) ? thirdZ : corner
+                #expect(area.insetBy(dx: -0.01, dy: -0.01).contains(b), "\(l) #\(i) \(b)")
             }
         }
     }
 
-    /// 第三个 Z 和气泡里的 ? 只有 40pt 版有
-    @Test func largeOnlyDetails() {
-        #expect(Look.sleeping.decoration(.small).count == 2 && Look.sleeping.decoration(.large).count == 3)
-        #expect(Look.question.decoration(.large).count > Look.question.decoration(.small).count)
+    /// 三个 Z；气泡里带 ?（气泡、问号、点）
+    @Test func details() {
+        #expect(Look.sleeping.decoration.count == 3)
+        #expect(Look.question.decoration.count == 3)
     }
 
     @Test func undecoratedLooks() {
-        for l in [Look.idle, .working, .interrupted, .dizzy] { #expect(l.decoration(.large).isEmpty, "\(l)") }
+        for l in [Look.idle, .working, .interrupted, .dizzy] { #expect(l.decoration.isEmpty, "\(l)") }
     }
 
     /// docs/mascot.md §4 的锚点列
@@ -75,19 +73,19 @@ private let deg = Double.pi / 180
         (.finished, 1, CGPoint(x: 21, y: 6.5)), (.longTurn, 0, CGPoint(x: 23.25, y: 4.5)), (.question, 0, CGPoint(x: 23.8, y: 3.6)),
     ])
     func anchors(_ look: Look, _ i: Int, _ anchor: CGPoint) {
-        #expect(look.decoration(.large)[i].anchor == anchor)
+        #expect(look.decoration[i].anchor == anchor)
     }
 
     /// danger 的两个 ! 是两个部件（轮流跳）；offline 是点、两段弧、斜杠；shielded 是锁梁、锁身、锁孔
     @Test func partCounts() {
-        #expect(Look.danger.decoration(.large).count == 2)
-        #expect(Look.offline.decoration(.large).count == 4)
-        #expect(Look.shielded.decoration(.large).count == 3)
+        #expect(Look.danger.decoration.count == 2)
+        #expect(Look.offline.decoration.count == 4)
+        #expect(Look.shielded.decoration.count == 3)
     }
 
     /// 修过的数字：Wi-Fi 的点圆心 (24.5, 7.2) r .65
     @Test func wifiDot() {
-        let b = Look.offline.decoration(.large)[0].spec.path.boundingBoxOfPath
+        let b = Look.offline.decoration[0].spec.path.boundingBoxOfPath
         #expect(abs(b.midX - 24.5) < 1e-9 && abs(b.midY - 7.2) < 1e-9 && abs(b.width - 1.3) < 1e-9)
     }
 }

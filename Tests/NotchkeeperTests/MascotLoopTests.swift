@@ -6,7 +6,7 @@ import MascotCore
 @Suite struct MascotLoopTests {
     @Test func hiddenSignsHaveNoDecoLoops() {
         for l in Look.allCases where l.isSign {
-            let tracks = MascotFigureView.loops(l, size: .small, reduceMotion: false, hidesSigns: true)
+            let tracks = MascotFigureView.loops(l, reduceMotion: false, hidesSigns: true)
             #expect(!tracks.contains { if case .decoPart = $0.part { return true } else { return false } }, "\(l)")
             #expect(tracks.contains { $0.part == .body }, "身体照样呼吸：\(l)")
         }
@@ -14,7 +14,7 @@ import MascotCore
 
     /// 心情装饰留在左耳，照常循环
     @Test func moodLoopsStay() {
-        let tracks = MascotFigureView.loops(.sleeping, size: .small, reduceMotion: false, hidesSigns: true)
-        #expect(tracks == Choreography.loop(.sleeping, size: .small, reduceMotion: false))
+        let tracks = MascotFigureView.loops(.sleeping, reduceMotion: false, hidesSigns: true)
+        #expect(tracks == Choreography.loop(.sleeping, reduceMotion: false))
     }
 }
