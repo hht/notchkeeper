@@ -1,12 +1,15 @@
 #!/bin/bash
-# 编译 → 打包 Notchkeeper.app → 本机临时签名 (ad-hoc) → 启动
+# 编译 → 打包 Pip.app → 本机临时签名 (ad-hoc) → 启动。
+# App 显示名叫 Pip（用户 10-31 定）；bundle ID、可执行文件名、配置目录和各种 label 仍叫 notchkeeper，不用迁移
 set -euo pipefail
 cd "$(dirname "$0")/.."
 CONFIG="${CONFIG:-release}"
 echo "==> swift build -c $CONFIG"
 swift build -c "$CONFIG"
 BIN="$(swift build -c "$CONFIG" --show-bin-path)/Notchkeeper"
-APP="build/Notchkeeper.app"
+APP="build/Pip.app"
+# 改名前的包：bundle ID 相同，留着的话开机启动可能拉起它，用旧文件覆盖已装的 mod 和 nk、占住单实例锁
+rm -rf build/Notchkeeper.app
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Notchkeeper"

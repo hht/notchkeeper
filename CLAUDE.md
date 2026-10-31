@@ -1,4 +1,4 @@
-# CLAUDE.md — Notchkeeper
+# CLAUDE.md — Notchkeeper（App 显示名 Pip）
 
 > 本轮用户输入优先于任何文档。通用 MUST NOT 与收工分档见全局 Contract（`~/.agents/AGENTS.md`）。
 

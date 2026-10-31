@@ -146,7 +146,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         m.addItem(item(String(localized: "设置…"), #selector(openSettings)))
         m.addItem(item(String(localized: "拷贝出口 IP"), #selector(copyEgressIP)))
         m.addItem(.separator())
-        m.addItem(item(String(localized: "退出 Notchkeeper"), #selector(quit)))
+        m.addItem(item(String(localized: "退出 Pip"), #selector(quit)))
         return m
     }
 
@@ -155,7 +155,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let app = NSMenu()
         app.addItem(item(String(localized: "设置…"), #selector(openSettings), ","))
         app.addItem(.separator())
-        app.addItem(item(String(localized: "退出 Notchkeeper"), #selector(quit), "q"))
+        app.addItem(item(String(localized: "退出 Pip"), #selector(quit), "q"))
 
         // target 为 nil：沿响应链交给当前窗口 / 输入框
         let window = NSMenu(title: String(localized: "窗口"))

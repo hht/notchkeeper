@@ -19,6 +19,7 @@
 | agent activity | agent 动态 | 所有会话合起来 agent 这一档该画什么 |
 | mod | mod | Claude Code 官方插件里的 JS 模块，源码在 `ClaudeMod/`。不叫「hook」「插件脚本」 |
 | mascot | Pip | 吉祥物（用户 10-31 定名，原名盾盾）。代码前缀统一 `Mascot`（用户定），「Pip」只用在界面和文档 |
+| app | Pip | App 的显示名，和吉祥物同名（用户 10-31 定）。代码、bundle ID、路径和 label 里仍叫 `Notchkeeper` / `notchkeeper` |
 | look | 造型 | Pip 此刻的样子：渐变、眼形、朝向、装饰、右耳指示 |
 | motion | 动作 | 叠在造型上的一段关键帧，例如完成跳转 |
 | mood / sign | 心情装饰 / 告示 | 心情装饰是角色的一部分，收起时留在左耳；告示表示出了什么事，收起时挪到右耳 |

@@ -1,6 +1,6 @@
 # HANDOFF
 
-最后更新：2026-10-31 夜（第 5 步：规则按事故后的决定重做完并提交，不含 `user` / `group`；实机还没测）。只放接下来要做的和没解决的；做完的看 `git log`，规则看 `CLAUDE.md` 和 `docs/*`。开工前 `git log --oneline -5` 核对。实机验证的技巧见 `docs/dev-notes.md`。
+最后更新：2026-10-31 夜（第 5 步：规则按事故后的决定重做完并提交，不含 `user` / `group`；实机还没测。App 显示名改成 Pip）。只放接下来要做的和没解决的；做完的看 `git log`，规则看 `CLAUDE.md` 和 `docs/*`。开工前 `git log --oneline -5` 核对。实机验证的技巧见 `docs/dev-notes.md`。
 
 ## 接下来
 
@@ -41,6 +41,7 @@
 
 ## 等实机验证
 
+- **改名 Pip**：`./scripts/run.sh` 后看设置页标题、关于页、「退出 Pip」、Ghostty 权限弹窗里的名字；`run.sh` 会删掉旧的 `build/Notchkeeper.app`；**之后在设置里把「开机启动」关掉再打开一次**（登记的还是旧路径）；Claude Code 里已装的 mod 说明要重装或下次刷新才变成 Pip。
 - **Ghostty 跳转**：同目录开两个 Claude；Claude 套在 tmux 里（应退回按目录认）；工作中的会话多点几次，看转圈字符会不会盖掉标记（推断）。有一次脚本连点两行第二下没切过去、没复现：用户再遇到时记下哪一行、面板开着没有。
 - **mod**：开着的会话装上后 `/reload-plugins` 应该开始写（没实测）；后台 agent 崩溃时会不会发带 `agentId` 的 `turn.complete`（不发的话该会话的完成卡被压住到 `/clear`）；后台 agent 在跑时 `/reload-plugins` 可能提前弹完成卡（推断）。`Funk` 出错音没人耳听过。
 - **Claude Code 升级后**：重跑 `ClaudeMod/plugins/notchkeeper` 的 `claude plugin test`，在 tmux 里按 `docs/agent-integration.md`「实测」8 重测。

@@ -150,7 +150,7 @@ private struct StatusCard: View {
         HStack(spacing: 10) {
             MascotStage(look: presentation.look, size: 26)
             VStack(alignment: .leading, spacing: 2) {
-                Text("Notchkeeper").font(.system(size: 13, weight: .semibold))
+                Text("Pip").font(.system(size: 13, weight: .semibold))
                 HStack(spacing: 5) {
                     GuardDot(presentation: presentation, size: 6)
                     Text(presentation.title).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
@@ -212,20 +212,20 @@ private struct GeneralPane: View {
                         .controlSize(.small)
                 } label: {
                     Text("语言")
-                    Text("默认跟随系统；也可以在「语言与地区」里单独给 Notchkeeper 选")
+                    Text("默认跟随系统；也可以在「语言与地区」里单独给 Pip 选")
                 }
             }
             Section {
                 HStack {
                     Spacer()
-                    Button("退出 Notchkeeper…") { confirmQuit = true }
+                    Button("退出 Pip…") { confirmQuit = true }
                 }
             } footer: {
                 Text("退出后刘海和卡片都会停止，后台的出口守卫照常运行；要停止守卫，请运行卸载脚本。")
             }
         }
         .onAppear { loginStatus = LoginItem.status } // 可能刚在系统设置里批准过
-        .confirmationDialog("退出 Notchkeeper？", isPresented: $confirmQuit) {
+        .confirmationDialog("退出 Pip？", isPresented: $confirmQuit) {
             Button("退出", role: .destructive) { AppDelegate.quit(reason: "设置里点了退出") }
         } message: {
             Text("退出后刘海和卡片都会停止，后台的出口守卫照常运行；要停止守卫，请运行卸载脚本。")
@@ -560,7 +560,7 @@ private struct ClaudeModSection: View {
         } header: {
             Text("Claude Code")
         } footer: {
-            Text("给 Claude Code 装上 Notchkeeper 自带的 mod：只记录每个回合怎么结束，不记录对话内容。安装会在 ~/.claude/settings.json 里加一项插件，卸载时去掉。已经开着的会话要重开或运行 /reload-plugins 才生效。")
+            Text("给 Claude Code 装上 Pip 自带的 mod：只记录每个回合怎么结束，不记录对话内容。安装会在 ~/.claude/settings.json 里加一项插件，卸载时去掉。已经开着的会话要重开或运行 /reload-plugins 才生效。")
         }
         .task { status = await ClaudeMod.status() }
     }
@@ -716,7 +716,7 @@ private struct AboutPane: View {
             Section {
                 VStack(spacing: 6) {
                     MascotStage(look: .finished, size: 64)
-                    Text("Notchkeeper").font(.title3.weight(.semibold))
+                    Text("Pip").font(.title3.weight(.semibold))
                     Text("版本 \(version)（本机签名）").foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity)

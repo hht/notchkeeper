@@ -33,7 +33,7 @@ enum NK {
         do {
             try data.write(to: tmp)
         } catch {
-            fail("nk：写不进收件箱（\(PluginPaths.tmp.path)），Notchkeeper 启动过吗？\(error.localizedDescription)", status: EX_CANTCREAT)
+            fail("nk：写不进收件箱（\(PluginPaths.tmp.path)），Pip 启动过吗？\(error.localizedDescription)", status: EX_CANTCREAT)
         }
         guard rename(tmp.path, PluginPaths.new.appendingPathComponent(name).path) == 0 else {
             let why = String(cString: strerror(errno))

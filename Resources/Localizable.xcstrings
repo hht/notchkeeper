@@ -67,9 +67,6 @@
         }
       }
     },
-    "Notchkeeper": {
-      "shouldTranslate": false
-    },
     "Pip": {
       "shouldTranslate": false
     },
@@ -1488,12 +1485,12 @@
         }
       }
     },
-    "给 Claude Code 装上 Notchkeeper 自带的 mod：只记录每个回合怎么结束，不记录对话内容。安装会在 ~/.claude/settings.json 里加一项插件，卸载时去掉。已经开着的会话要重开或运行 /reload-plugins 才生效。": {
+    "给 Claude Code 装上 Pip 自带的 mod：只记录每个回合怎么结束，不记录对话内容。安装会在 ~/.claude/settings.json 里加一项插件，卸载时去掉。已经开着的会话要重开或运行 /reload-plugins 才生效。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Installs the mod that ships with Notchkeeper into Claude Code. It only records how each turn ended, never the conversation. Installing adds a plugin entry to ~/.claude/settings.json; uninstalling removes it. Sessions already open need a restart or /reload-plugins."
+            "value": "Installs the mod that ships with Pip into Claude Code. It only records how each turn ended, never the conversation. Installing adds a plugin entry to ~/.claude/settings.json; uninstalling removes it. Sessions already open need a restart or /reload-plugins."
           }
         }
       }
@@ -1638,32 +1635,32 @@
         }
       }
     },
-    "退出 Notchkeeper": {
+    "退出 Pip": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Quit Notchkeeper"
+            "value": "Quit Pip"
           }
         }
       }
     },
-    "退出 Notchkeeper…": {
+    "退出 Pip…": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Quit Notchkeeper…"
+            "value": "Quit Pip…"
           }
         }
       }
     },
-    "退出 Notchkeeper？": {
+    "退出 Pip？": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Quit Notchkeeper?"
+            "value": "Quit Pip?"
           }
         }
       }
@@ -1778,12 +1775,12 @@
         }
       }
     },
-    "默认跟随系统；也可以在「语言与地区」里单独给 Notchkeeper 选": {
+    "默认跟随系统；也可以在「语言与地区」里单独给 Pip 选": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Follows the system by default. You can also pick one just for Notchkeeper in Language & Region"
+            "value": "Follows the system by default. You can also pick one just for Pip in Language & Region"
           }
         }
       }
