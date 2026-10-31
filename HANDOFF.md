@@ -1,10 +1,10 @@
 # HANDOFF
 
-最后更新：2026-10-31（插件化做完）。只放接下来要做的和没解决的；做完的看 `git log`，规则看 `CLAUDE.md` 和 `docs/*`。开工前 `git log --oneline -5` 核对。实机验证的技巧见 `docs/dev-notes.md`。
+最后更新：2026-10-31（第 4 步做完，等实机验收）。只放接下来要做的和没解决的；做完的看 `git log`，规则看 `CLAUDE.md` 和 `docs/*`。开工前 `git log --oneline -5` 核对。实机验证的技巧见 `docs/dev-notes.md`。
 
 ## 接下来
 
-**新会话从这里开始**：插件化做完了（第 1–6 刀都已提交，见 `git log`）。规则在 CLAUDE.md「硬规则·插件」和 `docs/ui.md`「面板布局」「卡片」。用户的偏好：文档尽量少、先做代码；做完先汇报、等用户说「提交」。下一步是第 4 步（App 外壳重写，见下）。
+**新会话从这里开始**：插件化和第 4 步（App 外壳重写）都做完了，见 `git log`。用户的偏好：文档尽量少、先做代码；整步做完再统一审、分批提交（10-31）。下一步：先补完下面「第 4 步实机验收」里要用户动手的几项，再做第 5 步防火墙。
 
 **插件化**：App 是「刘海 + Pip + 卡片队列 + 面板」外壳，插件产出同一种 `Card`，各报一个 `PluginStatus`（紧急程度），面板里各占一段（`PanelRow`）。内置插件是出口守卫、Claude Code（id 见 `NotchCore/PluginID.swift`，外部插件不能用）。外部插件写收件箱（`nk notify`、`nk activity`），`InboxWatcher` 读，`InboxGate` 收，活动归 `ActivityBoard`；插件开没开只在 App 主线程的收件箱回调里判。
 
@@ -15,21 +15,15 @@
 - 违规中关守卫的确认框：要真违规（`demo.sh alert` 不算违规，不弹确认）。
 - 设置页往下滚时窗口标题叠在内容上（推断各页都有，原有样式）。
 - 终端插件在 Ghostty 里的两件事：点卡片跳回 shell 所在的终端（按 tty 认）；焦点正停在跑命令的那个终端上时不弹（用户 10-31 定：只按那一个终端算，同窗口别的标签、分屏、别的窗口都照常弹；日志「正看着要跳回的终端」；同目录只开一个终端时才认得出）。10-31 用 AppleScript 在 Ghostty 里开新窗口试时，窗口在命令跑完前没了、原因没查；`script` 伪终端里跑的端到端已通。
-- demo 卡上「看 Swift 文档」（https）按钮；`demo.sh blocks` 现在 release 构建也能触发（随第 4 步的 DEBUG 监听一起处理，到时要有 DEBUG 版的运行方式）。
+- demo 卡上「看 Swift 文档」（https）按钮。
 
-**第 4 步：App 外壳重写**（排在插件化之后；用户 10-31 定插件化先做）。已做：`NotchCore` 的 `CardQueue`、`GuardPresentation`、`ViolationAlert`、`Card`。剩下：
-
-- `NotchCore`：悬停状态机（HoverMachine）、布局几何（`NotchLayout`、`PanelShape`）、配置解码（`Tests/NotchkeeperTests` 的测试跟着挪）。Pip 画谁已经由 `PluginStatus.lead` 定，晕、睡着还在 App 里叠。
-- 接上「点一下晕」。`MascotDirector` 的时钟决策（醒来、恢复、推迟小动作）抽成值类型测试；从 Coucou 搬来的代码重写掉，删 MIT 声明。
-- 亮色、多语言基础设施：所有文案走 String Catalog；设置窗口去掉强制暗色，刘海窗口设 `.darkAqua`（现在没设），加「在系统设置中更改语言…」。
-- 减弱动态效果时黑色形状的弹簧还没收紧（HIG Accessibility，`docs/ui.md`「灵动岛规范」12）。
-- 精简设置页。「状态测试」的 Pip 用 `state.look`，旁边文案还是 `presentation.title`，对不上。
-- `demo.sh` 的通知只在 DEBUG 构建里监听。刘海视图只订阅 `presentation`。
-- `NotchController.collapse()` 用 `asyncAfter(0.5)` 等收起动画；`Config` 去前缀；`ConfigStore` 每秒轮询、看不见时也在跑。
-- `config.json` 的 `launchAtLogin`、`suppressWhenHostFrontmost`、`agents` 没有消费者，下次存盘会被去掉。
-- `Notch.swift` 里「Emily 规格」几处出处说法确认后改掉。
-- 删 `MascotView` 的 small 尺寸（App 里已不用，只剩测试；单独一个 refactor 提交）。
-- 验收：亮暗 × 中英截图，空闲 CPU（见下）。
+**第 4 步实机验收**（10-31 已实机看过：悬停展开和收起、完成卡和内容块卡、卡片放完收起、英文界面的面板和卡片、带 `-NSRequiresAquaSystemAppearance YES` 启动时刘海仍是黑的（这个参数对 App 生没生效，要打开设置页才看得出）；`AppState` 换成 Observation 后收起空闲 60 秒 `NotchRoot.body` 从 23 次降到 7 次，用户当时在用机器、不是干净的数）。要用户动手的：
+- 点面板左上的 Pip：晕 1.6 秒，再点从头算；收起时点刘海仍是展开、卡片上点仍是打开卡片。
+- 设置页亮色 × 中英截图（Pip 的黑底舞台、状态点、配置解不开的横幅）。只改这个 App 不动系统：`open build/Notchkeeper.app --args -AppleLanguages '(en)' -NSRequiresAquaSystemAppearance YES`；打开设置要用户点。
+- 设置 › 通用「在系统设置中更改语言…」跳到「语言与地区」；在「App」里给 Notchkeeper 选 English 生不生效。
+- 减弱动态效果时黑色形状不回弹（要切系统设置，先问用户）。
+- 悬停：10-31 第一次试时停 0.9 秒没展开，之后 7 次都在 0.5 秒内展开；推断那次用户正在动鼠标。再遇到记下当时鼠标在哪。
+- 空闲 CPU（见「等实机验证」）。
 
 **第 5 步：防火墙**：root 实测 → 恢复脚本并实测 → 试运行和自动回滚 → 规则、LaunchDaemon、安装脚本、App 开关；shielded 造型接线。按全局 Contract「高影响」档收工。IPv6 一起处理。
 
@@ -40,7 +34,6 @@
 - **Claude Code 升级后**：重跑 `ClaudeMod/plugins/notchkeeper` 的 `claude plugin test`，在 tmux 里按 `docs/agent-integration.md`「实测」8 重测。
 - **卡片流星**：介入卡、出错卡、恢复卡、红卡的颜色（`demo.sh question|approval|failed|alert`）；常驻红卡和减弱动态效果时的淡细边；悬停时流星停住、移开接着走；队列里下一张卡接上时流星从头扫一趟；流星每次 `layout` 重挂动画的 CPU。
 - **面板**：减弱动态效果时 Pip 和徽章原地淡入淡出（要切系统设置，先问用户）；finished 的星、sleeping 的 Z 可能顶出面板上沿被裁（推断）；已停止的会话行；左耳 Pip 可能总低着头（推断）；设置页预览可能不跟鼠标（推断）。
-- **多语言**（第 4 步做完后）：系统设置「按 App 设语言」的列表里有没有 Notchkeeper、选了生不生效；设置页跳转按钮的 URL 对不对。
 - **灵动岛规范**（`docs/ui.md`）：IP 换值时数字滚动、徽章图标替换、VoiceOver 弹卡播报。
 - **设置页**：`config.json` 解不开时的横幅（要临时改坏真实配置，先备份；横幅的黄和琥珀容易混）；亮色截图（要切系统外观，先问用户）。
 - **空闲 CPU**：没测到干净的数（10-29 有人操作时 2.62%）。方法：`run.sh` 后取 pid；循环读 `ioreg -c IOHIDSystem` 的 `HIDIdleTime`，≥ 30s 无人操作才用 `top -l 2 -s 1 -pid <pid> -stats pid,cpu` 取样，采样后仍无人操作才留，攒 60 个求平均。App 和 WindowServer 都量（disc 栅格化的代价算在哪边没核实），最坏用 working 造型；Instruments 的 Core Animation 工具看 disc 有没有命中缓存。验收数字见 `docs/mascot.md`「性能验收」。
@@ -52,6 +45,7 @@
 - 滚出可视区的会话行，三蓝点循环照跑（量小）。
 - 守卫只查 IPv4，IPv6 直连泄漏看不见；任何 utun 都算在隧道上，开着别的 VPN 时可能看漏；每 5 秒请求 3 个回显服务可能被限流（都是推断）。
 - mod 写完盘才 `next(e)`，本地写盘挂住会拖住回合（认为不现实，没改）。
+- 测试里当普通地址用的 `1.2.3.4`（`GuardCoreTests` 的 EgressGuard、GuardState、StickyVerdictRegression、ViolationContinuity，`guarddTests/AllowlistTests`，`GuardProbesTests/ProbeTests`，后者还有 `1.1.1.1`）不合 CLAUDE.md「测试里的 IP 用 198.51.100.x」；测解析边界的非法地址、特殊地址不算。
 
 ## 建议用的 skill
 
