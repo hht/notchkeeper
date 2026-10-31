@@ -118,7 +118,7 @@ final class MascotFigureView: MascotLayerView {
 
     private func poseTransform(_ l: Look) -> CATransform3D {
         let p = l.pose
-        // 先 roll，再 pitch，最后 yaw（docs/mascot.md §1）
+        // 先 roll，再 pitch，最后 yaw：和图层树的嵌套顺序一致（docs/mascot.md §1）
         return CATransform3DConcat(CATransform3DConcat(CATransform3DMakeRotation(p.roll, 0, 0, 1), CATransform3DMakeRotation(p.pitch, 1, 0, 0)),
                                    CATransform3DMakeRotation(p.yaw, 0, 1, 0))
     }

@@ -15,7 +15,7 @@ private let deg = Double.pi / 180
         #expect(Set(Look.allCases.filter(\.isSign)) == [.error, .offline, .mismatch, .stale, .danger, .shielded])
     }
 
-    /// docs/mascot.md §2：新增 4 个造型的渐变
+    /// 新增 4 个造型的渐变
     @Test(arguments: [
         (Look.longTurn, 0xDCEBFF as UInt32, 0x9CC6F5 as UInt32), (.approval, 0xF0F7D4, 0xC6DE7E),
         (.offline, 0xE6E8EC, 0xB4BAC4), (.shielded, 0xFFC9C2, 0xE8857B),
@@ -24,7 +24,7 @@ private let deg = Double.pi / 180
         #expect(look.gradient.top == RGB(top) && look.gradient.bottom == RGB(bottom))
     }
 
-    /// docs/mascot.md §2 的朝向列（度）
+    /// 各造型的朝向（度）
     @Test(arguments: [
         (Look.sleeping, 0.0, -14.0, 0.0), (.thinking, 10, 10, 4), (.working, 0, -10, 0), (.longTurn, 0, -10, 0),
         (.question, 0, 0, -10), (.approval, 0, 8, 0), (.finished, 0, 10, 0), (.error, 0, -8, 0),
@@ -43,7 +43,7 @@ private let deg = Double.pi / 180
 }
 
 @Suite struct DecorationTests {
-    /// docs/mascot.md §1：装饰只在右上 x 18.5–28、y 0.5–8.5（40pt 第三个 Z 例外），不压身体圆
+    /// 装饰只在右上 x 18.5–28、y 0.5–8.5（40pt 第三个 Z 例外），不压身体圆
     @Test func staysInCorner() {
         let corner = CGRect(x: 18.5, y: 0.5, width: 9.5, height: 8)
         let thirdZ = CGRect(x: 28.5, y: -3.6, width: 5, height: 4.2)

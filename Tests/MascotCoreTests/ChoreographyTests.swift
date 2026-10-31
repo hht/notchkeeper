@@ -96,7 +96,7 @@ private func isFullTurn(_ t: Track) -> Bool {
 }
 
 @Suite struct Breathing {
-    /// docs/mascot.md §5：所有造型都呼吸，周期 4.6s，scaleY +0.03、scaleX −0.01
+    /// 所有造型都呼吸，周期 4.6s，scaleY +0.03、scaleX −0.01
     @Test func everyLookBreathes() {
         for l in Look.allCases where l != .sleeping {
             let y = loop(l, .body, .scaleY), x = loop(l, .body, .scaleX)

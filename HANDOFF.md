@@ -1,95 +1,52 @@
 # HANDOFF
 
-最后更新：2026-10-30。本文只放接下来要做的事和还没写进文档的决定；做完的看 `git log`，已定的规则看 `CLAUDE.md` 和 `docs/*`。换会话或开工前先读本文，再读 `CLAUDE.md`。
+最后更新：2026-10-31。只放接下来要做的和没解决的；做完的看 `git log`，规则看 `CLAUDE.md` 和 `docs/*`。开工前 `git log --oneline -5` 核对，工作区应是干净的。
 
-**新会话从这里开始**：
-1. `git log --oneline -5` 核对最近的提交，工作区应是干净的。
-2. **mod 与 Ghostty 还没实机走完的**（10-30 做的，规则见 `docs/agent-integration.md`）：
-   - 卸载后 Claude Code 会在 `settings.json` 留一个空的 `"extraKnownMarketplaces": {}`，无害。（App 里的安装用户 10-30 走过了。）
-   - Ghostty 跳转 10-30 改成 tty 标记（`docs/agent-integration.md`「跳转到 Ghostty」）：agent 实机点了同目录有 3 个 terminal 的 boostcamp 行和 notchkeeper 行，都切对了、标题写回了原样。用户 10-30 点 demo 卡跳转过，能跳。还没测：同目录开两个 Claude；Claude 套在 tmux 里（应退回按目录认）；工作中的会话多点几次，看转圈字符刷新会不会偶尔盖掉标记、退回按目录认（reviewer 10-30 推断）。另外 10-30 agent 用脚本连点两行时，有一次第二下没切过去，日志里什么都没有，之后照原样重做两次都对，没复现出来：用户再遇到「点了没反应」时，记下是哪一行、面板当时开着没有。
-   - 开着的会话里装上 mod 后 `/reload-plugins`，mod 应该开始写（官方文档说重新加载会再触发 `session.start`），没实测。
-   - `Funk` 出错音没人耳听过。
-   - 后台 agent 崩溃、出错时会不会发带 `agentId` 的 `turn.complete` 没测（TaskStop 停掉的测过，会发）；不发的话这个会话之后的完成卡都被压住，直到 `/clear` 或重开。后台 agent 还在跑时 `/reload-plugins`，mod 的计数清零，可能提前弹完成卡（推断）。
-   - mod 在 `$.fs.write` 写完之后才 `next(e)`：本地写盘挂住会拖住 Claude Code 的回合（reviewer 10-30 提，认为本地写盘挂住不现实，没改）。
-   - Claude Code 升级后要重跑 `ClaudeMod/plugins/notchkeeper` 里的 `claude plugin test`，并在 tmux 里按 `docs/agent-integration.md`「实测」8 重测一遍（mod API 不做兼容）。
-3. **灵动岛调研** 10-30 已全部定完（`docs/ui.md`「灵动岛调研的取舍」）。实机还没看：IP 换值时的数字滚动、徽章图标替换（要等出口状态变）；VoiceOver 弹卡播报。
-4. 然后是**第 4 步**剩下的部分，见「开发计划」。第 3 步留给它的：
-   - `AppState.look` 是临时的优先级合成（守卫 > agent > 空闲），晕和完整优先级进 `NotchCore` 的 MascotResolver。
-   - 设置页「状态测试」的盾盾已经用 `state.look`（可能是 agent 造型），旁边文案还是 `presentation.title`，对不上。
-5. 空闲 CPU 还没在无人操作时测到干净的数，方法见「待办」。
+## 接下来
 
-## 还没写进文档的决定
+**第 4 步：App 外壳重写**（每一刀：TDD → 零警告 + 全绿 → reviewer → 用户明示后提交）。已做：`NotchCore` 的 `CardQueue`、`GuardPresentation`、`ViolationAlert`。剩下：
 
-用户新定的事先记在这里，写进 `CLAUDE.md` 或 `docs/*` 后删掉。目前没有。
+- `NotchCore`：悬停状态机（HoverMachine）、MascotResolver（守卫 > agent > 空闲，叠上晕和犯困；现在是 `AppState.look` 临时合成）、布局几何、配置解码（`Tests/NotchkeeperTests` 的测试跟着挪）。
+- 接上「点一下晕」。`MascotDirector` 的时钟决策（醒来、恢复、推迟小动作）抽成值类型测试；从 Coucou 搬来的代码重写掉，删 MIT 声明。
+- 亮色、多语言基础设施：所有文案走 String Catalog；设置窗口去掉强制暗色，刘海窗口设 `.darkAqua`（现在没设），加「在系统设置中更改语言…」。
+- 减弱动态效果时黑色形状的弹簧还没收紧（HIG Accessibility，`docs/ui.md`「灵动岛规范」12）。
+- 精简设置页。「状态测试」的盾盾用 `state.look`，旁边文案还是 `presentation.title`，对不上。
+- `demo.sh` 的通知只在 DEBUG 构建里监听。刘海视图只订阅 `presentation`。
+- `NotchController.collapse()` 用 `asyncAfter(0.5)` 等收起动画；`NKConfig` 去前缀；`ConfigStore` 每秒轮询、看不见时也在跑。
+- `config.json` 的 `launchAtLogin`、`suppressWhenHostFrontmost`、`agents` 没有消费者，下次存盘会被去掉。
+- `Notch.swift` 里「Emily 规格」几处出处说法确认后改掉。
+- 删 `MascotView` 的 small 尺寸（App 里已不用，只剩测试；单独一个 refactor 提交）。
+- 验收：亮暗 × 中英截图，空闲 CPU（见下）。
 
-## 开发计划（agent 制定，10-29）
+**第 5 步：防火墙**：root 实测 → 恢复脚本并实测 → 试运行和自动回滚 → 规则、LaunchDaemon、安装脚本、App 开关；shielded 造型接线。按全局 Contract「高影响」档收工。IPv6 一起处理。
 
-**原则**：先文档后代码；底层（MascotCore、AgentCore）先于 App 外壳；横切的需求（亮色、多语言）在重写 App 外壳时**从第一行就按规范写**，不先写死中文和黑色再返工。每一步都是：TDD → `swift build` 零警告 + `swift test` 全绿 → reviewer 至多两轮 → 用户明示后提交，同时更新本文件。
+## 等实机验证
 
-| 步 | 内容 | 产出 / 验收 | 状态 |
-|---|---|---|---|
-| 4 | **App 外壳重写**：<br>• `NotchCore`（已有 CardQueue）：GuardPresentation、HoverMachine、MascotResolver、配置解码（`Tests/NotchkeeperTests` 里的测试跟着挪）<br>• 接上「晕」<br>• 亮色模式、多语言的基础设施，所有新文案走 String Catalog<br>• 精简设置页（加「在系统设置中更改语言…」按钮；设置窗口去掉强制暗色）<br>• `demo.sh` 的通知只在 DEBUG 构建里监听<br>• 刘海视图只订阅 `presentation` | 测试；亮暗 × 中英截图；CPU 验收 | 待做 |
-| 5 | **防火墙**：root 实测 → 恢复脚本并实测 → 试运行和自动回滚 → 规则、LaunchDaemon、安装脚本、App 开关；shielded 造型接线 | 按全局 Contract「高影响」档收工 | 待做 |
+- **Ghostty 跳转**：同目录开两个 Claude；Claude 套在 tmux 里（应退回按目录认）；工作中的会话多点几次，看转圈字符会不会盖掉标记（推断）。有一次脚本连点两行第二下没切过去、没复现：用户再遇到时记下哪一行、面板开着没有。
+- **mod**：开着的会话装上后 `/reload-plugins` 应该开始写（没实测）；后台 agent 崩溃时会不会发带 `agentId` 的 `turn.complete`（不发的话该会话的完成卡被压住到 `/clear`）；后台 agent 在跑时 `/reload-plugins` 可能提前弹完成卡（推断）。`Funk` 出错音没人耳听过。
+- **Claude Code 升级后**：重跑 `ClaudeMod/plugins/notchkeeper` 的 `claude plugin test`，在 tmux 里按 `docs/agent-integration.md`「实测」8 重测。
+- **卡片流星**：介入卡、出错卡、恢复卡、红卡的颜色（`demo.sh question|approval|failed|alert`）；常驻红卡和减弱动态效果时的淡细边；悬停时流星停住、移开接着走；队列里下一张卡接上时流星从头扫一趟；流星每次 `layout` 重挂动画的 CPU。
+- **面板**：减弱动态效果时盾盾和徽章原地淡入淡出（要切系统设置，先问用户）；finished 的星、sleeping 的 Z 可能顶出面板上沿被裁（推断）；已停止的会话行；左耳盾盾可能总低着头（推断）；设置页预览可能不跟鼠标（推断）。
+- **多语言**（第 4 步做完后）：系统设置「按 App 设语言」的列表里有没有 Notchkeeper、选了生不生效；设置页跳转按钮的 URL 对不对。
+- **灵动岛规范**（`docs/ui.md`）：IP 换值时数字滚动、徽章图标替换、VoiceOver 弹卡播报。
+- **设置页**：`config.json` 解不开时的横幅（要临时改坏真实配置，先备份；横幅的黄和琥珀容易混）；亮色截图（要切系统外观，先问用户）。
+- **空闲 CPU**：没测到干净的数（10-29 有人操作时 2.62%）。方法：`run.sh` 后取 pid；循环读 `ioreg -c IOHIDSystem` 的 `HIDIdleTime`，≥ 30s 无人操作才用 `top -l 2 -s 1 -pid <pid> -stats pid,cpu` 取样，采样后仍无人操作才留，攒 60 个求平均。App 和 WindowServer 都量（disc 栅格化的代价算在哪边没核实），最坏用 working 造型；Instruments 的 Core Animation 工具看 disc 有没有命中缓存。验收数字见 `docs/mascot.md`「性能验收」。
 
-## 卡片边缘流星还没实测的
+## 已知问题
 
-规则见 `docs/ui.md`「卡片」，代码 `Sources/Notchkeeper/CardEdge.swift`。实机只看过完成卡（银白）：
-
-- 介入卡（青、青柠）、出错卡（浅橙）、恢复卡（绿）、红卡上的颜色和亮度（介入卡、出错卡可以用 `demo.sh question|approval|failed` 弹）。
-- 常驻红卡、减弱动态效果时的那条淡细边。
-- 1.5 秒内悬停时流星停住、移开接着走；队列里下一张卡接上时流星从头扫一趟（10-30 改成弹出时扫一趟，完成卡实机看过）。
-- 流星每次 `layout` 都按新尺寸重挂动画（卡片长大的弹簧期间每帧一次），没量过 CPU。
-- 教训（10-29）：流光改了八九版，前几版凭感觉调参数都被否；查到 Magic UI Border Beam 的做法、加上实体头之后才过。界面效果先查成熟实现再动手（CLAUDE.md 准则 7）。
-
-## 面板还没实测的、可删的
-
-版式已定（`docs/ui.md`「面板布局」），下面几处只在代码里推过、没在实机上看：
-
-- **减弱动态效果**：盾盾和徽章换形态时应该原地淡出、新位置淡入，不飞（`NotchRoot.corners` 里盾盾的 `.id(reduceMotion ? mode : .closed)`、右边一组的 `.id(reduceMotion && open)`；卡片形态同理）。要切系统设置，先问用户。
-- 滚出可视区的会话行，三蓝点循环照跑（量小，暂不管）。
-- **装饰顶出面板上沿**（推断）：32pt 盾盾上缘离面板顶 8，finished 的大星最高点约在 −0.8pt、闪烁还放大 0.18，sleeping 的 Z 上浮也可能碰到，会被形状裁掉一点。实机看 finished / sleeping。
-- **删 small 尺寸**（单独一个 refactor 提交）：左耳改成面板盾盾缩小后，App 里没有 ≤ 24pt 的 `MascotView` 了。`MascotView` 的 `.small` 分支、`Size.small` 和 `decoration(.small)` 的数据只剩测试在用；（`NotchLayout` 里左耳的画布常量 10-30 已删。）
+- **用户定：先不管**：关掉「自动弹红卡」后恢复卡可能在违规期间放出；从等你回答换成等你批准不换卡；Mac 系统灵动岛会和我们抢位置（等 HIG 和 ActivityKit 在 macOS 上开放再定，当时的调研见 `git show f4792ab:docs/research/dynamic-island.md`）。
+- 看不见时换了 A→B→A 回到原造型，也会重播进场。
+- 滚出可视区的会话行，三蓝点循环照跑（量小）。
+- 守卫只查 IPv4，IPv6 直连泄漏看不见；任何 utun 都算在隧道上，开着别的 VPN 时可能看漏；每 5 秒请求 3 个回显服务可能被限流（都是推断）。
+- mod 写完盘才 `next(e)`，本地写盘挂住会拖住回合（认为不现实，没改）。
 
 ## 工作方法备忘
 
-- App 没改完、整包编不过时，想先跑核心测试：把 `Sources/<Core>` 和 `Tests/<Core>Tests` 拷到 `/tmp` 一个只含这两个 target 的临时包里跑 `swift test`。
-- 测试第一次就全绿时，在临时副本里故意改坏几处数字，确认测试会红。
-- 实机驱动 Claude Code 会话：`tmux -L <名字> new-session -d -s x -c <已信任的目录> claude --permission-mode default`，`tmux send-keys` 发提示、`Escape` 拒绝批准；没信任的目录只写 `.key` 不写 `.json`。用完 `kill-server`，`kill -9` 过的会话手动删留下的 `<pid>.json` / `.key`。
-- 实机截图：收起态用 `screencapture -x -R <x>,0,400,44`（刘海在主屏顶部正中）；看一批造型或换造型过程，在 `/tmp` 搭一次性陈列（拷 `Sources/Notchkeeper/Mascot/*.swift` + MascotCore，`screencapture -l <windowID>` 连拍），用完删掉。几只盾盾会同时眨眼，截到一帧全是扁眼是眨眼，不是 bug。
-- App 崩了看 `~/Library/Logs/DiagnosticReports/Notchkeeper-*.ips`（JSON 第二行起，看 triggered 线程的 frames）。
-- 本机 shell 是 zsh：`for f in $files` 不按空格拆，用 `xargs`；BSD `sed` 不认 `\b`，用 `perl -pi -e`。
-- 实机悬停展开、滚动列表：没有 cliclick；在 `/tmp` 写个一次性 Swift 脚本，用 `CGEvent(mouseEventSource:mouseType: .mouseMoved…)` 把鼠标移到刘海、`CGEvent(scrollWheelEvent2Source:…)` 滚动，截完图把鼠标移回原处。弹卡用 `./scripts/demo.sh done|failed|question|approval|alert`，连拍几帧看盾盾飞行。
-- 要停在「等你批准」：提示里让它跑一条不在允许列表里的命令（如 `touch /tmp/<文件>`，`date` 在本机允许列表里不会停）；「等你回答」：让它用 AskUserQuestion 问一个是非题。
-- 提交要拆分时不能用 `git add -p`：用 `git hash-object -w` + `git update-index --cacheinfo` 暂存某个文件的一部分，再 `git checkout-index -a --prefix=/tmp/x/` 导出暂存区单独构建、测试。
-
-## 建议用的 skill
-
-- `tdd`：`NotchCore` 的每个纯值类型都先写测试、亲眼看红。接口用语见 `codebase-design`。
-- `domain-modeling`：新词先进 `docs/ubiquitous-language.md`。
-- `diagnosing-bugs`：重测空闲 CPU 仍不达标时用。
-- `run`：启动 App、截图。
-- `ui-ux-pro-max`：第 4 步面板网格、动效节奏、实机评审。
-- `handoff`：换会话时更新本文件（本仓的交接文档就是 `HANDOFF.md`，不另写 `handoff.md`；macOS 不分大小写，会覆盖它）。
-
-## 待办与已知问题
-
-- **提醒卡的三处小毛病，用户 10-30 定：先不管**：关掉「自动弹红卡」后恢复卡可能在违规期间放出（作废恢复卡只在 `CardQueue.raiseAlert` 里做）；从等你回答换成等你批准不换卡（AgentCore 不发事件）。提示音 Glass / Ping / Basso 用户听过，暂时可以。
-- **配置文件解不开的横幅没实机截图**：P0 修复让设置页在 `config.json` 解不开时顶部显示横幅、禁用改配置的控件。实机验证要临时改坏真实的 `config.json`（先备份）；用户 10-29 定：先不做，第 4 步重写设置页时一起看。另外 reviewer 提过横幅的黄色和琥珀（egressMismatch）容易混，到时一起定。
-- **盾盾亮色截图没截**：要切用户的系统外观，先问用户；贴刘海部分永远是黑的，亮色只影响设置窗口（第 4 步改）。
-- **空闲 CPU 没测到干净的数**：10-29 测到 60s 平均 2.62%，但当时用户在操作，`sample` 显示 App 侧主要是鼠标事件和旧会话扫描 `SessionScanner`（约 0.7%，10-29 已删，换成事件驱动的 `AgentWatcher`），盾盾代码几乎看不到。对照：2a 关掉旧会话扫描时收起空闲 0.385%、鼠标持续移动 2.34%。重测方法：`./scripts/run.sh` 启动后取 pid；循环读 `ioreg -c IOHIDSystem` 的 `HIDIdleTime`（纳秒），≥ 30s 无人操作时才用 `top -l 2 -s 1 -pid <pid> -stats pid,cpu` 取一个样本，采样后仍无人操作才留下，攒够 60 个求平均；App 重启过要重新取 pid。旧扫描删掉后还没重测。验收数字见 `docs/mascot.md` §5「性能验收」。
-- **disc 栅格化的代价没量**（10-30 修眼睛发软时加的，`docs/mascot.md` §5「渲染」）：disc 里一动（眨眼、转头、常驻的头部循环、跟随鼠标）就重画。代价算在 App 还是 WindowServer 没核实，重测空闲 CPU 时两边都量，最坏情况用 working 造型；Instruments 的 Core Animation 工具打开 Color Hits Green and Misses Red，可以直接看 disc 每帧有没有命中缓存。
-- 看不见时换了 A→B→A 回到原造型，也会重播进场。
-- `MascotDirector` 的时钟决策（醒来时刻、恢复、推迟小动作）还没抽成值类型测试（第 4 步）。
-- **左耳盾盾可能总低着头**（推断）：跟随鼠标超过 400pt 停在最大角度，左耳在屏幕最顶上，鼠标多在下方，收起时大多 pitch −20°，working 再叠 −10°。第 4 步做面板时用户实际看一下。
-- **设置页预览可能不跟鼠标**（推断）：Notchkeeper 在前台时，全局鼠标监听收不到本 App 窗口里的事件。第 4 步 处理。
-- **MIT 声明**：`MascotDirector.swift` 里从旧 `DundunView.swift` 搬来的代码（犯困、熄屏锁屏）保留了 Coucou 的 MIT 声明，第 4 步重写时一起删掉。
-- **Mac 系统灵动岛**（用户 10-30 定：先不动）：2026-10-28 发布的 MacBook Pro 自带系统灵动岛，会和我们画在刘海上的东西抢位置。等 HIG 出了 Mac 灵动岛的章节、ActivityKit 在 macOS 上开放，再按 `docs/research/dynamic-island.md` 重对一遍，定退让还是迁移。
-- **已停止的会话行没实机看过**：10-30 改成只暗标志和路径、时间不暗（对比度），截图时列表里没有已停止的会话。
-- **IPv6**：守卫只查 IPv4，IPv6 直连泄漏看不见（推断，待实测 `route -n get -inet6`）。第 5 步 一起处理。
-- **utun 判定过宽**：任何 utun 都算「在隧道上」，开着别的 VPN 时可能看漏（推断）。
-- **出口探测频率**：每 5 秒请求 3 个回显服务，可能被限流（推断）。
-- **旧注释**：指向已删文档的已改完；剩下「Emily 规格」「Emily 2026-10-28」几处出处说法（`Notch.swift`），第 4 步 重写时确认后改成 docs 出处。
-- **留给第 4 步重写的**：
-  - 按新面板接上「点一下晕」。
-  - 悬停状态机、布局几何进 `NotchCore`（卡片队列、守卫的显示和红卡判定已进：`CardQueue`、`GuardPresentation`、`ViolationAlert`）；`NotchController.collapse()` 用 `asyncAfter(0.5)` 等收起动画；`NKConfig` 去前缀；`ConfigStore` 每秒轮询，看不见时也在跑。
-  - `config.json` 里的 `launchAtLogin`、`suppressWhenHostFrontmost`、`agents` 三个键下次存盘时会被去掉（没有消费者）。以后要做「按 agent 开关」从默认值重来。
+- 整包编不过时先跑核心测试：把 `Sources/<Core>` 和 `Tests/<Core>Tests` 拷到 `/tmp` 一个临时包里 `swift test`。测试第一次就全绿时，在副本里故意改坏几处，确认会红。
+- 驱动 Claude Code 会话：`tmux -L <名字> new-session -d -s x -c <已信任的目录> claude --permission-mode default`，`send-keys` 发提示、`Escape` 拒绝批准；没信任的目录只写 `.key` 不写 `.json`。用完 `kill-server`，`kill -9` 过的会话手动删 `<pid>.json` / `.key`。停在「等你批准」：让它跑 `touch /tmp/<文件>`（`date` 在允许列表里）；「等你回答」：让它用 AskUserQuestion 问是非题。
+- 截图：卡片和收起态 `screencapture -x -R 556,0,400,110`（刘海在主屏顶部正中）；看造型在 `/tmp` 搭一次性陈列，`screencapture -l <windowID>` 连拍。几只盾盾同时扁眼是眨眼。
+- 没有 cliclick：在 `/tmp` 写一次性 Swift 脚本，用 `CGEvent` 移动、点击、滚动，完了把鼠标移回原处。
+- 崩溃看 `~/Library/Logs/DiagnosticReports/Notchkeeper-*.ips`；日志在 `~/Library/Logs/Notchkeeper/notchkeeper.log`。
+- zsh：`for f in $files` 不按空格拆，用 `xargs`；BSD `sed` 不认 `\b`，用 `perl -pi -e`。
+- 拆提交不能用 `git add -p`：`git hash-object -w` + `git update-index --cacheinfo` 暂存部分内容，`git checkout-index -a --prefix=/tmp/x/` 导出暂存区单独构建。
+- 交接文档就是本文件，不另写 `handoff.md`（macOS 不分大小写，会覆盖它）。

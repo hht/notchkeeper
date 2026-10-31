@@ -7,7 +7,7 @@ public struct IdleDirector: Sendable {
     private var rng: SplitMix64
     private var last: Motion?
 
-    /// docs/mascot.md §5：眨眼间隔 2.5–6s，15% 连眨两次；小动作每 8–20s 一个
+    /// 眨眼间隔 2.5–6s，15% 连眨两次；小动作每 8–20s 一个
     static let blinkGap = 2.5...6.0
     static let doubleBlink = 0.15
     static let motionGap = 8.0...20.0

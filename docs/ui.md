@@ -1,110 +1,97 @@
-# 界面：亮暗、多语言、面板布局
+# 界面：亮暗、多语言、面板布局、卡片
 
-本文定界面里横切的规则。盾盾的造型与动效见 `docs/mascot.md`，守卫怎么画见 `docs/egress-guard.md`。
+盾盾的造型与动效见 `docs/mascot.md`，守卫怎么画见 `docs/egress-guard.md`。
 
-## 亮色与暗色（用户 10-29）
+## 亮色与暗色
 
-**贴着刘海的部分永远是黑底白字**：收起的耳朵、展开面板、完成卡、介入卡、红卡、恢复卡。没有刘海的外接屏上也照样画黑块。只有设置窗口跟随系统的亮暗。
+**贴着刘海的部分永远黑底白字**（耳朵、面板、所有卡片，外接屏上也画黑块）；只有设置窗口跟随系统（用户定）。
 
-- 依据：HIG Live Activities 的「Choosing colors」一节写，"Live Activities in the Dynamic Island use a black opaque background"，而且灵动岛的背景色不能自定义（<https://developer.apple.com/design/human-interface-guidelines/live-activities>）。boring.notch、NotchDrop、DynamicNotchKit、Atoll 四个开源刘海 App 也都把贴刘海的面板写死成黑底。
-- 刘海窗口设窗口级 `appearance = NSAppearance(named: .darkAqua)`，照 boring.notch 的 `BoringNotchSkyLightWindow`。光写死黑底白字不够：面板里的系统控件、`.primary` / `.secondary`、SF Symbols 分层色、tooltip 会跟着窗口的外观走（<https://developer.apple.com/documentation/appkit/nsappearancecustomization/appearance>）。
-- 设置窗口不设外观，也不用 `preferredColorScheme`，直接跟随系统。不设 `NSApp.appearance`：Apple 说只在设计必需时才改整个 App 的外观（<https://developer.apple.com/documentation/appkit/choosing-a-specific-appearance-for-your-macos-app>）。
-- 黑面板和卡片用黑色阴影。展开面板的边缘是一条很淡的白线（不透明度 0.08）；卡片弹出时边缘扫过一趟流星，常驻红卡和减弱动态效果时换成一条很淡的同色细边（照灵动岛的 `keylineTint`），见「卡片」。
-- **设置页里的盾盾放在黑底圆角「舞台」上**。盾盾的配色是按黑底设计的：亮色下身体顶色对白底只有约 1.2:1，睡着的 Z 只有 1.7:1，几乎看不见。用舞台的话，造型数据不用分亮暗。
-- 设置页的状态点（`GuardDot`）是表达信息的图形，在亮、暗两种底上都要满足 3:1（WCAG 1.4.11，<https://www.w3.org/WAI/WCAG22/Understanding/non-text-contrast.html>）。
+- 依据见「灵动岛规范」1：背景色永远是黑的，不给背景加颜色、图案或光效的变化；要动效就加在内容上（盾盾、文字、流星）。黑色形状本身照常用弹簧变形。
+- 刘海窗口要设 `appearance = .darkAqua`：只写死黑底白字不够，系统控件、`.secondary`、SF Symbols 分层色、tooltip 跟窗口外观走。设置窗口不设外观，也不设 `NSApp.appearance`。
+- 设置页的盾盾放在黑底「舞台」上：盾盾配色按黑底设计，白底上几乎看不见；这样造型数据不用分亮暗。
+- 设置页的状态点在亮暗两种底上都要 ≥ 3:1（WCAG 1.4.11）。
 
-## 多语言（用户 10-29）
+## 多语言
 
-- **语言**：简体中文（源语言）和 English。系统按用户的语言列表找第一个支持的语言，一个都没有时用简体中文。
-- **默认随系统语言**。要改的话，在系统设置里按 App 单独设，App 不自己切。设置页放一个「在系统设置中更改语言…」按钮，跳到系统设置的对应位置。依据：WWDC19 Session 403 原话 "do not attempt to set the application language manually in code"，并说 macOS 用户在「语言与地区」里给单个 App 设语言（<https://developer.apple.com/videos/play/wwdc2019/403/>）；Apple DTS 也说 `AppleLanguages` "is an implementation detail, not something that's considered API"（<https://developer.apple.com/forums/thread/718512>）。
-- **文案的写法**：
-  - 用一个 String Catalog `Localizable.xcstrings`，键就是中文原文，例如 `Text("重新检测")`。
-  - 代码用默认的 `Bundle.main`，不写 `bundle: .module`。
-  - 卡片标题这类先存成 `String` 再显示的文案，`Text(someString)` 不会本地化（<https://developer.apple.com/documentation/swiftui/text/init(_:tablename:bundle:comment:)>）。这类属性改用 `LocalizedStringResource`。
-- **构建**：默认的 `swift build` 不编译 `.xcstrings`，只会原样拷贝（实测 Swift 6.3.3）。所以 catalog 不进 SwiftPM 资源，改由 `scripts/run.sh` 用 `xcrun xcstringstool compile` 编进 `Notchkeeper.app/Contents/Resources/<语言>.lproj`。这一步依赖 Xcode 自带的工具，用户 10-29 已同意。
-- **Info.plist**：写 `CFBundleDevelopmentRegion = zh-Hans` 和 `CFBundleLocalizations = [zh-Hans, en]`，不写 `CFBundleAllowMixedLocalizations`（实测它在日文环境下判成 en，却显示中文）。
-- **范围**：
-  - 要翻译：界面文案、卡片、设置页、声音的说明文字。
-  - 不翻译：出口 IP 和项目名。
-  - 仍是中文：日志、文档、注释、提交说明（CLAUDE.md「汇报」）。
-- **测试**：在 `swift test` 里解析 `Localizable.xcstrings` 的 JSON，要求每个键的 en 译文都是 `state == "translated"`，并且没有 `extractionState == "stale"` 的键。写法参考 bitchat 的 `LocalizationCoverageTests`。
-- **第 4 步实机验证**：
-  - 系统设置的「按 App 设语言」列表里能不能看到 Notchkeeper，选了以后能不能生效。
-  - 跳转按钮用的 URL。
-  - 中、英各截一张图。
+- 简体中文（源语言）和 English，**随系统语言**，App 不自己切；设置页放「在系统设置中更改语言…」跳到系统按 App 设语言的位置（WWDC19 403："do not attempt to set the application language manually in code"）。
+- 一个 String Catalog `Localizable.xcstrings`，键就是中文原文，用默认的 `Bundle.main`。
+- 坑：先存成 `String` 再 `Text(someString)` 不会本地化，这类属性用 `LocalizedStringResource`（<https://developer.apple.com/documentation/swiftui/text/init(_:tablename:bundle:comment:)>）。
+- 坑：`swift build` 不编译 `.xcstrings`，只原样拷贝；由 `scripts/run.sh` 用 `xcrun xcstringstool compile` 编进 `.lproj`（用户同意依赖 Xcode 工具）。
+- 坑：Info.plist 写 `CFBundleDevelopmentRegion = zh-Hans`、`CFBundleLocalizations = [zh-Hans, en]`，不写 `CFBundleAllowMixedLocalizations`（实测日文环境下判成 en 却显示中文）。
+- 不翻译：出口 IP、项目名；日志、文档、注释、提交说明仍是中文。
+- 测试：`swift test` 解析 catalog，要求每个键都有 en 译文、没有 stale 的键（参考 bitchat 的 `LocalizationCoverageTests`）。
 
 ## 面板布局
 
-展开面板照一套网格排（用户 10-29 看过实机截图定稿，代码在 `Notch.swift` 的 `NotchLayout`、`NotchRoot.corners`、`NotchDashboard`）：
+代码在 `Notch.swift` 的 `NotchLayout`、`NotchRoot.corners`、`NotchDashboard`，尺寸以代码为准。
 
-- **版式**（照 HIG Live Activities 的展开态：元素和收起态相对位置不变）：左上是盾盾（左耳那只放大），右上是出口状态徽章（右耳的位置），刘海正下方居中是出口标题和 IP，中间是会话列表，底栏左边是「出口检查于…」、右边是齿轮。
-- **尺寸**：黑底宽 408（灵动岛展开态宽），四周边距 14；会话容器圆角 14、四周留 4，面板底角 28。盾盾和徽章都是 32pt（和标题 + IP 两行一样高；用户 10-29 嫌 40pt 偏大），上缘离面板顶 8。
-- **左对齐线**：盾盾按**身体圆**对齐，身体中心和会话图标中心在同一条竖线上；底栏文字左缘和会话图标左缘对齐。
-- **右对齐线**：徽章右缘、齿轮图形右缘、时间列右缘对齐。时间列固定宽 66；状态指示固定在时间列左边。
-- **盾盾的位置**：盾盾在刘海左侧，紧贴刘海、不留「额头」；面板里的盾盾不带告示（`docs/mascot.md` §2）。
-- **删掉右上角的「进程 claude 0」**（用户 10-29；已删）。
-- **会话列表**：每行是 agent 标志 + 路径 + 状态指示 + 时间。只列 AgentCore 看着的会话（活着的终端 `claude`，`docs/agent-integration.md`），按进程启动先后排，状态变了行不挪位置。
-  - **agent 标志**：是哪个 agent 只靠行首的标志表示，不另写一行字，悬停显示名字。标志用 agent 厂商自己的（用户 10-29）：Claude Code 用 Claude 的星芒，路径和颜色 `#D97757` 照抄 Wikimedia Commons 的「Claude AI symbol.svg」（`ClaudeMark.swift`）。依据 CLAUDE.md「品牌」（用户 10-29 改）。
-  - **路径**（用户 10-29）：显示 `cwd` 的完整路径，家目录写成 `~`；太长就从前面截成「…」，留住最后几段。悬停显示完整路径。不显示会话名（它可能从对话推出来，`docs/agent-integration.md`「sessions 文件只取这些字段」）。
-  - **状态只用指示，不写字**（用户 10-29）：工作中是右耳那套三蓝点，依次亮；等你回答、等你批准用盾盾这两个造型自己的装饰（带 ? 的气泡、举起的手），带它们的循环动作（`docs/mascot.md` §4、§5）；已停止不画，标志和路径变暗（时间不跟着暗，保住对比度）。行不垫底色（用户 10-29）。不用绿色（绿色只表示出口正常）。状态名留给悬停提示和旁白。
-- **点会话行**跳到 Ghostty 里这个会话的窗口（用户 10-30，`docs/agent-integration.md`「跳转到 Ghostty」）；行悬停时有高亮，表示能点。
-- **列表最多露出 5 行**（用户 10-29：开的会话多了面板不能无限变长）：不到 5 个按内容高度，超过 5 个列表区固定 5 行高，里面滚动。
-- **小字的对比度**：时间、底栏、空列表提示都是白色不透明度 0.5，在黑底和会话容器上都不低于 4.5:1（HIG Accessibility：≤17pt 的字至少 4.5:1；原来的 0.4 约 3.7:1）。
-- **时间**（用户 10-29）：统一显示「状态变化距今多久」，用系统的相对时间格式（`Date.RelativeFormatStyle`），中英文自动跟着语言走。不再一个地方显示时长、另一个地方显示距今。
+- **版式**（HIG：展开态和收起态元素相对位置不变）：左上盾盾（左耳那只放大），右上出口状态徽章（右耳的位置），刘海正下方是出口标题和 IP，中间会话列表，底栏左「出口检查于…」、右齿轮。面板、卡片同宽，切换时形状只变高度。
+- **对齐线**：盾盾按身体圆心和会话图标中心对齐；徽章、齿轮、时间列右缘对齐。
+- 盾盾和徽章 32pt（用户定：40pt 偏大）。
+- **会话行**：不垫底色（用户定）；agent 厂商标志 + `cwd` 完整路径（`~` 缩写，太长从前面截）+ 状态指示 + 时间（用户定）。
+  - 不显示会话名：它可能从对话推出来。
+  - 状态只用指示不写字：工作中三蓝点，等你回答 / 批准用盾盾这两个造型的装饰；已停止不画、标志和路径变暗，时间不变暗（保住对比度）。不用绿色（绿只表示出口正常）。
+  - 时间统一是「状态变化距今多久」，系统相对时间格式。
+  - 按进程启动先后排，状态变了不挪位置；点行跳到 Ghostty（`docs/agent-integration.md`「跳转到 Ghostty」）。
+  - 最多露 5 行，多了列表里滚动。
+- 小字（≤ 17pt）对黑底至少 4.5:1（HIG Accessibility）。
 
-## 卡片（用户 10-29）
+## 卡片
 
-刘海上一次只放一张卡，由 `NotchCore` 的 `CardQueue` 决定放哪张、放多久、放出来时响不响。卡分两层：
+刘海上一次只放一张卡，由 `NotchCore` 的 `CardQueue` 决定放哪张、放多久、响不响。两层：
 
-- **红卡**：违规挂着时的底层卡（挂不挂只看当前状态和 `dismissedViolationSince`，`docs/egress-guard.md`）。设置「红卡一直保留，直到恢复」关掉时，红卡放满一次「卡片停留」就自动收起，算你关掉了这一次。
-- **临时卡**：完成卡（回合做完，`Glass`）、出错卡（回合出错，`Funk`，用户 10-30）、介入卡（进入需要你介入，`Ping`）、恢复卡（`Glass`）。按「卡片停留」设置倒计时（默认 6 秒，2–10 秒），恢复卡固定 4 秒；鼠标停在卡上暂停。到时收起，红卡还挂着就回到红卡。
-
-- **尺寸**（用户 10-30）：黑底和面板一样宽 408，两张卡、卡和面板之间切换，形状只变高度（HIG Live Activities：展开态之间元素保持相对位置）。卡片内容左右边距 24：卡上的盾盾和面板左上那只中心在同一条竖线上，互切时只上下走、不横移（10-30）。
+- **红卡**：违规挂着时的底层（挂不挂由 `ViolationAlert` 判，`docs/egress-guard.md`）。关掉「红卡一直保留」时，红卡放满一次「卡片停留」就收起，算你关掉了这一次。
+- **临时卡**：完成卡（Glass）、出错卡（Funk）、介入卡（Ping）、恢复卡（Glass）。按「卡片停留」倒计时，恢复卡固定 4 秒；到时收起，红卡还挂着就回到红卡。
 
 规则：
 
-1. **一个队列**：所有临时卡进同一个先进先出队列，一次放一张。理由：一个设置管所有临时卡；两个会话同时结束，也不会一张顶掉另一张。
-2. **同一个会话只留最新**：队列里还没放的、同一个会话的旧卡，被它后来的卡原地替换（例如还没轮到介入卡就已经回合结束，只放完成卡）。恢复卡同理，同时只排一张。理由：只有最新状态有用，队列不会无限变长。
-   - **介入卡过期就撤**（agent 推荐，用户 10-29 同意）：介入卡说的是「此刻在等你」。这个会话一不再需要你介入，它的介入卡不论排着还是正在放都撤掉：回到工作中（你批准了）、进程没了、空闲时弹出的对话框关掉了，直接撤；回合里变成已停止（你拒绝了），回合结束的完成卡马上顶替它。完成卡、恢复卡说的是已经发生的事，不撤。
-3. **声音跟着卡响**：卡放出来那一刻才响，不在事件到达时响；被打断后重放的卡不再响。理由：`Basso`、`Glass`、`Ping` 永远不叠，听到的和看到的一一对应。
-4. **违规开始插到最前**：新违规开始（红卡 + `Basso`）时，正在放的临时卡回到队首；红卡先完整放一次「卡片停留」，再接着放队列。理由：违规刚发生的那一刻最要紧，被打断的提醒也不丢。
-5. **之后盖在红卡上**：红卡放过第一次之后，新来的临时卡直接盖在红卡上，放完回到红卡。
-6. **介入卡也自动收回**（用户 10-29）：不常驻。之后还在等你，靠收起态的盾盾造型（question / approval）和右耳的点提示。
-7. **盾盾**：卡片上的盾盾就是左耳（或面板左上）那只，跟着形状的弹簧飞到卡片左侧，到了换成这张卡自己的造型：完成卡和恢复卡 finished，介入卡 question / approval，出错卡 error（带告示 ×），红卡 danger（带告示 !!）。卡收起时飞回左耳，造型回到收起态的优先级（`docs/mascot.md` §2、§5）。用户 10-29：卡片的盾盾也要从原来的位置缓动过来。
-8. **看不见就不放**（agent 推荐，用户 10-29 同意；CLAUDE.md「看不见就不调度」）：熄屏或锁屏时，台面上的卡停住倒计时，新来的临时卡排着不放、不响，亮屏解锁后接着放。新违规照样把红卡挂上台面（状态要对），但 `Basso` 等回来再响；离开期间已经恢复的，回来不补响。理由：离开电脑时来的卡挨个放完、挨个响，回来什么都看不到。
+1. **一个队列**：所有临时卡先进先出，一次放一张。两个会话同时结束也不会互相顶掉。
+2. **同一个会话只留最新**：排着的旧卡被同会话后来的卡原地替换；恢复卡同时只排一张。**介入卡过期就撤**：它说的是「此刻在等你」，会话一不再需要你介入，排着或正在放都撤；完成卡、恢复卡说的是已经发生的事，不撤。
+3. **声音跟着卡响**：卡放出来那一刻才响；被打断后重放不再响。听到的和看到的一一对应。
+4. **违规开始插到最前**：正在放的临时卡回到队首，红卡先完整放一次「卡片停留」再接着放队列。
+5. **之后盖在红卡上**：红卡放过第一次后，新来的临时卡盖在上面，放完回到红卡。
+6. **介入卡也自动收回**（用户定）：之后还在等你，靠收起态的盾盾造型和右耳提示。
+7. **盾盾**：卡上的盾盾就是左耳那只，跟形状的弹簧飞到卡片左侧（和面板左上那只在同一条竖线上，面板和卡片互切时只上下走、不横移），换成这张卡的造型（完成、恢复 finished，介入 question / approval，出错 error，红卡 danger）；收起时飞回（用户定：要从原来的位置缓动过来）。
+8. **看不见就不放**：熄屏或锁屏时倒计时停住，新卡排着不放不响；新违规照样挂上红卡，Basso 等回来再响；离开期间已恢复的不补响。
 
-- **边缘的流星**（用户 10-30 改）：卡片弹出约 0.35 秒后（形状快长好、圆角对得上时），两颗流星从顶部左右两端沿边匀速流到底边中间，**1.5 秒走完**，汇合前淡出。只走一趟，不循环；不代表倒计时，卡片停多久照设置。没有进度条，也没有底轨。（10-29 版流星就是倒计时、走满整个停留时间，10-30 用户嫌慢、嫌粗改掉。）
-  - 流星的形状：清晰的实体头（直径约 3pt 的亮核，往后 16pt 收成水滴，前白后卡片色），外面一层 18×9pt 的淡光团，后面一条 200pt 长、越往后越淡的 1pt 细尾巴，只在靠近头的 80pt 有一层 4pt 宽的模糊柔光。流星压在卡片边缘正中，光往里外两边晕开；拐弯时贴着圆弧走。
-  - 悬停、熄屏锁屏时卡片停住，还没走完的流星停在原处；卡片一开始收起，流星立刻撤掉，不淡出。
-  - 常驻红卡没有倒计时、或开了减弱动态效果：不画流星，只画一条很淡的同色细边。
-  - 做法照 Magic UI 的 Border Beam（渐变色块沿边跑、只露边框一圈），全部交给 Core Animation（`CardEdge.swift`）。<https://magicui.design/docs/components/border-beam>
-  - 中间试过、用户否掉的：底部进度条（加流光也不行）、沿边整圈亮边往中间退、Apple Intelligence 式彩色泛光、循环播放的流光、只有光晕没有实体头的流星。
-- **点卡片**（用户 10-30）：完成卡、出错卡、介入卡点 × 以外的地方，跳到 Ghostty 里这个会话的窗口（`docs/agent-integration.md`「跳转到 Ghostty」），这张卡算关掉；红卡、恢复卡点了不做事。
-- **颜色**（流星和细边）：完成卡低饱和银白，出错卡浅橙（error 造型身体下端的 `#EDB892`），介入卡等你回答青 / 等你批准青柠，恢复卡绿，红卡红。绿色只给出口正常；Claude 橙在黑底上晕开发红，不用。卡片外圈阴影一律黑色。
-- **文案**：标题说谁怎么了（「Claude Code 做完了」「Claude Code 在等你回答」「Claude Code 在等你批准」），副标题是会话的路径（同会话行，`~` 缩写），12pt medium（HIG：小字用 medium 以上字重）。
-- **旁白**：卡放出来时 VoiceOver 念标题（`NSAccessibility` 的 `announcementRequested`，高优先级）。
-- **悬停**按卡算：鼠标在这张卡上动了才暂停倒计时；卡弹到不动的鼠标底下、或上一张被点掉后鼠标没动，都照常倒计时（10-30 修：原来会一直停着，后面的卡都排着等）。
-- 依据：HIG Live Activities，提醒「light up the screen and by default play the notification sound」，多个活动时常驻的那个不被挤掉（<https://developer.apple.com/design/human-interface-guidelines/live-activities>）；仓里原有的「常驻红卡 + 临时卡插在上面、放完回到红卡」。
+- **流星**：卡片弹出时两颗流星从顶部两端沿边流到底边中间，只走一趟，**不代表倒计时**（用户定）。形状和时长在 `CardEdge.swift`（照 Magic UI Border Beam）。常驻红卡、减弱动态效果时只画一条淡的同色细边（灵动岛 `keylineTint`）。用户否掉过：进度条、循环流光、彩色泛光、没有实体头的光晕。
+- **点卡片**：完成、出错、介入卡点 × 以外的地方跳到 Ghostty 里这个会话，算关掉；红卡、恢复卡点了不做事。
+- **颜色**（流星和细边）：完成银白、出错浅橙、等你回答青、等你批准青柠、恢复绿、红卡红。绿色只给出口正常；Claude 橙在黑底上发红，不用。
+- **文案**：标题说谁怎么了（「Claude Code 做完了」），副标题是会话路径。弹卡时 VoiceOver 念标题。
+- **悬停按卡算**：鼠标在卡上动了才暂停倒计时；卡弹到不动的鼠标底下照常倒计时。
 
-## 灵动岛调研的取舍（10-30）
+## 灵动岛规范
 
-`docs/research/dynamic-island.md` §4 总表里剩下的建议，用户 10-30 交 agent 按 Apple 的做法和社区惯例自己定：
+刘海上的东西照 iPhone 灵动岛的规矩做。Apple 还没有 Mac 灵动岛的章节，等出了再对一遍（`HANDOFF.md`）。出处：[HIG Live Activities](https://developer.apple.com/design/human-interface-guidelines/live-activities)（下称 HIG）、[Displaying live data](https://developer.apple.com/documentation/activitykit/displaying-live-data-with-live-activities)、[HIG Accessibility](https://developer.apple.com/design/human-interface-guidelines/accessibility)、[HIG Motion](https://developer.apple.com/design/human-interface-guidelines/motion)、WWDC23 10194「Design dynamic Live Activities」、WWDC23 10158「Animate with springs」、WWDC18 803「Designing Fluid Interfaces」。
 
-| # | 建议 | 定了 | 理由 |
-|---|---|---|---|
-| 3 | 收起态右耳收窄、指示往刘海靠 | 指示往刘海靠，和左耳盾盾对称（`docs/mascot.md` §1）；不收窄 | HIG compact 要左右平衡、紧贴摄像头；三点常亮常灭，宽度跟着变反而打扰 |
-| 4 | 卡片副标题 medium、底栏 10.5 → 11 | 做 | HIG：小字用 medium 以上字重、少用太小的字 |
-| 7 | 卡片右侧放状态指示 | 不做 | 右侧已经有 ×；卡片上的状态由盾盾造型表达 |
-| 8 | 弹卡时状态图标 Replace 弹一下 | 不做 | 盾盾飞到卡上换造型已经在强调「为什么弹」 |
-| 9 | IP、徽章的内容过渡 | 做：IP `.numericText()`，徽章图标 `.symbolEffect(.replace)`；减弱动态效果只淡入淡出 | Apple「Displaying live data」 |
-| 10 | 盾盾的 `accessibilityValue`、弹卡播报 | 做 | HIG Accessibility |
-| 11 | 悬停延迟 0.12 → 0.25–0.3s | 不改 | 没出现误触；出现了再按实测调 |
-| 12 | 副标题只显示项目名 | 不改 | 用户 10-29 定了完整路径 |
+| # | 规矩（出处） | 我们怎么做 |
+|---|---|---|
+| 1 | 背景纯黑不透明，不能改（HIG："use a black opaque background"） | 贴刘海的部分永远黑底；背景色不变，动效加在内容上 |
+| 2 | 深色时有一圈 keyline，颜色和内容一致（HIG、`keylineTint`） | 面板白 0.08 细边；常驻红卡和减弱动态效果时卡片画同色细边 |
+| 3 | 换形态时现有元素移到新位置，不消失再进场；列表里只让真正移动的那一行动（HIG："animating existing elements to their new positions"） | 盾盾从左耳飞到面板 / 卡片，右耳变徽章；面板和卡片同宽，只变高度；会话行状态变了不挪位置 |
+| 4 | 自定义动画最长 2 秒；动效要有目的，经常出现的交互少加（HIG、HIG Motion） | 形状、内容进场、流星 2 秒内放完；流星只走一趟，不循环 |
+| 5 | 文本内容变化用模糊过渡，数字用 `numericText`，符号用 Replace（Displaying live data） | 卡片内容模糊淡入；IP 数字滚动；徽章图标 Replace |
+| 6 | 弹簧拿不准用 bounce 0，不超过约 0.4；没有向外动量的收起用 100% 阻尼（WWDC23 10158、WWDC18 803） | 展开和弹卡用同一组弹簧（用户定），带轻微弹性；收起几乎不回弹（`NotchSpring`） |
+| 7 | 只提醒要紧的事；提醒时展开、响通知音；强调触发提醒的那一项（HIG、WWDC23 10194） | 卡片标题说谁怎么了，盾盾换成这张卡的造型；卡片右侧不另放状态指示、不额外弹图标 |
+| 8 | 一次只展开一个；不重要的自己消失（HIG） | 一次一张卡，临时卡自动收回，红卡常驻 |
+| 9 | 点按打开 App 里相关的位置；展开态的交互尽量只有一个（HIG） | 点卡片跳到 Ghostty 里这个会话；卡上唯一的按钮是 × |
+| 10 | 收起态左右平衡、紧贴摄像头（HIG compact） | 右耳指示在耳朵可见部分正中，和左耳盾盾对称；不随内容收窄（三点常亮常灭，宽度跟着变反而打扰） |
+| 11 | 字用 medium 以上，小字少用；≤ 17pt 对比度至少 4.5:1；macOS 最小字号 10pt（HIG、HIG Accessibility、HIG Typography） | 小字 medium、白 0.5 以上；× 的 10pt 已在下限 |
+| 12 | 减弱动态效果：位移、缩放换成淡入淡出，不做模糊进出，收紧弹簧（HIG Accessibility） | 内容、盾盾、徽章只淡入淡出；黑色形状照常弹簧，还没收紧（`HANDOFF.md`） |
+| 13 | VoiceOver 能读到状态；动效不能是传达重要信息的唯一途径（HIG Accessibility、HIG Motion） | 盾盾有 `accessibilityValue`，弹卡时播报标题；状态 = 颜色 + 图标 + 文案 + 声音 |
+| 14 | 同心：内圆角 = 外圆角 − 边距；内容紧贴顶部，不留「额头」（HIG、WWDC23 10194） | 面板满足（外圆角 28、边距 14、会话容器 14）；卡片左右边距按盾盾对齐线定，不按这条；面板里的盾盾在刘海左侧、紧贴刘海 |
+
+有意偏离：
+
+- 熄屏时不亮屏，卡压着等回来再放（「卡片」8，用户定）。
+- 面板比展开态的 84–160pt 高：它是用户主动唤出的详情。
+- 出口 IP 完整显示（用户定，只在悬停面板上）；卡片副标题是完整路径，不按「精度低一点」缩成项目名（用户定）。
+- 盾盾和右耳指示保留常驻循环（星星转、!! 跳、三蓝点）：盾盾是角色，不是一次性的动画。
+- 收起态的耳朵没贴紧摄像头：耳朵宽度固定，指示在可见部分正中。
+- 会话行的厂商标志带一层淡底（HIG 说 logo 不放容器）。
+- 流星是灵动岛 alert 没有的额外动效（用户定要，只走一趟）。
+- 悬停就展开，不像 Apple 在 Mac 上用点击：没出现误触，出现了再按实测调延迟。
 
 ## 截图
 
-改了界面要附截图：
-
-- 刘海机型亮、暗各一张。贴刘海的部分在两张里都应该是黑的，用来确认没有被亮色带偏。
-- 改了文案的，中、英各一张。
-- 有外接屏时，再补一张无刘海外接屏的。
+改了界面要附截图：刘海机型亮、暗各一张（贴刘海部分两张都应是黑的）；改了文案的中、英各一张；有外接屏时补一张无刘海的。

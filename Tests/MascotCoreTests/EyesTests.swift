@@ -48,7 +48,7 @@ private func bounds(_ p: EyeOutline) -> CGRect {
         }
     }
 
-    /// 数字照 docs/mascot.md §3：O 眼是正圆 r 1.45；竖长大眼 1.25 × 1.9；看云偏到 (0.35, −0.5)
+    /// O 眼是正圆 r 1.45；竖长大眼 1.25 × 1.9；看云偏到 (0.35, −0.5)
     @Test func sizes() {
         let o = bounds(Look.mismatch.eyes.left)
         #expect(abs(o.width - 2.9) < 0.01 && abs(o.height - 2.9) < 0.01)

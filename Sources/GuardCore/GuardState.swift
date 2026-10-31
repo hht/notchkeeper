@@ -69,7 +69,7 @@ public struct GuardState: Codable, Equatable, Sendable {
 }
 
 /// 回答：下一轮检测什么时候开始。
-/// 上一轮没结束绝不开下一轮（路由子进程同步、HTTP 最长 6 秒，而间隔是 5 秒，见 docs/egress-guard.md「guardd」一节）；
+/// 上一轮没结束绝不开下一轮（路由子进程同步、HTTP 最长 6 秒，而间隔是 5 秒）；
 /// 慢了也不补跑，紧接着开一轮即可。
 public enum PollSchedule {
     public static let interval: Duration = .seconds(5)

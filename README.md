@@ -65,16 +65,7 @@ swift run guardd --once                       # 调试：只跑一轮，打印�
 
 ## 模块
 
-| target | 回答什么问题 |
-|---|---|
-| `Notchkeeper` | App：刘海、卡片、面板、设置、盾盾的图层（重写中） |
-| `GuardCore` | 出口健不健康；`guard-state.json` 的格式和读取规则。纯逻辑 |
-| `GuardProbes` | 路由、Clash 进程、出口 IP、网络路径这几路观测。只做 I/O，不做判定 |
-| `GuardWatch` | App 什么时候重读 `guard-state.json`（监听所在目录） |
-| `guardd` | 后台进程：每轮跑探针、判定、写状态文件 |
-| `MascotCore` | 盾盾此刻是什么造型、做什么动作。纯逻辑 |
-| `AgentCore` | Claude Code 会话此刻在什么状态、回合什么时候结束。纯逻辑；监听 `~/.claude/sessions` 在 App 的 `AgentWatcher` |
-| `NotchCore` | 刘海此刻放哪张卡、放多久、放出来时响不响（红卡一层 + 临时卡队列）；守卫读数画成什么、红卡挂上还是撤掉。纯逻辑 |
+每个 target 回答什么问题，见 `Package.swift` 的注释。
 
 ## 测试
 
@@ -86,11 +77,4 @@ NOTCHKEEPER_LIVE_PROBES=1 swift test --filter LiveProbes   # 真机只读冒烟�
 
 ## 文档
 
-- `CLAUDE.md`：本仓规则
-- `HANDOFF.md`：接下来的步骤、还没写进文档的决定、待办
-- `docs/egress-guard.md`：守卫的信号、判定、状态文件、怎么画
-- `docs/firewall.md`：防火墙（未实现）
-- `docs/mascot.md`：盾盾的造型数据与动效
-- `docs/agent-integration.md`：agent 状态从哪读、什么时候提醒
-- `docs/ui.md`：亮暗、多语言、面板布局、截图
-- `docs/ubiquitous-language.md`：词表
+规则和各份文档什么时候读，见 `CLAUDE.md`；接下来要做的见 `HANDOFF.md`。
