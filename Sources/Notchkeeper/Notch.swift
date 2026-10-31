@@ -68,8 +68,6 @@ extension Card {
     }
 }
 
-enum NotchMode: Hashable { case closed, card, dashboard }
-
 /// 「状态测试」的覆盖（StateTest.swift）：只在内存里，只经 NotchController 改，重开 App 就没了
 @MainActor
 final class NotchOverrides: ObservableObject {
@@ -136,130 +134,11 @@ final class NotchModel: ObservableObject {
     }
 }
 
-/// 三种形态的尺寸，视图和悬停命中测试共用
-enum NotchLayout {
-    /// 卡片内容离形状黑底左右边：卡上的 Pip 和面板左上的那只中心对齐，两边互切时 Pip 只上下走、不横移（HIG Live Activities：展开态之间元素保持相对位置）
-    static let cardPadding = contentInset + rowIcon / 2 - dashCorner / 2
-    /// 第一行（Pip + 标题 + 副标题）的高度
-    static let cardRowHeight: CGFloat = 38
-    static let cardBottom: CGFloat = 16
-    /// 展开面板和卡片的黑底宽 = iOS 灵动岛展开态宽 408（HIG Live Activities；Mac 菜单栏里的 Live Activity 用同一套尺寸）。
-    /// 形状两侧还各有一截往外翻的顶角（`openFlare`），不算黑底
-    static let dashWidth: CGFloat = 408
-    /// 展开（面板、卡片）时形状顶角往外翻的宽度（NotchShape 的 topRadius）
-    static let openFlare: CGFloat = 14
-    /// 黑底四周边距 14（HIG Live Activities：Lock Screen 标准边距）
-    static let dashMargin: CGFloat = 14
-    static let listRadius: CGFloat = 14
-    /// 展开（面板、卡片）时形状的底角；收起时 8
-    static let openBottomRadius: CGFloat = 28
-    /// 会话容器四周留 4
-    static let listInset: CGFloat = 4
-    static let rowHeight: CGFloat = 38
-    static let rowPadding: CGFloat = 10
-    static let rowIcon: CGFloat = 24
-    /// 行内容离黑底左右边：会话图标左缘、时间右缘、底栏文字左缘、齿轮右缘、右上徽章右缘都在这条线上（docs/ui.md「面板布局」）
-    static let contentInset = dashMargin + listInset + rowPadding
-    /// 左上的 Pip 和右上的徽章：等大（HIG：leading / trailing 大小相近，左右平衡），和刘海下的标题 + IP 两行一样高；
-    /// Pip 身体中心和会话图标中心在同一条竖线上。卡片上还是这只 Pip，也是这么大
-    static let dashCorner: CGFloat = 32
-    /// Pip 和徽章上缘离面板顶 8：紧贴刘海两侧，不留「额头」
-    static let dashCornerTop: CGFloat = 8
-    /// 刘海正下方的状态区（标题 + IP）的高度
-    static let dashStatusHeight: CGFloat = 42
-    static let footerHeight: CGFloat = 30
-    /// 状态区和会话容器之间、底栏和面板底之间
-    static let listGap: CGFloat = 10
-    static let footerBottom: CGFloat = 4
-    /// 面板里段与段之间
-    static let sectionGap: CGFloat = 6
-    /// 小字（时间、底栏、空列表）的白色不透明度：≤17pt 的字对比度至少 4.5:1（HIG Accessibility）
-    static let secondaryTextOpacity = 0.5
-
-    /// 收起时刘海两侧各一只耳朵：左耳放 Pip，右耳放状态指示（docs/mascot.md §1）
-    static let earWidth: CGFloat = 44
-    /// 收起时形状顶角往外翻的宽度（NotchShape 的 topRadius）
-    static let closedFlare: CGFloat = 4
-    /// 左耳 Pip 的身体直径（docs/mascot.md §1）：面板里那只缩到这么大
-    static let earMascotSize: CGFloat = 20
-    /// 左耳 Pip 的身体中心、右耳指示的中心离形状外缘多远：都在耳朵看得见的部分（去掉外翻）里居中，左右对称
-    /// （docs/mascot.md §1；HIG Live Activities compact：左右平衡、紧贴摄像头）
-    static let earCenterInset = closedFlare + (earWidth - closedFlare) / 2
-
-    /// 没有刘海的屏幕（高度 0）不长耳朵，保持原来从顶端中间长出来的样子
-    static func hasEars(_ notch: CGSize) -> Bool { notch.height > 0 }
-
-    static func topInset(_ notch: CGSize) -> CGFloat { max(notch.height, 24) }
-    /// 面板内容从刘海下沿起；没有刘海的屏幕按 32 留出菜单栏
-    static func dashTop(_ notch: CGSize) -> CGFloat { max(notch.height, 32) }
-    /// 卡片内容的上沿
-    static func cardTop(_ notch: CGSize) -> CGFloat { topInset(notch) - 2 }
-
-    /// cardContent：卡片内容量出来的高度（第一行 + 内容块），形状跟着它用弹簧长。
-    /// ears：收起时长不长耳朵（没有刘海的屏幕本来就不长；左耳不画 Pip、右耳也没东西时不长，就是一块纯黑的刘海）
-    static func size(_ mode: NotchMode, notch: CGSize, panel: PanelShape, cardContent: CGFloat, ears: Bool) -> CGSize {
-        switch mode {
-        case .closed:
-            return hasEars(notch) && ears ? CGSize(width: notch.width + 2 * earWidth, height: notch.height) : notch
-        case .card: return CGSize(width: dashWidth + 2 * openFlare, height: cardTop(notch) + cardContent + cardBottom)
-        case .dashboard:
-            let list: CGFloat = switch panel.list {
-            case nil: 0
-            case []?: listGap + rowHeight + 2 * listInset
-            case let sections?: listGap + sections.map { CGFloat($0.rows) * rowHeight + 2 * listInset }.reduce(0, +)
-                + CGFloat(sections.count - 1) * sectionGap
-            }
-            return CGSize(width: dashWidth + 2 * openFlare,
-                          height: dashTop(notch) + (panel.header ? dashStatusHeight : 0) + list + footerHeight + footerBottom)
-        }
-    }
-}
-
-/// 面板长什么样：顶上有没有出口守卫的状态区，下面各段露几行（docs/ui.md「面板布局」）。视图和悬停命中测试共用
-struct PanelShape: Equatable {
-    struct Visible: Equatable {
-        var plugin: String
-        var rows: Int
-    }
-
-    var header: Bool
-    /// nil：没有列表（只开了出口守卫）；空：一行占位（段都空着，或一个插件都没开）
-    var list: [Visible]?
-
-    /// 各段合起来至多露这么多行：排在前面的段先拿，拿不到的不画（面板再高就挡住半个屏幕了）
-    static let maxRows = 6
-
-    init(header: Bool, list: [Visible]?) {
-        self.header = header
-        self.list = list
-    }
-
-    /// sections：开着的段，按顺序
-    init(guardEnabled: Bool, sections: [PanelSection]) {
-        header = guardEnabled
-        guard !sections.isEmpty else {
-            list = guardEnabled ? nil : []
-            return
-        }
-        var left = Self.maxRows
-        var visible: [Visible] = []
-        for s in sections {
-            let n = min(s.rows.count, s.maxRows, left)
-            guard n > 0 else { continue }
-            visible.append(Visible(plugin: s.plugin, rows: n))
-            left -= n
-        }
-        list = visible
-    }
-}
-
 /// 刘海区域的透明窗口。收起时黑色形状与刘海重合（看不见），展开时从刘海里弹出。
 /// 收起时窗口不接收鼠标：悬停和刘海上的点击都靠全局监听判断鼠标是否在刘海热区里，
 /// 所以不会抢焦点，也不会挡住别处的点击。
 @MainActor
 final class NotchController {
-    /// 装得下最满的面板（`PanelShape.maxRows` 行分在最多 6 段里）和最满的卡片
-    static let windowSize = CGSize(width: 580, height: 440)
     /// 收起时的层级：在系统菜单栏之上，但在下拉菜单之下
     static let restLevel = NSWindow.Level(rawValue: NSWindow.Level.mainMenu.rawValue + 3)
     /// 展开时的层级：要压过铺满顶部的第三方菜单栏覆盖层，否则卡片上沿会被盖住一截。
@@ -294,7 +173,7 @@ final class NotchController {
     var onAlertDismissed: () -> Void = {}
 
     init() {
-        window = NSPanel(contentRect: NSRect(origin: .zero, size: Self.windowSize),
+        window = NSPanel(contentRect: NSRect(origin: .zero, size: NotchLayout.windowSize),
                          styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         window.isOpaque = false
         window.backgroundColor = .clear
@@ -324,7 +203,7 @@ final class NotchController {
             self?.onOpenSettings(pane)
         }))
         host.sizingOptions = []
-        host.frame = NSRect(origin: .zero, size: Self.windowSize)
+        host.frame = NSRect(origin: .zero, size: NotchLayout.windowSize)
         window.contentView = host
         // 窗口接收鼠标后，全局监听收不到发给本 App 的事件，而这个面板不会成为 key window；
         // 用 activeAlways 的 tracking area 接住移动和移出，鼠标离开形状时才能及时恢复穿透
@@ -358,8 +237,8 @@ final class NotchController {
         model.notchSize = notch
         let f = s.frame
         screenFrame = f
-        window.setFrame(NSRect(x: f.midX - Self.windowSize.width / 2, y: f.maxY - Self.windowSize.height,
-                               width: Self.windowSize.width, height: Self.windowSize.height), display: true)
+        window.setFrame(NSRect(x: f.midX - NotchLayout.windowSize.width / 2, y: f.maxY - NotchLayout.windowSize.height,
+                               width: NotchLayout.windowSize.width, height: NotchLayout.windowSize.height), display: true)
     }
 
     // MARK: 卡片

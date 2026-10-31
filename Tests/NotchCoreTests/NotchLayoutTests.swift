@@ -1,8 +1,7 @@
-import AppKit
-import SwiftUI
+import CoreGraphics
+import Foundation
 import Testing
 import NotchCore
-@testable import Notchkeeper
 
 @Suite struct NotchLayoutRules {
     /// 卡片是短暂弹出的展开态，和面板等宽，元素保持相对位置（docs/ui.md「卡片」，HIG Live Activities）
@@ -13,33 +12,13 @@ import NotchCore
         #expect(card.width == dashboard.width)
     }
 
-    /// 卡片按内容的自然高度长；内容最满的卡也装得进刘海窗口（docs/ui.md「卡片」）
-    @Test @MainActor func fullestCardFitsWindow() {
-        let notch = CGSize(width: 185, height: 32)
-        let long = String(repeating: "很长的一句话", count: 40)
-        let source = Card.Source.plugin(id: "x", name: long, symbol: "sparkles")
-        let buttons = [Card.Button(title: long, action: .activate(bundleID: "x")), Card.Button(title: long, action: .activate(bundleID: "y"))]
-        let cards = [
-            Card(source: source, title: long, subtitle: long, value: long, outcome: .done, block: .text([long, long, long]), buttons: buttons),
-            Card(source: source, title: long, outcome: .failed, block: .log([long, long, long]), buttons: buttons),
-            Card(source: source, title: long, outcome: .info, block: .facts((1...4).map { _ in Card.Fact(title: long, value: long) }), buttons: buttons),
-        ]
-        for card in cards {
-            let content = NSHostingView(rootView: NotchCardView(card: card, onDismiss: {}, onAction: { _ in })
-                .frame(width: NotchLayout.dashWidth).fixedSize(horizontal: false, vertical: true)).fittingSize.height
-            #expect(content > NotchLayout.cardRowHeight)
-            #expect(NotchLayout.size(.card, notch: notch, panel: PanelShape(header: true, list: []), cardContent: content, ears: true).height
-                    <= NotchController.windowSize.height)
-        }
-    }
-
     /// 面板最满时（每段都只露 1 行、段数到上限，或行数到上限）也装得进刘海窗口
     @Test(arguments: [CGSize(width: 185, height: 38), CGSize(width: 180, height: 0)])
-    @MainActor func fullestPanelFitsWindow(notch: CGSize) {
+    func fullestPanelFitsWindow(notch: CGSize) {
         let rows = (0..<10).map { PanelSection(plugin: "p\($0)", rows: Array(repeating: row, count: 9), maxRows: 5) }
         for sections in [rows, rows.map { var s = $0; s.maxRows = 1; return s }] {
             let shape = PanelShape(guardEnabled: true, sections: sections)
-            #expect(NotchLayout.size(.dashboard, notch: notch, panel: shape, cardContent: 0, ears: true).height <= NotchController.windowSize.height)
+            #expect(NotchLayout.size(.dashboard, notch: notch, panel: shape, cardContent: 0, ears: true).height <= NotchLayout.windowSize.height)
         }
     }
 

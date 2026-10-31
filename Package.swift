@@ -32,7 +32,7 @@ let package = Package(
         .target(name: "AgentCore"),
         .testTarget(name: "AgentCoreTests", dependencies: ["AgentCore"]),
         // 卡上写什么、刘海此刻放哪张卡、放多久、放出来时响不响：红卡一层 + 临时卡队列（docs/ui.md「卡片」）；守卫读数画成什么、红卡挂上还是撤掉（docs/egress-guard.md）；
-        // 各插件多急、收起时谁上位、面板一行画什么。纯值类型，不知道卡长什么样、不放声音、不起定时器
+        // 各插件多急、收起时谁上位、面板一行画什么；刘海三种形态各多大。纯值类型，不知道卡长什么样、不放声音、不起定时器
         .target(name: "NotchCore", dependencies: ["AgentCore", "GuardCore", "MascotCore"]),
         .testTarget(name: "NotchCoreTests", dependencies: ["NotchCore", "AgentCore", "GuardCore", "MascotCore"]),
         // 外部插件发来的一条消息合不合法、变成哪张卡或面板里哪一行：解析收件箱里的消息和插件登记、限流、过期，跟踪活动。纯值类型，不读目录

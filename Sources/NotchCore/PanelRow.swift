@@ -65,3 +65,18 @@ public struct PanelRow: Identifiable, Equatable, Sendable {
 extension TerminalRef {
     public init(_ session: Session) { self.init(pid: session.pid, identity: .started(session.processStart), cwd: session.cwd) }
 }
+
+/// 面板里一个插件的那一段（docs/ui.md「面板布局」）
+public struct PanelSection: Identifiable, Equatable, Sendable {
+    public var plugin: String
+    public var rows: [PanelRow]
+    /// 最多露几行，多的在段里滚
+    public var maxRows: Int
+    public var id: String { plugin }
+
+    public init(plugin: String, rows: [PanelRow], maxRows: Int) {
+        self.plugin = plugin
+        self.rows = rows
+        self.maxRows = maxRows
+    }
+}

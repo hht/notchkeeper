@@ -205,15 +205,6 @@ final class AppState: ObservableObject {
     }
 }
 
-/// 面板里一个插件的那一段（docs/ui.md「面板布局」）
-struct PanelSection: Identifiable, Equatable {
-    var plugin: String
-    var rows: [PanelRow]
-    /// 最多露几行，多的在段里滚
-    var maxRows: Int
-    var id: String { plugin }
-}
-
 enum Log {
     static let url = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Notchkeeper/notchkeeper.log")
     /// 本地时间 + 时区偏移，例如 2026-10-28 14:03:21 -07:00
