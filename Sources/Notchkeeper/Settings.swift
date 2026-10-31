@@ -659,6 +659,7 @@ private struct StateTestPane: View {
     @ObservedObject var overrides: NotchOverrides
     @ObservedObject var state: AppState
     let notch: NotchController
+    @ObservedObject private var director = MascotDirector.shared
 
     var body: some View {
         Form {
@@ -666,7 +667,8 @@ private struct StateTestPane: View {
                 VStack(spacing: 6) {
                     MascotView(look: overrides.mascot(real: state.look), size: 40)
                         .environment(\.mascotLiteral, overrides.look != nil)
-                    Text(overrides.look.map { "强制：\($0.title)" } ?? "真实状态：\(state.presentation.title)")
+                    // 说的是上面这只 Pip 此刻画的造型（上位插件的，叠上晕和睡着），不是出口状态
+                    Text(overrides.look.map { "强制：\($0.title)" } ?? "真实状态：\(director.shown(state.look).title)")
                         .font(.system(size: 13, weight: .semibold))
                 }
                 .frame(maxWidth: .infinity)
