@@ -33,6 +33,30 @@ enum Apps {
     }
 }
 
+/// 装、卸这类操作失败，带一句给用户看的原因（设置页显示 `localizedDescription`）
+struct Failure: LocalizedError {
+    var errorDescription: String?
+}
+
+extension FileManager {
+    /// 用 `source` 的一份拷贝换掉 `destination`（文件或目录）：先拷到同一卷的临时目录再整体换上去，拷到一半失败时原来那份还在
+    func replaceItem(at destination: URL, withCopyOf source: URL) throws {
+        try createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let staging = try url(for: .itemReplacementDirectory, in: .userDomainMask, appropriateFor: destination.deletingLastPathComponent(), create: true)
+            .appendingPathComponent(destination.lastPathComponent)
+        defer {
+            // 临时目录，换上去之后已经空了；删不掉只占一个空目录
+            do { try removeItem(at: staging.deletingLastPathComponent()) } catch { Log.write("删不掉临时目录：\(error.localizedDescription)") }
+        }
+        try copyItem(at: source, to: staging)
+        if fileExists(atPath: destination.path) {
+            _ = try replaceItemAt(destination, withItemAt: staging)
+        } else {
+            try moveItem(at: staging, to: destination)
+        }
+    }
+}
+
 /// 刘海展开（含弹卡）、收起、卡片放完回到面板、面板行数变化的弹簧，只在这里定义（docs/mascot.md §5「收起与展开」）
 enum NotchSpring {
     static let page = Animation.spring(response: 0.42, dampingFraction: 0.84)

@@ -15,10 +15,6 @@ enum ClaudeMod {
         case unknown(String)
     }
 
-    struct Failure: Error, LocalizedError {
-        var errorDescription: String?
-    }
-
     private static let pluginID = "notchkeeper@notchkeeper"
     private static let marketplace = "notchkeeper"
     /// marketplace 的固定位置：插件从这里原地加载，App 挪了位置也不受影响
@@ -81,23 +77,10 @@ enum ClaudeMod {
         }
     }
 
-    /// 先拷到同一卷的临时目录再整体换上去：拷到一半失败，原来那份还在（插件从这里原地加载）
+    /// 插件从这里原地加载：拷到一半失败时原来那份还在（`replaceItem(at:withCopyOf:)`）
     private static func copyBundled() throws {
         guard let bundled else { throw Failure(errorDescription: "这个构建没带 mod，用 scripts/run.sh 打包的 App 才有") }
-        let fm = FileManager.default
-        try fm.createDirectory(at: directory.deletingLastPathComponent(), withIntermediateDirectories: true)
-        let staging = try fm.url(for: .itemReplacementDirectory, in: .userDomainMask, appropriateFor: directory.deletingLastPathComponent(), create: true)
-            .appendingPathComponent("ClaudeMod")
-        defer {
-            // 临时目录，换上去之后已经空了；删不掉只占一个空目录
-            do { try fm.removeItem(at: staging.deletingLastPathComponent()) } catch { Log.write("Claude Code mod：删不掉临时目录：\(error.localizedDescription)") }
-        }
-        try fm.copyItem(at: bundled, to: staging)
-        if fm.fileExists(atPath: directory.path) {
-            _ = try fm.replaceItemAt(directory, withItemAt: staging)
-        } else {
-            try fm.moveItem(at: staging, to: directory)
-        }
+        try FileManager.default.replaceItem(at: directory, withCopyOf: bundled)
     }
 
     /// 跑一条 `claude` 命令，返回标准输出；退出码不是 0 就抛出，带输出的最后一行。60 秒没跑完就杀掉、抛出「超时」，
