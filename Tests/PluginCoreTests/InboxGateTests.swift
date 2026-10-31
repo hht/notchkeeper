@@ -135,3 +135,13 @@ private func message(plugin: String = "terminal", id: UUID = UUID(), sent: Date 
         for _ in 0..<6 { _ = try gate.admit(message(), plugins: plugins, now: t0) }
     }
 }
+
+/// 内置插件的 id 留着（用户 10-31）：设置里的开关按 id 存，外部插件用了会和内置的串
+@Suite struct ReservedPluginIDs {
+    @Test(arguments: ["guard", "claude"])
+    func builtInIDsRejected(_ id: String) {
+        #expect(throws: ManifestError.reservedID) {
+            try Manifest.parse(Data(#"{"id":"\#(id)","name":"x","symbol":"star"}"#.utf8), directoryName: id)
+        }
+    }
+}

@@ -1,4 +1,5 @@
 import Foundation
+import NotchCore
 
 /// 回答：一个外部插件登没登记、卡上标它什么名字和图标。来自 `plugins/<id>/manifest.json`，不读文件
 public struct Manifest: Equatable, Sendable {
@@ -17,6 +18,7 @@ public struct Manifest: Equatable, Sendable {
             throw .malformed
         }
         guard wire.id == directoryName, Message.isPluginID(wire.id) else { throw .badID }
+        guard !PluginID.builtIn.contains(wire.id) else { throw .reservedID }
         guard !wire.name.allSatisfy(\.isWhitespace), !wire.symbol.isEmpty else { throw .missingField }
         return Manifest(id: wire.id, name: wire.name, symbol: wire.symbol)
     }
@@ -27,5 +29,7 @@ public enum ManifestError: Error, Equatable, Sendable {
     case malformed
     /// 不合规，或和目录名对不上
     case badID
+    /// 是内置插件的 id（`PluginID.builtIn`）
+    case reservedID
     case missingField
 }
