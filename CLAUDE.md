@@ -56,6 +56,6 @@ Haitao 本机自用的 macOS 刘海应用（SwiftPM，SwiftUI + AppKit，macOS 1
 
 - commit / push 要用户本轮明示；不 amend、不 force-push、不改 git 配置；只暂存本次改动涉及的文件。
 - 提交前：对 diff 逐行问「删掉会坏什么」，答不出的删掉或内联，汇报时列出删了什么、改了什么、有争议但保留的行及理由；更新 `HANDOFF.md`（做完的删掉），随同一提交；派一个新的 [`reviewer`](.claude/agents/reviewer.md) 子 agent（不用 fork，只读），给它改动和相关文档审 diff，必须修的（结论错、丢数据、永远卡住、安全、违反硬规则、可能断网）修完再审，至多两轮；仍有问题就停下，交用户定。
-- 一个提交只做一件事，测试同提交；重构与功能、修复分开。格式：`<type>: <一句话>` + 中文列表正文，type 用 `feat` `fix` `refactor` `test` `docs` `build` `chore`。
+- 一个提交装一类相关的改动：同一功能的代码、测试、文档、`HANDOFF.md` 进度一起提交；不相干的类别分开，重构与功能、修复分开。格式：`<type>: <一句话>` + 中文列表正文，type 用 `feat` `fix` `refactor` `test` `docs` `build` `chore`。
 - 一律中文汇报（标识符和原文引用除外）：先说结论，再给下一步；结论带依据（`文件:行`、链接或实测），推断标「推断 / 未证实」；前提错了直接指出。动到防火墙、LaunchDaemon / LaunchAgent 按全局 Contract「高影响」档收工。
 - skill：磨方案 `grilling`，查资料 `research`，原型 `prototype`，实现 `tdd`，界面 `ui-ux-pro-max`，难 bug `diagnosing-bugs`，起名 `domain-modeling`，改本文件 `writing-for-agents`，换会话 `handoff`（写进 `HANDOFF.md`）。
