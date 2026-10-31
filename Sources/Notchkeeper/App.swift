@@ -1,4 +1,5 @@
 import AppKit
+import AgentCore
 import Combine
 
 @main
@@ -165,20 +166,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     @objc func quit() { Self.quit(reason: "菜单里点了退出") }
 
-    /// scripts/demo.sh done|alert ["标题"] ["详情"]：done 走临时卡队列，alert 当一次新违规
+    /// scripts/demo.sh：agent 的卡挂在最近变过状态的会话上，和真卡走同一条路（同样的文案，点了也跳 Ghostty）；alert 当一次新违规
     @objc func handleCardNotification(_ n: Notification) {
-        let title = n.userInfo?["title"] as? String, detail = n.userInfo?["detail"] as? String
-        if n.object as? String == "alert" {
-            var card = NotchCard.exitAlert()
-            if let title { card.title = title }
-            if let detail { card.detail = detail }
-            notch.raiseAlert(card, sound: true)
-            Log.write("外部触发：异常卡片")
-        } else {
-            notch.post(NotchCard(title: title ?? "✅ 任务完成", detail: detail ?? "任务已完成", tint: NotchCard.doneTint,
-                                 look: .finished, sound: "Glass"), key: nil)
-            Log.write("外部触发：完成卡片")
+        let kind = n.object as? String ?? ""
+        if kind == "alert" {
+            notch.raiseAlert(.exitAlert(), sound: true)
+            Log.write("外部触发：红卡")
+            return
         }
+        // 本机任何进程都能发这个通知：不认识的 kind 不进日志，免得伪造日志行
+        let make: (Int32) -> AgentEvent
+        switch kind {
+        case "done": make = { .turnDone(pid: $0) }
+        case "failed": make = { .turnFailed(pid: $0) }
+        case "question": make = { .needsYou(.question, pid: $0) }
+        case "approval": make = { .needsYou(.approval, pid: $0) }
+        default: Log.write("外部触发：不认识的卡"); return
+        }
+        guard let s = state.sessions.max(by: { $0.stateSince < $1.stateSince }) else {
+            Log.write("外部触发：没有 Claude Code 会话，不弹")
+            return
+        }
+        notch.agentEvents([make(s.pid)], sessions: state.sessions)
+        Log.write("外部触发：\(kind)")
     }
 }
 

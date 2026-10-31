@@ -86,7 +86,7 @@ Haitao 本机自用的 macOS 刘海应用。SwiftPM 构建，SwiftUI + AppKit，
 
 - **验收**：`swift build` 零警告，并且 `swift test` 全绿，两项都过才算完成。
 - `./scripts/run.sh`：release 编译、打包 `build/Notchkeeper.app`、ad-hoc 签名并启动；会先结束正在运行的实例。
-- `./scripts/demo.sh done|alert`：手动触发卡片，在实机上验 UI。它靠分布式通知，本机任何进程都能发，所以第 4 步起只在 DEBUG 构建里监听。
+- `./scripts/demo.sh done|failed|question|approval|alert`：手动触发卡片，在实机上验 UI。它靠分布式通知，本机任何进程都能发，所以第 4 步起只在 DEBUG 构建里监听。
 - guardd 的单轮调试、真机只读冒烟、安装和卸载见 `README.md`。
 - 新增 lint / format 工具或依赖，要用户明示同意。
 

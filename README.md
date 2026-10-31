@@ -19,7 +19,7 @@ Haitao 本机自用的刘海应用（SwiftPM，macOS 14+），没有菜单栏图
 
 ```bash
 ./scripts/run.sh            # release 编译，打包 build/Notchkeeper.app，ad-hoc 签名，结束旧实例后启动
-./scripts/demo.sh done      # 演示：完成卡
+./scripts/demo.sh done      # 演示：完成卡（还有 failed、question、approval），挂在最近的 Claude Code 会话上，点了跳 Ghostty
 ./scripts/demo.sh alert     # 演示：红卡
 ```
 

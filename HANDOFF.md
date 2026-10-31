@@ -42,7 +42,7 @@
 
 规则见 `docs/ui.md`「卡片」，代码 `Sources/Notchkeeper/CardEdge.swift`。实机只看过完成卡（银白）：
 
-- 介入卡（青、青柠）、恢复卡（绿）、红卡上的颜色和亮度。
+- 介入卡（青、青柠）、出错卡（浅橙）、恢复卡（绿）、红卡上的颜色和亮度（介入卡、出错卡可以用 `demo.sh question|approval|failed` 弹）。
 - 常驻红卡、减弱动态效果时的那条淡细边。
 - 1.5 秒内悬停时流星停住、移开接着走；队列里下一张卡接上时流星从头扫一趟（10-30 改成弹出时扫一趟，完成卡实机看过）。
 - 流星每次 `layout` 都按新尺寸重挂动画（卡片长大的弹簧期间每帧一次），没量过 CPU。
@@ -65,7 +65,7 @@
 - 实机截图：收起态用 `screencapture -x -R <x>,0,400,44`（刘海在主屏顶部正中）；看一批造型或换造型过程，在 `/tmp` 搭一次性陈列（拷 `Sources/Notchkeeper/Mascot/*.swift` + MascotCore，`screencapture -l <windowID>` 连拍），用完删掉。几只盾盾会同时眨眼，截到一帧全是扁眼是眨眼，不是 bug。
 - App 崩了看 `~/Library/Logs/DiagnosticReports/Notchkeeper-*.ips`（JSON 第二行起，看 triggered 线程的 frames）。
 - 本机 shell 是 zsh：`for f in $files` 不按空格拆，用 `xargs`；BSD `sed` 不认 `\b`，用 `perl -pi -e`。
-- 实机悬停展开、滚动列表：没有 cliclick；在 `/tmp` 写个一次性 Swift 脚本，用 `CGEvent(mouseEventSource:mouseType: .mouseMoved…)` 把鼠标移到刘海、`CGEvent(scrollWheelEvent2Source:…)` 滚动，截完图把鼠标移回原处。弹卡用 `./scripts/demo.sh done|alert`，连拍几帧看盾盾飞行。
+- 实机悬停展开、滚动列表：没有 cliclick；在 `/tmp` 写个一次性 Swift 脚本，用 `CGEvent(mouseEventSource:mouseType: .mouseMoved…)` 把鼠标移到刘海、`CGEvent(scrollWheelEvent2Source:…)` 滚动，截完图把鼠标移回原处。弹卡用 `./scripts/demo.sh done|failed|question|approval|alert`，连拍几帧看盾盾飞行。
 - 要停在「等你批准」：提示里让它跑一条不在允许列表里的命令（如 `touch /tmp/<文件>`，`date` 在本机允许列表里不会停）；「等你回答」：让它用 AskUserQuestion 问一个是非题。
 - 提交要拆分时不能用 `git add -p`：用 `git hash-object -w` + `git update-index --cacheinfo` 暂存某个文件的一部分，再 `git checkout-index -a --prefix=/tmp/x/` 导出暂存区单独构建、测试。
 
