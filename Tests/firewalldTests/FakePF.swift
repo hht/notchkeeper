@@ -18,6 +18,8 @@ final class FakePF: @unchecked Sendable {
     var failing: String?
     /// 每次调用前看一眼（测「拿到 token 后立刻落盘」用）
     var onCall: ([String]) -> Void = { _ in }
+    /// dig 向 127.0.0.1:7874 查 A 记录时的答案；不在表里的名字没有答案
+    var dns: [String: [String]] = ["node.example": ["198.51.100.1"]]
 
     func run(_ executable: String, _ arguments: [String], _ input: String?) -> Output {
         let call = [executable] + arguments
@@ -55,9 +57,14 @@ final class FakePF: @unchecked Sendable {
                           stderr: noise)
         case ["/sbin/ifconfig", "-l"]:
             return Output(status: 0, stdout: interfaces, stderr: "")
-        case ["/bin/launchctl", "kickstart", "system/\(FirewallPaths.label)"]:
+        case ["/bin/launchctl", "kickstart", "-k", "system/\(FirewallPaths.label)"]:
             return Output(status: 0, stdout: "", stderr: "")
         default:
+            if call.count == 11, call[0] == "/usr/bin/dig", Array(call[1...6]) == ["+short", "+time=2", "+tries=1", "-p", "7874", "@127.0.0.1"],
+               call[7] == "-t", call[9] == "-q" {
+                let answers = call[8] == "A" ? dns[call[10]] ?? [] : []
+                return Output(status: 0, stdout: answers.map { "\($0)\n" }.joined(), stderr: "")
+            }
             if call.count == 3, call[0] == "/sbin/pfctl", call[1] == "-X", let i = references.firstIndex(of: call[2]) {
                 references.remove(at: i)
                 return Output(status: 0, stdout: "", stderr: noise + "disable request successful.\n")
@@ -80,11 +87,51 @@ final class Rig: @unchecked Sendable {
                        now: { Date(timeIntervalSince1970: 1_793_419_500 + TimeInterval(self.seconds)) },
                        run: { self.pf.run($0, $1, $2) }, lockTimeout: lockTimeout)
     }
-    let rules = FirewallRules(tunnel: "utun1024")!
+    let rules = FirewallRules(tunnel: "utun1024", directory: FirewallPaths.directory.path)!
+
+    /// 假的 Clash Verge 目录：一个域名节点、一个 IP 上游；国内段是 0.0.0.0/8
+    let clash: URL
 
     init() throws {
         directory = FileManager.default.temporaryDirectory.appendingPathComponent("firewalld-tests-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        clash = directory.appendingPathComponent("clash-verge-rev")
+        try FileManager.default.createDirectory(at: clash, withIntermediateDirectories: true)
+        try Data("""
+        dns:
+          nameserver:
+          - 198.51.100.53
+          proxy-server-nameserver:
+          - udp://127.0.0.1:7874
+          fake-ip-range: 198.18.0.1/16
+        proxies:
+        - name: A
+          server: node.example
+          port: 10015
+
+        """.utf8).write(to: clash.appendingPathComponent("clash-verge.yaml"))
+        try Data(Self.countryDatabase(prefix: 8)).write(to: clash.appendingPathComponent("Country.mmdb"))
+    }
+
+    func enable() throws(Helper.Failure) { _ = try Helper.command(.enable(clash: clash), system) }
+
+    func table(_ name: String) -> String? {
+        (try? Data(contentsOf: directory.appendingPathComponent("\(name).table"))).map { String(decoding: $0, as: UTF8.self) }
+    }
+
+    /// IPv4 mmdb：0.0.0.0/`prefix` 是 CN，别处没有数据（格式见 FirewallCoreTests 的 CountryDatabaseTests）。
+    /// 一条左链 `prefix` 个节点，最后一个的左边指向数据区偏移 0，其余右边都是「没有数据」（等于 node_count）
+    static func countryDatabase(prefix: Int) -> [UInt8] {
+        let string = { (s: String) in [UInt8(2 << 5 | s.utf8.count)] + Array(s.utf8) }
+        let map = { (n: Int) in [UInt8(7 << 5 | n)] }
+        let uint16 = { (v: UInt8) in [UInt8(5 << 5 | 1), v] }
+        let tree = (0..<prefix).flatMap { n -> [UInt8] in
+            let left = n == prefix - 1 ? prefix + 16 : n + 1
+            return [0, 0, UInt8(left), 0, 0, UInt8(prefix)]
+        }
+        let data = map(1) + string("country") + map(1) + string("iso_code") + string("CN")
+        let metadata = map(4) + string("node_count") + uint16(UInt8(prefix)) + string("record_size") + uint16(24)
+            + string("ip_version") + uint16(4) + string("database_type") + string("GeoLite2-Country")
+        return tree + [UInt8](repeating: 0, count: 16) + data + [0xAB, 0xCD, 0xEF] + Array("MaxMind.com".utf8) + metadata
     }
 
     func round(scope: FirewallRules.Scope = .everyone) -> FirewallStatus? {

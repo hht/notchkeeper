@@ -1,7 +1,7 @@
 import Testing
 @testable import FirewallCore
 
-private let rules = FirewallRules(tunnel: "utun1024")!
+private let rules = FirewallRules(tunnel: "utun1024", directory: "/nk")!
 private let token = "1864012227745836441"
 /// 系统 pfd 的引用（10-31 本机 `pfctl -s References` 里就有一个）
 private let pfdToken = "12184426722627826779"
@@ -34,7 +34,7 @@ private func pf(empty: Bool, tokens: Set<String>? = [pfdToken, token]) -> PFSnap
     /// 隧道网卡名改了：换上新规则
     @Test func reloadsWhenRulesChange() {
         var s = steadyTrial()
-        let other = FirewallRules(tunnel: "utun7")!
+        let other = FirewallRules(tunnel: "utun7", directory: "/nk")!
         #expect(s.tick(at: at(111), pf: pf(empty: false), rules: other) == [.load(other)])
     }
 

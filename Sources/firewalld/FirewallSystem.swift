@@ -2,7 +2,7 @@ import Darwin
 import Foundation
 import FirewallCore
 
-/// 装在哪、叫什么。和 scripts/firewall-rescue.sh、scripts/firewall-drill.sh 里的一致（包括 AtomicFile 的临时文件名），改了三处一起改
+/// 装在哪、叫什么。和 scripts/firewall-rescue.sh、install-firewall.sh、firewall-drill.sh 里的一致（包括 AtomicFile 的临时文件名），改了四处一起改
 enum FirewallPaths {
     static let label = "com.notchkeeper.firewall"
     static let anchor = "com.apple/300.Notchkeeper"
@@ -59,6 +59,8 @@ struct FirewallSystem: Sendable {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: executable)
         p.arguments = arguments
+        // 不继承调用方的环境：sudo 会保留用户的 HOME，dig 就会读用户可写的 ~/.digrc
+        p.environment = ["PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "HOME": "/var/root"]
         let stdin = Pipe()
         p.standardInput = stdin
         p.standardOutput = out

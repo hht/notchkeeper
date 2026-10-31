@@ -12,7 +12,7 @@ public struct FirewallStatus: Codable, Equatable, Sendable {
     }
 
     public var mode: Mode
-    /// 装的是哪种规则；`nil` 是不知道。只有 `.everyone` 才算真的在拦（测试规则只拦 nobody），App 据此决定能不能显示「已保护」
+    /// 装的是哪种规则；`nil` 是不知道。只有 `.everyone` 才算真的在拦（测试规则只拦去测试表的流量），App 据此决定能不能显示「已保护」
     public var scope: FirewallRules.Scope?
     /// 试运行到几点结束（墙上时间，只给界面倒计时用；真正的截止按单调时钟，见 `FirewallState`）
     public var trialEndsAt: Date?

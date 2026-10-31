@@ -6,7 +6,7 @@ import Testing
     @Test func roundTripsEveryShape() throws {
         var trial = FirewallState(bootSession: boot)
         try trial.enable(at: at(100))
-        trial.record(.load(FirewallRules(tunnel: "utun1024")!))
+        trial.record(.load(FirewallRules(tunnel: "utun1024", directory: "/nk")!))
         trial.record(.enable, token: "1864012227745836441")
         var on = trial
         try on.keep(at: at(110))

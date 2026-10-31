@@ -6,26 +6,29 @@ import os
 /// 回答：一轮和一条命令具体怎么执行——加锁、读状态、按 `FirewallState` 给的动作调 pfctl、记结果、写两个文件。
 /// 不判定（在 FirewallCore），不知道是谁调的（launchd 或 osascript）。
 enum Helper {
-    enum Command: String {
-        case enable, keep, disable
+    enum Command: Equatable {
+        /// `clash` 是 Clash Verge 的目录，开启时从里面拍放行表的快照
+        case enable(clash: URL)
+        case keep, disable
     }
 
     enum Failure: Error, Equatable {
         case command(FirewallCommandError)
         /// 防火墙状态文件读不出来：不覆盖它（原文件留给人看），先跑恢复脚本
         case stateUnreadable
+        case snapshot(SnapshotFailure)
         case busy
         case io(String)
     }
 
     /// LaunchDaemon 的启动参数：隧道网卡名、装哪种规则
-    struct RoundConfig {
+    struct RoundConfig: Equatable {
         let tunnel: String
         let scope: FirewallRules.Scope
         let rules: FirewallRules
 
         init?(tunnel: String, scope: FirewallRules.Scope) {
-            guard let rules = FirewallRules(tunnel: tunnel, scope: scope) else { return nil }
+            guard let rules = FirewallRules(tunnel: tunnel, scope: scope, directory: FirewallPaths.directory.path) else { return nil }
             (self.tunnel, self.scope, self.rules) = (tunnel, scope, rules)
         }
     }
@@ -119,8 +122,15 @@ enum Helper {
         }
     }
 
-    /// 开启 / 保留 / 关闭：只改防火墙状态文件，再让守护进程马上跑一轮。对 pf 做什么只在一轮里决定
-    static func command(_ command: Command, _ sys: FirewallSystem) throws(Failure) {
+    /// 开启 / 保留 / 关闭：只改文件（开启还先拍放行表的快照），再让守护进程马上跑一轮。对 pf 做什么只在一轮里决定。
+    /// 开启返回拍下的两张表（命令行打印条数给人核对），别的返回 `nil`
+    @discardableResult
+    static func command(_ command: Command, _ sys: FirewallSystem) throws(Failure) -> AllowTables? {
+        // 拍快照要读文件、问 DNS，放在锁外；只有开启成功才写下去
+        var tables: AllowTables?
+        if case .enable(let clash) = command {
+            do { tables = try AllowTables.take(from: clash, sys) } catch { throw .snapshot(error) }
+        }
         let done: Void? = try locked(sys) { () throws(Failure) in
             let moment = sys.moment()
             let stateURL = sys.directory.appendingPathComponent(FirewallState.fileName)
@@ -140,11 +150,27 @@ enum Helper {
             } catch {
                 throw .command(error)
             }
+            // 先写表再写状态：守护进程看到 trial 时，要装的表已经在了
+            do { try tables?.write(to: sys.directory) } catch { throw .io("写放行表失败：\(error)") }
             do { try AtomicFile.write(state.encoded(), to: stateURL, mode: 0o600) } catch { throw .io("写防火墙状态文件失败：\(error)") }
+            // 还拿着锁时重启守护进程：它此刻不可能在一轮当中（一轮也要这把锁），杀掉不会断在 pfctl -E 和落盘之间。
+            // 新起的那个等到锁就跑一轮；off 时守护进程本来不在跑，这一下就是把它拉起来
+            let kick = sys.run("/bin/launchctl", ["kickstart", "-k", "system/\(FirewallPaths.label)"], nil)
+            guard kick.succeeded else { throw .io("状态已改，但没能让守护进程马上跑一轮（\(kick.stderr)）") }
         }
         guard done != nil else { throw .busy }
-        let kick = sys.run("/bin/launchctl", ["kickstart", "system/\(FirewallPaths.label)"], nil)
-        guard kick.succeeded else { throw .io("状态已改，但没能让守护进程马上跑一轮（\(kick.stderr)）；10 秒内它会自己跑") }
+        return tables
+    }
+
+    /// 守护进程：一轮接一轮，每轮之间 `pause`（实际是睡 10 秒）；回到 off、并且这一轮清规则做成了才返回，off 时不轮询（docs/firewall.md §2）。
+    /// 清失败了就接着跑：退出之后没人再清，整机拦截规则会一直挂着。释放引用失败不管：多留一个引用不影响上网，
+    /// 为它每 10 秒跑一轮就成了 off 时的轮询；下次开启或恢复脚本会处理。等不到锁那一轮不算，照样等下一轮
+    static func serve(_ sys: FirewallSystem, _ config: RoundConfig, pause: () -> Void) {
+        while true {
+            if let status = round(sys, config), status.mode == .off || status.mode == .stateUnreadable,
+               !status.failedSteps.contains(.flush) { return }
+            pause()
+        }
     }
 
     private static func restore(_ url: URL) -> FirewallState.Restored {

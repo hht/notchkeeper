@@ -45,6 +45,8 @@ public struct FirewallState: Equatable, Sendable {
         guard moment.bootSession != nil else { throw .bootSessionUnknown }
         guard mode == .off else { throw .notOff }
         mode = .trial(deadline: MonotonicTime(milliseconds: moment.now.milliseconds + Self.trialMilliseconds))
+        // 开启前刚拍了新的放行表：下一轮一定重装，即使规则文本没变、anchor 里还留着关闭时没清掉的旧规则
+        loadedRules = nil
     }
 
     /// 保留：试运行转正

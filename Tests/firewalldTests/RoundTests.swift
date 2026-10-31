@@ -6,7 +6,7 @@ import FirewallCore
 @Suite struct Round {
     @Test func enableThenRoundLoadsRulesAndHoldsOneReference() throws {
         let rig = try Rig()
-        try Helper.command(.enable, rig.system)
+        try rig.enable()
         let status = try #require(rig.round())
         #expect(rig.pf.anchor == rig.rules.text)
         #expect(rig.pf.references == ["1864012227745836441"])
@@ -20,7 +20,7 @@ import FirewallCore
     /// 稳态不再 -E、不重装：引用数不涨、Evaluations 不归零
     @Test func steadyRoundsNeitherReEnableNorReload() throws {
         let rig = try Rig()
-        try Helper.command(.enable, rig.system)
+        try rig.enable()
         _ = rig.round()
         rig.seconds += 10
         let status = try #require(rig.round())
@@ -33,7 +33,7 @@ import FirewallCore
     /// 恢复脚本 bootout 时正好杀在这一步，也找得到这个 token 去释放
     @Test func tokenIsOnDiskBeforeTheNextStep() throws {
         let rig = try Rig()
-        try Helper.command(.enable, rig.system)
+        try rig.enable()
         var next: [String]?
         var seen: FirewallState.Restored?
         rig.pf.onCall = { call in
@@ -60,7 +60,7 @@ import FirewallCore
     /// 做失败的动作报进摘要，下一轮重做
     @Test func failedActionIsReportedAndRetried() throws {
         let rig = try Rig()
-        try Helper.command(.enable, rig.system)
+        try rig.enable()
         rig.pf.failing = "-E"
         #expect(rig.round()?.failedSteps == [.enable])
         #expect(rig.pf.references.isEmpty)
@@ -72,7 +72,7 @@ import FirewallCore
 
     @Test func disableFlushesAndReleases() throws {
         let rig = try Rig()
-        try Helper.command(.enable, rig.system)
+        try rig.enable()
         _ = rig.round()
         try Helper.command(.disable, rig.system)
         let status = try #require(rig.round())
@@ -85,7 +85,7 @@ import FirewallCore
     /// 到期回滚由一轮执行，不靠 App；过期后点保留被拒
     @Test func expiredTrialRollsBackAndCannotBeKept() throws {
         let rig = try Rig()
-        try Helper.command(.enable, rig.system)
+        try rig.enable()
         _ = rig.round()
         rig.seconds += 120
         #expect(throws: Helper.Failure.command(.notInTrial)) { try Helper.command(.keep, rig.system) }
@@ -97,22 +97,27 @@ import FirewallCore
 
     @Test func trialShowsWhenItEnds() throws {
         let rig = try Rig()
-        try Helper.command(.enable, rig.system)
+        try rig.enable()
         rig.seconds += 30
         #expect(rig.round()?.trialEndsAt == rig.system.now().addingTimeInterval(90))
     }
 
-    /// 命令只改防火墙状态文件，再让守护进程马上跑一轮
-    @Test func commandsKickstartTheDaemon() throws {
+    /// 命令不碰 pf，只改文件，再重启守护进程让它马上跑一轮
+    @Test(arguments: [Helper.Command.keep, .disable])
+    func commandsRestartTheDaemon(_ command: Helper.Command) throws {
         let rig = try Rig()
-        try Helper.command(.enable, rig.system)
-        #expect(rig.pf.calls == [["/bin/launchctl", "kickstart", "system/com.notchkeeper.firewall"]])
+        try rig.enable()
+        #expect(rig.pf.calls.last == ["/bin/launchctl", "kickstart", "-k", "system/com.notchkeeper.firewall"])
+        #expect(!rig.pf.calls.contains { $0.first == "/sbin/pfctl" })
+        rig.pf.calls = []
+        _ = try? Helper.command(command, rig.system)
+        #expect(rig.pf.calls == [["/bin/launchctl", "kickstart", "-k", "system/com.notchkeeper.firewall"]])
     }
 
     /// 防火墙状态文件只有 root 可读（里面有 token）；摘要给 App 读
     @Test func filePermissions() throws {
         let rig = try Rig()
-        try Helper.command(.enable, rig.system)
+        try rig.enable()
         _ = rig.round()
         func mode(_ name: String) throws -> Int? {
             try FileManager.default.attributesOfItem(atPath: rig.directory.appendingPathComponent(name).path)[.posixPermissions] as? Int
@@ -124,7 +129,7 @@ import FirewallCore
     /// 有人 pfctl -d：引用全作废、pf 停了。下一轮看出我们的 token 不在了，重新 -E，核对又过
     @Test func recoversAfterSomeoneDisablesPF() throws {
         let rig = try Rig()
-        try Helper.command(.enable, rig.system)
+        try rig.enable()
         _ = rig.round()
         rig.pf.references = []
         rig.pf.enabled = false
@@ -138,11 +143,25 @@ import FirewallCore
     @Test func unlistedTokenIsNotReEnabledEveryRound() throws {
         let rig = try Rig()
         rig.pf.listsOurReferences = false
-        try Helper.command(.enable, rig.system)
+        try rig.enable()
         _ = rig.round()
         rig.seconds += 10
         _ = rig.round()
         #expect(rig.pf.references.count == 1)
+    }
+
+    /// 关闭那一轮清规则失败、守护进程还在跑时又开启：要装刚拍的快照，不能因为「规则文本没变、anchor 不空」就留着旧表
+    @Test func enableAfterAFailedFlushReloads() throws {
+        let rig = try Rig()
+        try rig.enable()
+        _ = rig.round()
+        try Helper.command(.disable, rig.system)
+        rig.pf.failing = "-F"
+        _ = rig.round()
+        rig.pf.failing = nil
+        try rig.enable()
+        _ = rig.round()
+        #expect(rig.pf.calls.filter { $0.contains("-f") }.count == 2)
     }
 
     /// 锁被占着（另一轮或命令卡住）：等到上限就放弃，什么都不改
@@ -152,10 +171,11 @@ import FirewallCore
         let fd = open(rig.directory.appendingPathComponent(FirewallPaths.lockFile).path, O_RDWR | O_CREAT, 0o600)
         defer { close(fd) }
         #expect(flock(fd, LOCK_EX) == 0)
-        #expect(throws: Helper.Failure.busy) { try Helper.command(.enable, rig.system) }
+        #expect(throws: Helper.Failure.busy) { try rig.enable() }
         #expect(rig.round() == nil)
         #expect(rig.state == .missing)
-        #expect(rig.pf.calls.isEmpty)
+        #expect(rig.table("clash") == nil)
+        #expect(rig.pf.calls.allSatisfy { $0.first == "/usr/bin/dig" }) // 拍快照问 DNS 在锁外，不算改动
     }
 
     /// 坏掉的防火墙状态文件谁都不覆盖：开启被拒（先跑恢复脚本）；关闭照样算成功（每一轮本来就按 off 办）
@@ -163,14 +183,14 @@ import FirewallCore
         let rig = try Rig()
         let url = rig.directory.appendingPathComponent(FirewallState.fileName)
         try Data("garbage".utf8).write(to: url)
-        #expect(throws: Helper.Failure.stateUnreadable) { try Helper.command(.enable, rig.system) }
+        #expect(throws: Helper.Failure.stateUnreadable) { try rig.enable() }
         try Helper.command(.disable, rig.system)
         #expect(try Data(contentsOf: url) == Data("garbage".utf8))
     }
 
     @Test func releaseFailureIsRetried() throws {
         let rig = try Rig()
-        try Helper.command(.enable, rig.system)
+        try rig.enable()
         _ = rig.round()
         try Helper.command(.disable, rig.system)
         rig.pf.failing = "-X"
@@ -183,16 +203,16 @@ import FirewallCore
     /// 摘要写明装的是哪种规则：测试规则不能让 App 显示「已保护」
     @Test func statusSaysWhichRules() throws {
         let rig = try Rig()
-        try Helper.command(.enable, rig.system)
-        #expect(rig.round(scope: .testUser)?.scope == .testUser)
-        #expect(rig.pf.anchor == FirewallRules(tunnel: "utun1024", scope: .testUser)?.text)
+        try rig.enable()
+        #expect(rig.round(scope: .testTable)?.scope == .testTable)
+        #expect(rig.pf.anchor == FirewallRules(tunnel: "utun1024", scope: .testTable, directory: FirewallPaths.directory.path)?.text)
     }
 
     /// 读不出开机标识：开启报错、说得出原因；一轮照常按 off 办，防火墙状态文件里不写开机标识
     @Test func unreadableBootSession() throws {
         let rig = try Rig()
         rig.bootSession = nil
-        #expect(throws: Helper.Failure.command(.bootSessionUnknown)) { try Helper.command(.enable, rig.system) }
+        #expect(throws: Helper.Failure.command(.bootSessionUnknown)) { try rig.enable() }
         rig.pf.anchor = "pass all\n"
         #expect(rig.round()?.mode == .off)
         #expect(rig.pf.anchor == "")
@@ -203,8 +223,8 @@ import FirewallCore
     /// 换规则那轮装失败：anchor 里还是旧规则，摘要不能说成新规则
     @Test func statusHasNoScopeWhenTheseRulesAreNotLoaded() throws {
         let rig = try Rig()
-        try Helper.command(.enable, rig.system)
-        _ = rig.round(scope: .testUser)
+        try rig.enable()
+        _ = rig.round(scope: .testTable)
         rig.pf.failing = "-f"
         rig.seconds += 10
         #expect(rig.round(scope: .everyone)?.scope == nil)
@@ -213,7 +233,7 @@ import FirewallCore
     /// 防火墙状态文件写不进去时不 -E：拿到的 token 记不下来，下一轮又会 -E，引用越涨越多
     @Test func doesNotEnableWhenStateCannotBeSaved() throws {
         let rig = try Rig()
-        try Helper.command(.enable, rig.system)
+        try rig.enable()
         try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: rig.directory.path)
         defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: rig.directory.path) }
         #expect(rig.round()?.failedSteps == [.enable])
@@ -222,19 +242,28 @@ import FirewallCore
 }
 
 @Suite struct Arguments {
-    @Test func productionRules() {
-        let c = Firewalld.roundConfig(["round", "--tunnel", "utun1024"])
-        #expect(c?.scope == .everyone)
-        #expect(c?.rules == FirewallRules(tunnel: "utun1024"))
+    @Test func round() {
+        #expect(Firewalld.parse(["round", "--tunnel", "utun1024"]) == .round(Helper.RoundConfig(tunnel: "utun1024", scope: .everyone)!))
+        #expect(Firewalld.parse(["round", "--tunnel", "utun1024", "--test-rules"])
+            == .round(Helper.RoundConfig(tunnel: "utun1024", scope: .testTable)!))
     }
 
-    @Test func testRules() {
-        #expect(Firewalld.roundConfig(["round", "--tunnel", "utun1024", "--test-rules"])?.scope == .testUser)
+    /// 打印规则单独一个动词：只有它不要 root
+    @Test func rules() {
+        #expect(Firewalld.parse(["rules", "--tunnel", "utun9999", "--test-rules"])
+            == .rules(Helper.RoundConfig(tunnel: "utun9999", scope: .testTable)!))
     }
 
-    @Test(arguments: [[], ["round"], ["round", "--tunnel"], ["round", "--tunnel", "utun 1"], ["round", "--tunnel", "utun1024", "--extra"],
-                      ["round", "--tunnel", "utun1024", "--test-rules", "x"], ["--tunnel", "utun1024", "round"]])
+    @Test func commands() {
+        #expect(Firewalld.parse(["enable", "--clash", "/Users/someone/Clash"]) == .command(.enable(clash: URL(fileURLWithPath: "/Users/someone/Clash"))))
+        #expect(Firewalld.parse(["keep"]) == .command(.keep))
+        #expect(Firewalld.parse(["disable"]) == .command(.disable))
+    }
+
+    @Test(arguments: [[], ["round"], ["rules"], ["round", "--tunnel"], ["round", "--tunnel", "utun 1"],
+                      ["round", "--tunnel", "utun1024", "--extra"], ["round", "--tunnel", "utun1024", "--test-rules", "x"],
+                      ["--tunnel", "utun1024", "round"], ["enable", "x"], ["enable"], ["enable", "--clash"], ["enable", "--clash", "relative/dir"], ["--tunnel", "utun1024"], ["status"]])
     func rejects(_ args: [String]) {
-        #expect(Firewalld.roundConfig(args) == nil)
+        #expect(Firewalld.parse(args) == nil)
     }
 }

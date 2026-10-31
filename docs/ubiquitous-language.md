@@ -42,5 +42,6 @@
 | firewall status | 状态摘要 | root 0644 的 `firewall-status.json`，守护进程每轮写给 App 看 |
 | check | 核对 | 开着时每轮验证规则真的在拦（pf 开着、anchor 点在、有规则、计数在涨、隧道网卡在） |
 | pf reference | 启用引用 | `pfctl -E` 拿到的那一份，凭 token 用 `pfctl -X` 释放。不叫「锁」「句柄」 |
-| test rules | 测试规则 | block 只拦 `nobody` 的规则，测试时用，不真的断网。正式规则叫 production rules |
+| test rules | 测试规则 | block 只拦去测试表 `<test>` 的流量的规则，测试时用，不真的断网。正式规则叫 production rules |
+| allow table | 放行表 | 开启时拍下的快照：`<clash>`（Clash 内核直连的节点和 DNS 上游）和 `<cn>`（国内段）。不叫「白名单」，那是插件链接的 |
 | rescue script | 恢复脚本 | `scripts/firewall-rescue.sh`，卸掉防火墙的一切；演练脚本 `firewall-drill.sh` 装假防火墙来练它 |

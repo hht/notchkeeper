@@ -26,7 +26,10 @@ Haitao 本机自用的刘海应用（SwiftPM，macOS 14+），没有菜单栏图
 
 ## 还没做
 
-- **防火墙**：设计见 `docs/firewall.md`。顺序是先写恢复脚本并实测通过，再写拦截规则。恢复脚本已经有了，用 `sudo scripts/firewall-drill.sh` 装一套什么都不拦的假防火墙来演练它。
+- **防火墙**：设计见 `docs/firewall.md`，App 开关还没接。现在只能装测试规则（只拦去一个测试地址的流量，去别处的照常）：
+  - `scripts/install-firewall.sh --test-rules --test-address <IPv4> --dry-run`：编译，打印会装的辅助程序哈希、LaunchDaemon 和规则原文，什么都不改；
+  - `sudo scripts/install-firewall.sh --test-rules --test-address <IPv4> [--tunnel <网卡名>]`：打印同样的内容，输入 `yes` 才装。装完是关着的；开启用 `sudo /Library/PrivilegedHelperTools/notchkeeper-firewall enable --clash "$HOME/Library/Application Support/io.github.clash-verge-rev.clash-verge-rev"`（读一次 Clash Verge 的配置拍放行表），保留、关闭用 `… keep|disable`；
+  - 卸载、升级前都先跑 `sudo scripts/firewall-rescue.sh`；`sudo scripts/firewall-drill.sh` 装一套什么都不拦的假防火墙来演练恢复脚本。
 
 ## 运行
 

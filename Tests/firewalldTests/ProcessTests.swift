@@ -11,6 +11,12 @@ import Testing
         #expect(out.stderr == "oops\n")
     }
 
+    /// root 跑的子命令不继承调用方的环境：sudo 保留用户的 HOME 时，dig 会读用户可写的 ~/.digrc（等于往参数里塞选项）
+    @Test func childrenGetAMinimalEnvironment() {
+        let out = FirewallSystem.runProcess("/usr/bin/env", [], nil, timeout: 5)
+        #expect(out.stdout.split(separator: "\n").sorted() == ["HOME=/var/root", "PATH=/usr/bin:/bin:/usr/sbin:/sbin"])
+    }
+
     /// 卡住的子命令到时就结束它、当失败，一轮总会结束
     @Test func killsACommandThatHangs() {
         let started = ContinuousClock.now

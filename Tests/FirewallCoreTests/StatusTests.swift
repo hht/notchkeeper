@@ -6,7 +6,7 @@ import Testing
     @Test func roundTrips() throws {
         let check = FirewallCheck(pfEnabled: true, anchorPointPresent: true, rulesLoaded: true, evaluations: 7055,
                                   evaluationsGrowing: true, tunnelPresent: true)
-        let s = FirewallStatus(mode: .trial, scope: .testUser, trialEndsAt: Date(timeIntervalSince1970: 1_793_440_000),
+        let s = FirewallStatus(mode: .trial, scope: .testTable, trialEndsAt: Date(timeIntervalSince1970: 1_793_440_000),
                                check: check, failedSteps: [.enable], checkedAt: Date(timeIntervalSince1970: 1_793_439_900))
         #expect(try FirewallStatus.decode(s.encoded()) == s)
     }
