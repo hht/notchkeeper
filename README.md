@@ -74,7 +74,7 @@ swift run guardd --once                       # 调试：只跑一轮，打印�
 | `guardd` | 后台进程：每轮跑探针、判定、写状态文件 |
 | `MascotCore` | 盾盾此刻是什么造型、做什么动作。纯逻辑 |
 | `AgentCore` | Claude Code 会话此刻在什么状态、回合什么时候结束。纯逻辑；监听 `~/.claude/sessions` 在 App 的 `AgentWatcher` |
-| `NotchCore` | 刘海此刻放哪张卡、放多久、放出来时响不响（红卡一层 + 临时卡队列）。纯逻辑 |
+| `NotchCore` | 刘海此刻放哪张卡、放多久、放出来时响不响（红卡一层 + 临时卡队列）；守卫读数画成什么、红卡挂上还是撤掉。纯逻辑 |
 
 ## 测试
 

@@ -32,7 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         notch.contextMenu = buildMenu()
         NSApp.mainMenu = buildMainMenu()
 
-        state.onPresentation = { [weak self] in self?.notch.guardChanged(to: $0) }
+        state.onAlertAction = { [weak self] in self?.notch.alertAction($0) }
         notch.onAlertDismissed = { [weak self] in self?.state.dismissViolation() }
         state.onAgentEvents = { [weak self] in self?.notch.agentEvents($0, sessions: $1) }
 
@@ -170,7 +170,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func handleCardNotification(_ n: Notification) {
         let kind = n.object as? String ?? ""
         if kind == "alert" {
-            notch.raiseAlert(.exitAlert(), sound: true)
+            state.demoAlert()
             Log.write("外部触发：红卡")
             return
         }

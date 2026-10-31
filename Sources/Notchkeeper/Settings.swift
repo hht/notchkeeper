@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import MascotCore
+import NotchCore
 
 // 设置窗口：按 macOS 系统设置的布局，只用原生控件。
 // 每个开关直接绑定 ConfigStore，改了立刻写盘，不在视图里缓存配置值。

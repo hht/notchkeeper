@@ -4,6 +4,7 @@ import Combine
 import MascotCore
 import GuardCore
 import GuardWatch
+import NotchCore
 
 @MainActor
 final class AppState: ObservableObject {
@@ -12,10 +13,9 @@ final class AppState: ObservableObject {
     let store = ConfigStore.shared
 
     /// 最近一次读到的 guard-state.json（guardd 写，App 只读）
-    @Published private(set) var display = GuardStateReader.display(data: nil, now: Date())
-    /// 由 display 和 dismissedViolationSince 算出来，界面只看它
-    @Published private(set) var presentation = GuardPresentation(GuardStateReader.display(data: nil, now: Date()),
-                                                                 dismissedViolationSince: nil)
+    @Published private(set) var display: GuardDisplay
+    /// 由 display 和用户关掉的是哪一次算出来（`ViolationAlert`），界面只看它
+    @Published private(set) var presentation: GuardPresentation
     /// 面板列的会话（AgentCore 判定的、活着的终端 claude）
     @Published private(set) var sessions: [Session] = []
     /// Claude Code 各会话合起来此刻是什么（AgentCore 判定）；没有要画的是 nil
@@ -24,18 +24,22 @@ final class AppState: ObservableObject {
     /// 盾盾画哪个（docs/mascot.md §2「优先级」）：守卫的事 > agent > 空闲。晕、睡着在外面叠，完整的优先级第 4 步归 NotchCore
     var look: Look { presentation.look != .idle ? presentation.look : agentActivity.map(Look.init) ?? .idle }
 
-    /// 用户关掉的是哪一次违规（按 violatedSince 记）。只在内存：App 重启后红卡再出现一次，宁可多提醒
-    private var dismissedViolationSince: Date??
+    private var violationAlert: ViolationAlert
 
-    /// 每次读完都调用（不论有没有变化），参数是这次读到的显示
-    var onPresentation: ((GuardPresentation) -> Void)?
+    /// 每次读完都调用（不论有没有变化），参数是红卡要做的事
+    var onAlertAction: ((ViolationAlert.Action) -> Void)?
     /// AgentCore 判定的事件，连同同一次更新的会话列表
     var onAgentEvents: (([AgentEvent], [Session]) -> Void)?
     /// 订阅 guard-state 显示流的长任务；`stopWatchingGuard()` / deinit 取消，流随之结束、监听关掉
     private var guardTask: Task<Void, Never>?
     private var agentWatcher: AgentWatcher?
 
-    init() {}
+    init() {
+        let d = GuardStateReader.display(data: nil, now: Date())
+        display = d
+        violationAlert = ViolationAlert(d)
+        presentation = violationAlert.presentation
+    }
 
     func start() {
         // 不轮询：GuardStateWatcher 监听目录，guardd 写文件后马上读；checkedAt 过期也由它到点重读（docs/egress-guard.md）
@@ -63,16 +67,18 @@ final class AppState: ObservableObject {
     deinit { guardTask?.cancel() }
 
     func apply(_ d: GuardDisplay) {
-        if d.verdict == .healthy { dismissedViolationSince = nil }
-        let old = presentation
-        let new = GuardPresentation(d, dismissedViolationSince: dismissedViolationSince)
         if d != display { display = d }
-        if new != old {
-            presentation = new
-            // 日志不记录 IP
-            if new.title != old.title { Log.write("出口守卫：\(new.title)") }
-        }
-        onPresentation?(new)
+        let action = violationAlert.read(d, autoAlert: store.config.autoAlert)
+        publishPresentation()
+        onAlertAction?(action)
+    }
+
+    private func publishPresentation() {
+        let old = presentation, new = violationAlert.presentation
+        guard new != old else { return }
+        presentation = new
+        // 日志不记录 IP
+        if new.title != old.title { Log.write("出口守卫：\(new.title)") }
     }
 
     private func applyAgent(_ update: AgentWatcher.Update) {
@@ -89,12 +95,14 @@ final class AppState: ObservableObject {
         if !update.events.isEmpty { onAgentEvents?(update.events, update.sessions) }
     }
 
-    /// 用户关掉了红卡（或非常驻红卡到时收起）。只在违规还挂着时记下，演示红卡关掉不算
+    /// 用户关掉了红卡（或非常驻红卡到时收起）
     func dismissViolation() {
-        guard presentation.holdsViolation else { return }
-        dismissedViolationSince = .some(display.violatedSince)
-        apply(display)
+        violationAlert.dismiss()
+        publishPresentation()
     }
+
+    /// scripts/demo.sh alert
+    func demoAlert() { onAlertAction?(violationAlert.demo()) }
 
     /// 允许列表用 GuardCore 的 IPv4 校验，和 guardd 解析 config.json 的规则一致
     @discardableResult

@@ -18,7 +18,7 @@ struct NotchCard: Identifiable, Equatable {
     /// agent 的卡说的是哪个会话：点卡片跳到 Ghostty 里它的窗口（docs/ui.md「卡片」）。守卫的卡是 nil
     var session: Session? = nil
 
-    static func exitAlert(detail: String = GuardPresentation.violatedDetail) -> NotchCard {
+    static func exitAlert(detail: String) -> NotchCard {
         NotchCard(title: GuardPresentation.violatedTitle, detail: detail, tint: Color(cgColor: RGB.red.cg), look: .danger, sound: "Basso")
     }
     static var recovered: NotchCard {
@@ -186,8 +186,6 @@ final class NotchController {
     /// 红卡的内容：挂着时台面上放它；副标题跟着守卫状态换
     private var alertCard: NotchCard?
     private var tickWork: DispatchWorkItem?
-    /// 这次违规弹过红卡（之后被关掉、断网、守卫不响应都不清），回到 healthy 时据此弹恢复卡
-    private var violationAlerted = false
     var hasNotch: Bool { NotchLayout.hasEars(model.notchSize) }
     var overrides: NotchOverrides { model.overrides }
 
@@ -301,7 +299,7 @@ final class NotchController {
     }
 
     /// 新的一次违规：红卡插到最前。sound 为 false 时不响（守卫不响应时保留的红卡不再响 Basso）
-    func raiseAlert(_ card: NotchCard, sound: Bool) {
+    private func raiseAlert(_ card: NotchCard, sound: Bool) {
         alertCard = card
         let cfg = ConfigStore.shared.config
         apply(queue.raiseAlert(persistent: cfg.alertPersistent, sound: sound, seconds: cfg.cardAutoDismissSeconds, now: Date()))
@@ -370,28 +368,20 @@ final class NotchController {
         apply(queue.setHovering(over, now: Date()))
     }
 
-    /// 每读一次守卫状态调用一次
-    func guardChanged(to new: GuardPresentation) {
-        if new.clearsAlert {
-            apply(queue.clearAlert(now: Date()))
-            alertCard = nil
-            // 只有弹过红卡的那次违规回到 healthy 才弹恢复卡：中间断网、守卫不响应、用户关掉红卡都算同一次
-            if violationAlerted {
-                violationAlerted = false
-                post(.recovered, key: .recovered, seconds: NotchCard.recoveredSeconds)
-            }
-            return
-        }
-        guard let alert = new.alert, ConfigStore.shared.config.autoAlert else { return }
-        violationAlerted = true
-        if var shown = alertCard {
-            // 红卡已经挂着：只换副标题，不重弹、不重响
-            guard shown.detail != alert.detail else { return }
+    /// 守卫读完一次，红卡要做的事（判定在 `ViolationAlert`）
+    func alertAction(_ action: ViolationAlert.Action) {
+        switch action {
+        case .none: return
+        case .raise(let alert): raiseAlert(.exitAlert(detail: alert.detail), sound: alert.sounds)
+        case .replaceDetail(let alert):
+            guard var shown = alertCard else { preconditionFailure("换副标题时红卡一定挂着") }
             shown.detail = alert.detail
             alertCard = shown
             if model.card?.id == shown.id { model.card = shown }
-        } else {
-            raiseAlert(.exitAlert(detail: alert.detail), sound: alert.sounds)
+        case .clear(let recovered):
+            apply(queue.clearAlert(now: Date()))
+            alertCard = nil
+            if recovered { post(.recovered, key: .recovered, seconds: NotchCard.recoveredSeconds) }
         }
     }
 
@@ -407,7 +397,7 @@ final class NotchController {
 
     var mode: NotchMode { model.mode }
 
-    /// 强制盾盾显示某个状态；nil 回到真实状态。只换盾盾的样子：不调 guardChanged、不碰 AppState，
+    /// 强制盾盾显示某个状态；nil 回到真实状态。只换盾盾的样子：不碰 AppState 和红卡，
     /// 所以强制「危险」不弹红卡、不响，也不动「这次违规已关掉」的记录
     func force(_ l: Look?) {
         guard overrides.look != l else { return }
@@ -706,7 +696,7 @@ struct NotchRoot: View {
                     .id(reduceMotion ? mode : .closed)
                     .transition(.opacity)
                 ZStack {
-                    EarIndicatorView(indicator: .for(shown, probeFailed: state.presentation.probeFailed && overrides.look == nil),
+                    EarIndicatorView(indicator: .for(shown, probeFailed: state.presentation.status == .probeFailed && overrides.look == nil),
                                      size: CGSize(width: NotchLayout.earWidth, height: notch.height),
                                      // 外面已经把这一组的中心放在离右边 earCenterInset 处，这里以自身中心为准，不再偏一次
                                      center: CGPoint(x: NotchLayout.earWidth / 2, y: notch.height / 2),
