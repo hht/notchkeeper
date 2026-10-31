@@ -8,22 +8,19 @@ import PluginCore
 // 每个开关直接绑定 ConfigStore，改了立刻写盘，不在视图里缓存配置值。
 
 enum SettingsPane: String, CaseIterable, Identifiable {
-    case general, notch, plugins, exitGuard, claudeCode, terminal, notifications, mascot, stateTest, about
+    case general, plugins, exitGuard, claudeCode, terminal, mascot, stateTest, about
     var id: Self { self }
 
     /// 侧边栏分组，组与组之间空一行。内置插件和自带的终端插件各有一页，别的外部插件只在「插件」页里开关
-    static let groups: [[SettingsPane]] = [[.general, .notch], [.plugins, .exitGuard, .claudeCode, .terminal],
-                                           [.notifications, .mascot], [.stateTest], [.about]]
+    static let groups: [[SettingsPane]] = [[.general], [.plugins, .exitGuard, .claudeCode, .terminal], [.mascot], [.stateTest], [.about]]
 
     var title: String {
         switch self {
         case .general: return "通用"
-        case .notch: return "刘海与外观"
         case .plugins: return "插件"
         case .exitGuard: return "出口守卫"
         case .claudeCode: return "Claude Code"
         case .terminal: return "终端"
-        case .notifications: return "通知"
         case .mascot: return "Pip"
         case .stateTest: return "状态测试"
         case .about: return "关于"
@@ -33,12 +30,10 @@ enum SettingsPane: String, CaseIterable, Identifiable {
     var symbol: String {
         switch self {
         case .general: return "gearshape.fill"
-        case .notch: return "rectangle.topthird.inset.filled"
         case .plugins: return "puzzlepiece.extension.fill"
         case .exitGuard: return "shield.lefthalf.filled"
         case .claudeCode: return "sparkle"
         case .terminal: return "terminal.fill"
-        case .notifications: return "bell.badge.fill"
         case .mascot: return "face.smiling.inverse"
         case .stateTest: return "testtube.2"
         case .about: return "info.circle.fill"
@@ -48,12 +43,10 @@ enum SettingsPane: String, CaseIterable, Identifiable {
     var color: Color {
         switch self {
         case .general: return .gray
-        case .notch: return .blue
         case .plugins: return .indigo
         case .exitGuard: return .green
         case .claudeCode: return .brown
         case .terminal: return .gray
-        case .notifications: return .red
         case .mascot: return .orange
         case .stateTest: return .purple
         case .about: return .gray
@@ -105,13 +98,11 @@ struct SettingsView: View {
     @ViewBuilder
     private var detail: some View {
         switch model.pane {
-        case .general: GeneralPane()
-        case .notch: NotchPane(store: store)
+        case .general: GeneralPane(store: store)
         case .plugins: PluginsPane(model: model, state: state, store: store)
         case .exitGuard: ExitGuardPane(model: model, state: state, store: store)
         case .claudeCode: Form { PluginOffNote(store: store, plugin: PluginID.claudeCode); ClaudeModSection() }
         case .terminal: Form { TerminalPluginSection(state: state) }
-        case .notifications: NotificationsPane(store: store)
         case .mascot: MascotPane(store: store)
         case .stateTest: StateTestPane(overrides: notch.overrides, state: state, notch: notch)
         case .about: AboutPane(store: store)
@@ -174,6 +165,7 @@ private struct StatusCard: View {
 // MARK: - 通用
 
 private struct GeneralPane: View {
+    @ObservedObject var store: ConfigStore
     /// SMAppService 的状态不会通知 SwiftUI：存一份，改完开关和每次出现时重读
     @State private var loginStatus = LoginItem.status
     @State private var loginError: String?
@@ -194,6 +186,26 @@ private struct GeneralPane: View {
                 }
             }
             Section {
+                Toggle(isOn: $store.config.hoverExpand) {
+                    Text("鼠标悬停时展开")
+                    Text("显示出口状态和各插件的段")
+                }
+                LabeledContent("卡片停留") {
+                    HStack {
+                        Slider(value: $store.config.cardAutoDismissSeconds, in: 2...10, step: 1)
+                            .labelsHidden()
+                        Text("\(Int(store.config.cardAutoDismissSeconds)) 秒").monospacedDigit()
+                    }
+                }
+                Toggle(isOn: $store.config.soundEnabled) {
+                    Text("提示音")
+                    Text("完成 Glass · 出错 Funk · 等你 Ping · 出口不合规 Basso")
+                }
+            } header: {
+                Text("刘海")
+            }
+            .disabled(store.fileUnreadable)
+            Section {
                 HStack {
                     Spacer()
                     Button("退出 Notchkeeper…") { confirmQuit = true }
@@ -213,35 +225,6 @@ private struct GeneralPane: View {
     private func setLogin(_ on: Bool) {
         loginError = LoginItem.set(on)
         loginStatus = LoginItem.status
-    }
-}
-
-// MARK: - 刘海与外观
-
-private struct NotchPane: View {
-    @ObservedObject var store: ConfigStore
-
-    var body: some View {
-        Form {
-            Section("刘海") {
-                Toggle(isOn: $store.config.hoverExpand) {
-                    Text("鼠标悬停时展开")
-                    Text("显示出口状态和活跃会话")
-                }
-            }
-            .disabled(store.fileUnreadable)
-            Section("动态效果") {
-                LabeledContent {
-                    Button("打开辅助功能设置…") {
-                        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.universalaccess?Seeing_Display")!)
-                    }
-                    .controlSize(.small)
-                } label: {
-                    Text("减弱动态效果：跟随系统")
-                    Text(NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? "系统已开启" : "系统未开启")
-                }
-            }
-        }
     }
 }
 
@@ -316,36 +299,6 @@ private struct ExitGuardPane: View {
 
     private func add() {
         if state.addAllowed(model.allowDraft) { model.allowDraft = "" } else { invalid = true }
-    }
-}
-
-// MARK: - 通知
-
-private struct NotificationsPane: View {
-    @ObservedObject var store: ConfigStore
-
-    var body: some View {
-        Form {
-            Section {
-                LabeledContent("完成卡显示时长") {
-                    HStack {
-                        Slider(value: $store.config.cardAutoDismissSeconds, in: 2...10, step: 1)
-                            .labelsHidden()
-                        Text("\(Int(store.config.cardAutoDismissSeconds)) 秒").monospacedDigit()
-                    }
-                }
-            } header: {
-                Text("卡片")
-            }
-            .disabled(store.fileUnreadable)
-            Section("声音") {
-                Toggle(isOn: $store.config.soundEnabled) {
-                    Text("提示音")
-                    Text("完成 Glass · 出错 Funk · 等你 Ping · 出口不合规 Basso")
-                }
-            }
-            .disabled(store.fileUnreadable)
-        }
     }
 }
 
