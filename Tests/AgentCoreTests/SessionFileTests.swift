@@ -21,13 +21,8 @@ private let procStart = Date(timeIntervalSince1970: 1_793_296_491)
     @Test func busyCLISession() throws {
         #expect(try SessionFile.parse(file()) == Session(
             pid: 31301, processStart: procStart, sessionId: "5d0c7c2e-0000-4000-8000-000000000000",
-            cwd: "/Users/u/Documents/Projects/notchkeeper", name: "会话名",
+            cwd: "/Users/u/Documents/Projects/notchkeeper",
             state: .working, stateSince: Date(timeIntervalSince1970: 1_793_304_005.799)))
-    }
-
-    /// 名字只用来认 Ghostty 窗口，没有也照常看这个会话
-    @Test func missingNameIsFine() throws {
-        #expect(try SessionFile.parse(file(["name": nil]))?.name == nil)
     }
 }
 

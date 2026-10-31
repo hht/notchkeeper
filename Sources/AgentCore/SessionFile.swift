@@ -9,8 +9,6 @@ public struct Session: Equatable, Sendable {
     public var sessionId: String
     /// 工作目录的完整路径
     public var cwd: String
-    /// 会话名：可能从对话推出来，只用来在 Ghostty 里认窗口，不显示、不进日志（docs/agent-integration.md）
-    public var name: String?
     public var state: AgentState
     /// 进入这个状态的时刻
     public var stateSince: Date
@@ -36,7 +34,7 @@ public enum SessionFileError: Error, Equatable {
 }
 
 /// 回答：一份 `~/.claude/sessions/<pid>.json` 是不是要看的会话、此刻什么状态。
-/// 只取判定、显示和认 Ghostty 窗口要的字段；不读文件、不查进程。
+/// 只取判定和显示要的字段；不读文件、不查进程。
 /// @see docs/agent-integration.md「实测」（Claude Code 2.1.296）
 public enum SessionFile {
     /// 不是终端里开的交互式 `claude`（`claude -p`、SDK、VS Code、后台会话等，用户 10-29），
@@ -47,7 +45,7 @@ public enum SessionFile {
         let raw = try JSONDecoder().decode(Raw.self, from: data)
         guard UUID(uuidString: raw.sessionId) != nil else { throw SessionFileError.badSessionId(raw.sessionId) }
         return Session(pid: raw.pid, processStart: try Date(raw.procStart, strategy: lstart),
-                       sessionId: raw.sessionId, cwd: raw.cwd, name: raw.name,
+                       sessionId: raw.sessionId, cwd: raw.cwd,
                        state: try state(raw.status, waitingFor: raw.waitingFor), stateSince: Date(timeIntervalSince1970: raw.statusUpdatedAt / 1000))
     }
 
@@ -64,7 +62,6 @@ public enum SessionFile {
         var procStart: String
         var sessionId: String
         var cwd: String
-        var name: String?
         var status: String
         var waitingFor: String?
         var statusUpdatedAt: Double

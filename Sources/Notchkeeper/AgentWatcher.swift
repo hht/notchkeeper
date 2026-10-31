@@ -204,7 +204,7 @@ final class AgentWatcher: @unchecked Sendable {
     }
     /// 进程在，并且启动时刻和文件里的 `procStart` 一致（防 pid 复用）。查不到（进程没了或判不出来）都算不在
     /// @see https://opensource.apple.com/source/xnu/xnu-7195.81.3/bsd/sys/proc_info.h （`proc_bsdinfo.pbi_start_tvsec`）
-    private static func isRunning(_ session: Session) -> Bool {
+    static func isRunning(_ session: Session) -> Bool {
         var info = proc_bsdinfo()
         let size = Int32(MemoryLayout<proc_bsdinfo>.size)
         guard proc_pidinfo(session.pid, PROC_PIDTBSDINFO, 0, &info, size) == size else { return false }

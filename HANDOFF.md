@@ -6,7 +6,7 @@
 1. `git log --oneline -5` 核对最近的提交，工作区应是干净的。
 2. **mod 与 Ghostty 还没实机走完的**（10-30 做的，规则见 `docs/agent-integration.md`）：
    - 用户在设置页「通知 › Claude Code」点「安装」走一遍 App 里的安装（10-30 只用同样的命令在 shell 里装过、测过、卸掉了）。卸载后 Claude Code 会在 `settings.json` 留一个空的 `"extraKnownMarketplaces": {}`，无害。
-   - Ghostty 跳转只在 shell 里跑通了两条 AppleScript（10-30 本机 terminal id 是大写 UUID）：用户点会话行、点卡片各一次，第一次要允许「Notchkeeper 控制 Ghostty」；同目录开两个 Claude 时点对不对。
+   - Ghostty 跳转 10-30 改成 tty 标记（`docs/agent-integration.md`「跳转到 Ghostty」）：agent 实机点了同目录有 3 个 terminal 的 boostcamp 行和 notchkeeper 行，都切对了、标题写回了原样。还没测：点卡片跳转；同目录开两个 Claude；Claude 套在 tmux 里（应退回按目录认）；工作中的会话多点几次，看转圈字符刷新会不会偶尔盖掉标记、退回按目录认（reviewer 10-30 推断）。另外 10-30 agent 用脚本连点两行时，有一次第二下没切过去，日志里什么都没有，之后照原样重做两次都对，没复现出来：用户再遇到「点了没反应」时，记下是哪一行、面板当时开着没有。
    - 开着的会话里装上 mod 后 `/reload-plugins`，mod 应该开始写（官方文档说重新加载会再触发 `session.start`），没实测。
    - `Funk` 出错音没人耳听过。
    - 后台 agent 崩溃、出错时会不会发带 `agentId` 的 `turn.complete` 没测（TaskStop 停掉的测过，会发）；不发的话这个会话之后的完成卡都被压住，直到 `/clear` 或重开。后台 agent 还在跑时 `/reload-plugins`，mod 的计数清零，可能提前弹完成卡（推断）。

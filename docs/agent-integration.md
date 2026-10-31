@@ -31,9 +31,8 @@ Notchkeeper 只关心 Claude Code 的三件事：**工作中、已停止、需�
 | `waitingFor` | 需要你介入时，区分等你回答和等你批准 |
 | `statusUpdatedAt` | 这个状态从什么时候开始 |
 | `cwd` | 面板会话行显示完整路径（用户 10-29，`docs/ui.md`「面板布局」）；跳转 Ghostty 时找窗口 |
-| `name` | **只用来在 Ghostty 里认窗口**（用户 10-30，见「跳转到 Ghostty」）：只在内存里和窗口标题比对，不显示、不进日志 |
 
-`name` 可能是从对话推出来的（自动起名写 `derived`；不带参数的 `/rename` 也拿对话让模型起名，同样写 `user`，10-29 实测）。所以它算对话内容，除了认窗口不做别的用（CLAUDE.md「只读元数据，不读对话内容」的例外，用户 10-30）。其余字段不读。
+其余字段不读。`name` 也不读：它可能是从对话推出来的（自动起名写 `derived`；不带参数的 `/rename` 也拿对话让模型起名，同样写 `user`，10-29 实测），而且和 Ghostty 的标题对不上（见「跳转到 Ghostty」）。
 
 ## 状态
 
@@ -127,8 +126,18 @@ mod 是 Claude Code 官方的插件形式（2.1.287 起默认开启）：插件�
 
 点面板里的会话行、或点卡片（× 以外的地方），打开 Ghostty 并切到这个会话所在的窗口、标签和分屏。
 
-- 用 Ghostty 的 AppleScript（1.3 起，`Ghostty.sdef`）：`terminal` 有 `working directory` 和 `name`（标题），`focus` 命令把它所在的窗口拉到前面。第一次用时系统会问一次「允许 Notchkeeper 控制 Ghostty」（Info.plist 写 `NSAppleEventsUsageDescription`）。
-- 认窗口：先按 `working directory` 等于会话的 `cwd` 找；只有一个就是它。同一个目录开了好几个时，再拿会话的 `name` 和标题比（Claude Code 把会话名写进标题，前面带一个状态字符，如 `✳ `、`◐ `）。还是认不出来就只把 Ghostty 拉到前面。
+- 用 Ghostty 的 AppleScript（1.3 起，`Ghostty.sdef`）：`terminal` 有 `id`、`working directory` 和 `name`（标题），`focus` 命令把它所在的窗口拉到前面；**没有 tty、pid**（1.3.1，main 上也还没有）。第一次用时系统会问一次「允许 Notchkeeper 控制 Ghostty」（Info.plist 写 `NSAppleEventsUsageDescription`）。
+- **认窗口靠 tty 标记**（10-30 改，照 [kovoor/claude-code-notifier](https://github.com/kovoor/claude-code-notifier) 的做法，只是改用 AppleScript 查标题、不用辅助功能）：
+  1. 用 `sysctl(KERN_PROC_PID)` 查会话 pid 的控制终端（如 `/dev/ttys006`）和一路往上的父进程。不用 `proc_pidinfo`：Ghostty 的直接子进程是 setuid root 的 `/usr/bin/login`，`proc_pidinfo` 读它会 EPERM（10-30 实测），认窗口就永远退回按目录认。
+  2. 往这个 tty 非阻塞地写一次 OSC 2，把标题设成一次性的 `notchkeeper-<UUID>`；写的是终端的输出端，不是 claude 的输入。
+  3. 用 AppleScript 找标题等于它的 terminal，最多等 1 秒（10-30 实测第一次查询就看到了）。
+  4. 找到后把那个 terminal 原来的标题（第 3 步之前读的）写回去，去掉控制字符。必须写回：Claude Code 只在标题变了时才重写，不会自己改回来（10-30 实测）。
+  - **只在 claude 直接跑在 Ghostty 的终端里时写标记**：沿 ppid 往上能走到 Ghostty，并且 Ghostty 的直接子进程（`login`）和 claude 用的是同一个 tty 才算。套在 tmux 里（tmux 服务进程的父进程是 launchd）、nvim 的 `:terminal` 里（tty 是 nvim 开的），OSC 2 会被它们吃掉，写了标记会盖掉它们的标题且恢复不了。
+  - 写之前按启动时刻核对进程还是这个会话（同 AgentWatcher 防 pid 复用）：卡片里存的是会话快照。
+  - 已知的小风险（推断，没复现过）：我们的 OSC 恰好插在 Claude 一帧输出的某个转义序列中间，那一帧会花一下，下一帧重画就好；读标题到写回之间 Claude 刚好换了状态字符，写回的是旧字符，等它下次换状态才改过来；Ghostty 忙了 1 秒以上、标记来晚了，标题会停在标记上，直到 Claude 下次改标题。
+  - Ghostty 的标题是 Claude Code 起的会话标题，可能从对话推出来：只在内存里找标记、原样写回，不显示、不进日志。
+- **退路**：没写标记或没等到（套在 tmux 里、Ghostty 配了固定 `title`），按 `working directory` 等于会话的 `cwd` 找，只有一个才是它（同目录常还开着 dev server，10-30 用户实机点了没反应就是这样）。还是认不出来就只把 Ghostty 拉到前面。
+- 原来的「同目录再拿会话 `name` 比标题」删掉了：10-30 实机查，`name` 是 `boostcamp-reborn-d4` 这种，标题是 Claude 起的「本地boostcamp数据高压缩导出」，两者不是一回事。
 - Ghostty 没开、或者会话不在 Ghostty 里：只打开 Ghostty，不报错。
 - 只在用户点击时发 Apple Event，不轮询；Apple Event 都在一条专用队列上发，每个最多等 3 秒（`with timeout`），第一次问权限、Ghostty 卡住时都不挡刘海的主线程。
 - Ghostty 给的 terminal id 拼进脚本前按 UUID 校验，拼原样的字符串。

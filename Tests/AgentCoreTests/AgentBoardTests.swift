@@ -6,7 +6,7 @@ private let t0 = Date(timeIntervalSince1970: 1_800_000_000)
 
 /// pid 1 的会话在 `t0 + at` 秒进入 `state`；sessionId 是 "s<pid>"
 private func session(_ state: AgentState, at: TimeInterval = 0, pid: Int32 = 1, started: TimeInterval = -3600, id: String? = nil) -> Session {
-    Session(pid: pid, processStart: t0.addingTimeInterval(started), sessionId: id ?? "s\(pid)", cwd: "/p\(pid)", name: nil,
+    Session(pid: pid, processStart: t0.addingTimeInterval(started), sessionId: id ?? "s\(pid)", cwd: "/p\(pid)",
             state: state, stateSince: t0.addingTimeInterval(at))
 }
 
