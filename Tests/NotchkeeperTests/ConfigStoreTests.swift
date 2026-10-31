@@ -98,7 +98,7 @@ private final class Lines { var all: [String] = [] }
         #expect(store.config.allowlist == ["198.51.100.8"])
     }
 
-    /// 外部刚改坏、轮询还没看到时存盘：也不能覆盖
+    /// 外部刚改坏、监听的事件还没送到时存盘：也不能覆盖
     @Test func saveChecksForExternalEditFirst() throws {
         let url = try tempConfig(#"{"allowlist":["198.51.100.8"]}"#)
         let store = store(url)
@@ -127,5 +127,18 @@ private final class Lines { var all: [String] = [] }
         _ = store(try tempConfig(#"{"allowlist":"198.51.100.8"}"#), lines)
         #expect(lines.all.contains { $0.contains("allowlist") })
         #expect(lines.all.allSatisfy { $0.firstMatch(of: /\d+\.\d+\.\d+\.\d+/) == nil })
+    }
+}
+
+/// 外部改了文件马上载入：靠监听目录和文件，不轮询（CLAUDE.md「看不见就不调度」）
+@MainActor @Suite struct ConfigStoreHotReload {
+    /// 原子替换（大多数编辑器）和原地改写（`>`、部分编辑器）都要收得到
+    @Test(arguments: [true, false])
+    func externalEditIsLoaded(atomically: Bool) async throws {
+        let url = try tempConfig(#"{"soundEnabled":true}"#)
+        let store = store(url)
+        try Data(#"{"soundEnabled":false}"#.utf8).write(to: url, options: atomically ? .atomic : [])
+        for _ in 0..<50 where store.config.soundEnabled { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(!store.config.soundEnabled)
     }
 }

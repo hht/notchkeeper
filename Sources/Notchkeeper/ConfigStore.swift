@@ -20,7 +20,7 @@ final class ConfigStore: ObservableObject {
     private var lastData: Data?
     private var lastMTime: Date?
     private var saveWork: DispatchWorkItem?
-    private var pollTimer: Timer?
+    private var directory: WatchedDirectory?
 
     init(url: URL = GuardPaths.configFile, log: @escaping (String) -> Void = Log.write) {
         self.url = url
@@ -38,9 +38,30 @@ final class ConfigStore: ObservableObject {
             lastData = data
         }
         lastMTime = mtime()
-        // 热加载：轮询修改时间（兼容各种编辑器的原子写入 / 原地写入）
-        pollTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.reloadIfChanged() }
+        // 热加载：目录的监听收原子替换（大多数编辑器），文件的监听收原地改写。不轮询：没人改时不该每秒醒一次。
+        // 目录里别的文件（guardd 每轮写的 guard-state.json）也会叫醒它，比一次修改时间就回去
+        let name = url.lastPathComponent
+        directory = WatchedDirectory(url.deletingLastPathComponent(), matching: { $0 == name }, queue: .main) { [weak self] in
+            MainActor.assumeIsolated { self?.fileChanged() }
+        }
+        if directory?.open() == true {
+            watchFile()
+        } else {
+            log("配置目录打不开，外部改了配置文件要重启 App 才载入")
+        }
+    }
+
+    private func fileChanged() {
+        watchFile()
+        reloadIfChanged()
+    }
+
+    /// 文件被替换后要重新挂上监听
+    private func watchFile() {
+        do {
+            _ = try directory?.list()
+        } catch {
+            log("配置目录读不了，外部改了配置文件要重启 App 才载入")
         }
     }
 
@@ -94,7 +115,7 @@ final class ConfigStore: ObservableObject {
     }
 
     func saveNow() {
-        // 外部刚改过、轮询还没看到：先读进来，免得盖掉；读进来了就是外部的赢，内存和文件已经一致
+        // 外部刚改过、监听的事件还没送到：先读进来，免得盖掉；读进来了就是外部的赢，内存和文件已经一致
         if reloadIfChanged() { return }
         guard !fileUnreadable else {
             log("配置文件解不开，这次改动只在内存里，改好文件后会被文件内容取代")
