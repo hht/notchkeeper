@@ -12,6 +12,8 @@ final class FakePF: @unchecked Sendable {
     var interfaces = "lo0 en0 utun1024\n"
     var calls: [[String]] = []
     var enabled = true
+    /// `false`：References 里不列我们拿的引用（模拟 -E 给的号码和列表对不上）
+    var listsOurReferences = true
     /// 让某条命令失败：参数里含这个串的那次调用返回 1
     var failing: String?
     /// 每次调用前看一眼（测「拿到 token 后立刻落盘」用）
@@ -45,7 +47,7 @@ final class FakePF: @unchecked Sendable {
         case ["/sbin/pfctl", "-sr"]:
             return Output(status: 0, stdout: mainRules, stderr: noise)
         case ["/sbin/pfctl", "-s", "References"]:
-            let rows = (["12184426722627826779"] + references).map { "49256    pfd                          \($0)     0 days 00:00:12\n" }
+            let rows = (["12184426722627826779"] + (listsOurReferences ? references : [])).map { "49256    pfd                          \($0)     0 days 00:00:12\n" }
             return Output(status: 0, stdout: "TOKENS:\nPID      Process Name                 TOKEN                    TIMESTAMP\n" + rows.joined(),
                           stderr: noise)
         case ["/sbin/pfctl", "-s", "info"]:
@@ -70,7 +72,7 @@ final class Rig: @unchecked Sendable {
     let pf = FakePF()
     let directory: URL
     var seconds: Int64 = 100
-    var bootSession = "B5E97D3E-1F68-4627-B43C-2257F22F12DB"
+    var bootSession: String? = "B5E97D3E-1F68-4627-B43C-2257F22F12DB"
     var lockTimeout: TimeInterval = 30
     var system: FirewallSystem {
         FirewallSystem(directory: directory,

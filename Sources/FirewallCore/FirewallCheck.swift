@@ -1,8 +1,9 @@
 /// 回答：开着的防火墙此刻真的在拦吗（docs/firewall.md §4「核对」、§5「fail-open」）。
 /// 任何一项不过，App 都不能显示「已保护」。只解析 pfctl / ifconfig 的输出，不知道它们怎么来的。
 public struct FirewallCheck: Codable, Equatable, Sendable {
-    /// pf 开着（`pfctl -s info` 是 `Status: Enabled`）：有人 pfctl -d 后规则还在 anchor 里也不生效
-    public var pfEnabled: Bool
+    /// pf 开着（`pfctl -s info` 是 `Status: Enabled`）：有人 pfctl -d 后规则还在 anchor 里也不生效。
+    /// `nil` 是读不出：和明确停了分开，停了说明所有引用都被作废了
+    public var pfEnabled: Bool?
     /// 主规则集里还有 `anchor "com.apple/*"`：有人 `pfctl -f` 换掉主规则集，本 anchor 就不再被求值
     public var anchorPointPresent: Bool
     /// 本 anchor 里有规则
@@ -14,7 +15,7 @@ public struct FirewallCheck: Codable, Equatable, Sendable {
     /// TUN 网卡在：网卡名写错或 Clash 改了名，规则会把所有流量都拦掉（往安全方向出错），要让人看得出来
     public var tunnelPresent: Bool
 
-    public init(pfEnabled: Bool, anchorPointPresent: Bool, rulesLoaded: Bool, evaluations: UInt64?, evaluationsGrowing: Bool?, tunnelPresent: Bool) {
+    public init(pfEnabled: Bool?, anchorPointPresent: Bool, rulesLoaded: Bool, evaluations: UInt64?, evaluationsGrowing: Bool?, tunnelPresent: Bool) {
         self.pfEnabled = pfEnabled
         self.anchorPointPresent = anchorPointPresent
         self.rulesLoaded = rulesLoaded
@@ -31,7 +32,7 @@ public struct FirewallCheck: Codable, Equatable, Sendable {
     ///   - previousEvaluations: 上一轮的 `evaluations`
     /// 哪一条命令失败了，调用方传空串：每一项都判不过
     public init(mainRules: String, anchorRules: String, info: String, interfaces: String, tunnel: String, previousEvaluations: UInt64?) {
-        pfEnabled = info.hasPrefix("Status: Enabled")
+        pfEnabled = info.hasPrefix("Status: Enabled") ? true : info.hasPrefix("Status: Disabled") ? false : nil
         anchorPointPresent = mainRules.split(separator: "\n").contains { $0.hasPrefix(#"anchor "com.apple/*""#) }
         let lines = anchorRules.split(separator: "\n")
         let ruleCount = lines.filter { !$0.hasPrefix(" ") }.count
@@ -49,7 +50,7 @@ public struct FirewallCheck: Codable, Equatable, Sendable {
     /// 都过了才算在拦。没有上一轮可比（`evaluationsGrowing == nil`）不算不过：刚装上的那一轮不该报异常；
     /// 读不出 Evaluations 的数字算不过，否则格式变了就永远比不出来、永远「过」
     public var passed: Bool {
-        pfEnabled && anchorPointPresent && rulesLoaded && tunnelPresent && evaluations != nil && evaluationsGrowing != false
+        pfEnabled == true && anchorPointPresent && rulesLoaded && tunnelPresent && evaluations != nil && evaluationsGrowing != false
     }
 }
 

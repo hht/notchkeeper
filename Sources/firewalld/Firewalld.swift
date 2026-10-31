@@ -45,6 +45,7 @@ enum Firewalld {
         switch failure {
         case .command(.notOff): "防火墙已经开着"
         case .command(.notInTrial): "不在试运行中（可能已到期回滚），没有可保留的"
+        case .command(.bootSessionUnknown): "读不出开机标识（kern.bootsessionuuid），分不清是不是重启过，不能开启或保留"
         case .stateUnreadable: "状态文件读不出来；先跑 sudo scripts/firewall-rescue.sh 再重新安装"
         case .busy: "另一个操作正在进行，稍后再试"
         case .io(let m): m

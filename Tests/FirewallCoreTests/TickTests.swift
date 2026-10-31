@@ -49,6 +49,37 @@ private func pf(empty: Bool, tokens: Set<String>? = [pfdToken, token]) -> PFSnap
         #expect(s.tick(at: at(111), pf: pf(empty: false), rules: rules) == [])
     }
 
+    /// -E 之后列表读得出却没有这个 token（两边号码对不上）：当认不出，否则下一轮以为引用没了，每轮 -E 一个
+    @Test func tokenMissingFromTheListRightAfterEnableIsUnknown() throws {
+        var s = FirewallState(bootSession: boot)
+        try s.enable(at: at(100))
+        _ = s.tick(at: at(101), pf: pf(empty: true, tokens: [pfdToken]), rules: rules)
+        s.record(.load(rules))
+        s.record(.enable, token: token)
+        s.confirmReference(liveTokens: [pfdToken])
+        #expect(s.reference == .unknownToken)
+        #expect(s.tick(at: at(111), pf: pf(empty: false, tokens: [pfdToken]), rules: rules) == [])
+    }
+
+    /// -E 之后读不出列表：先信 -E 给的 token，下一轮照常核对
+    @Test func unreadableListRightAfterEnableKeepsTheToken() throws {
+        var s = FirewallState(bootSession: boot)
+        try s.enable(at: at(100))
+        s.record(.enable, token: token)
+        s.confirmReference(liveTokens: nil)
+        #expect(s.reference == .held(token: token))
+    }
+
+    /// 认不出号码的引用只能靠「pf 停了」知道它被 pfctl -d 作废了：停了就当没了，下一轮重新 -E，不卡在 pf 停着
+    @Test func unknownTokenIsDroppedWhenPFIsDisabled() throws {
+        var s = FirewallState(bootSession: boot)
+        s.reference = .unknownToken
+        _ = s.check(mainRules: "", anchorRules: "", info: "", interfaces: "", tunnel: "utun1024")
+        #expect(s.reference == .unknownToken) // 读不出 info 不算停了
+        _ = s.check(mainRules: "", anchorRules: "", info: "Status: Disabled\n", interfaces: "", tunnel: "utun1024")
+        #expect(s.reference == nil)
+    }
+
     /// 有人 pfctl -d 作废了所有引用（docs/firewall.md §6）：我们的 token 不在了就重新 -E，不卡在「以为还拿着」
     @Test func reEnablesWhenOurReferenceIsGone() {
         var s = steadyTrial()
@@ -113,12 +144,38 @@ extension Tick {
         #expect(s.reference == nil)
     }
 
-    /// 开机标识读错一次（被当成重启）也不丢掉还活着的引用：否则 on 每误判一次就多 -E 一个
+    /// 读不出开机标识（sysctl 失败）：不知道换没换开机，试运行往安全方向当 off；引用和记下的开机标识都不动，
+    /// 免得把活着的引用丢了、或者把旧 token 配上错的开机标识
+    @Test func unreadableBootSessionEndsTheTrialButKeepsTheReference() {
+        var s = steadyTrial()
+        #expect(s.tick(at: at(111, boot: nil), pf: pf(empty: false, tokens: nil), rules: rules) == [.flush])
+        #expect(s.mode == .off)
+        #expect(s.reference == .held(token: token))
+        #expect(s.bootSession == boot)
+    }
+
+    /// 开机标识变了、引用却还在列表里（开机标识读错过）：不丢掉还活着的引用，否则 on 每误判一次就多 -E 一个
     @Test func spuriousBootChangeKeepsALiveReference() throws {
         var s = steadyTrial()
         try s.keep(at: at(110))
-        #expect(s.tick(at: at(120, boot: ""), pf: pf(empty: false), rules: rules) == [.load(rules)])
+        #expect(s.tick(at: at(120, boot: "OTHER-BOOT"), pf: pf(empty: false), rules: rules) == [.load(rules)])
         #expect(s.reference == .held(token: token))
+    }
+
+    /// 认不出号码的引用核对不了还在不在：开机标识变了就作废，on 重新 -E
+    @Test func bootChangeDropsAnUnknownToken() throws {
+        var s = steadyTrial()
+        try s.keep(at: at(110))
+        s.reference = .unknownToken
+        #expect(s.tick(at: at(5, boot: "OTHER-BOOT"), pf: pf(empty: true), rules: rules) == [.load(rules), .enable])
+    }
+
+    /// 开机后读不出引用列表：旧 token 不能配上新的开机标识留下（恢复脚本据开机标识认 token，会去 -X 上一次开机的号码），on 要重新 -E
+    @Test func bootChangeWithUnreadableReferencesDropsTheOldToken() throws {
+        var s = steadyTrial()
+        try s.keep(at: at(110))
+        #expect(s.tick(at: at(5, boot: "OTHER-BOOT"), pf: pf(empty: true, tokens: nil), rules: rules) == [.load(rules), .enable])
+        #expect(s.reference == nil)
     }
 
     /// 重装后计数从 0 数起：那一轮不拿来比，免得刚重装就报「计数不涨」

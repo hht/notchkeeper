@@ -40,11 +40,12 @@ private let info = "Status: Enabled for 18 days 12:22:58          Debug: Urgent\
         FirewallCheck(mainRules: main, anchorRules: anchor, info: i, interfaces: ifs, tunnel: "utun1024", previousEvaluations: previous)
     }
 
-    /// fail-open：有人 pfctl -d 停了 pf，规则还在 anchor 里也不生效；读不出（输出空）同样不算过
-    @Test(arguments: ["Status: Disabled          Debug: Urgent\n", ""])
-    func pfNotEnabled(_ info: String) {
+    /// fail-open：有人 pfctl -d 停了 pf，规则还在 anchor 里也不生效；读不出（输出空）同样不算过。
+    /// 停了和读不出分开：前者说明我们的引用一定被作废了，后者什么都说明不了
+    @Test(arguments: [("Status: Disabled          Debug: Urgent\n", false), ("", nil)] as [(String, Bool?)])
+    func pfNotEnabled(_ info: String, enabled: Bool?) {
         let c = check(info: info)
-        #expect(!c.pfEnabled)
+        #expect(c.pfEnabled == enabled)
         #expect(!c.passed)
     }
 

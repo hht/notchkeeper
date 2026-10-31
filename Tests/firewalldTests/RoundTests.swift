@@ -29,14 +29,19 @@ import FirewallCore
         #expect(status.check?.evaluationsGrowing == true)
     }
 
-    /// 拿到 token 就落盘：-E 之后的任何一步（这里是核对）之前，状态文件里已经有它
+    /// 拿到 token 就落盘：-E 之后的下一步（再读一次引用列表）之前，状态文件里已经有它。
+    /// 恢复脚本 bootout 时正好杀在这一步，也找得到这个 token 去释放
     @Test func tokenIsOnDiskBeforeTheNextStep() throws {
         let rig = try Rig()
         try Helper.command(.enable, rig.system)
+        var next: [String]?
         var seen: FirewallState.Restored?
-        rig.pf.onCall = { call in if call == ["/sbin/pfctl", "-sr"] { seen = rig.state } }
+        rig.pf.onCall = { call in
+            if next == nil, rig.pf.calls.last == ["/sbin/pfctl", "-E"] { (next, seen) = (call, rig.state) }
+        }
         _ = rig.round()
-        guard case .valid(let s) = seen else { Issue.record("核对时状态文件读不出"); return }
+        #expect(next == ["/sbin/pfctl", "-s", "References"])
+        guard case .valid(let s) = seen else { Issue.record("下一步时状态文件读不出"); return }
         #expect(s.reference == .held(token: "1864012227745836441"))
     }
 
@@ -129,6 +134,17 @@ import FirewallCore
         #expect(status.check?.pfEnabled == true)
     }
 
+    /// -E 给的号码在引用列表里找不到（格式对不上）：只拿一个引用，不每轮多拿
+    @Test func unlistedTokenIsNotReEnabledEveryRound() throws {
+        let rig = try Rig()
+        rig.pf.listsOurReferences = false
+        try Helper.command(.enable, rig.system)
+        _ = rig.round()
+        rig.seconds += 10
+        _ = rig.round()
+        #expect(rig.pf.references.count == 1)
+    }
+
     /// 锁被占着（另一轮或命令卡住）：等到上限就放弃，什么都不改
     @Test func givesUpWhenTheLockIsHeld() throws {
         let rig = try Rig()
@@ -170,6 +186,28 @@ import FirewallCore
         try Helper.command(.enable, rig.system)
         #expect(rig.round(scope: .testUser)?.scope == .testUser)
         #expect(rig.pf.anchor == FirewallRules(tunnel: "utun1024", scope: .testUser)?.text)
+    }
+
+    /// 读不出开机标识：开启报错、说得出原因；一轮照常按 off 办，状态文件里不写开机标识
+    @Test func unreadableBootSession() throws {
+        let rig = try Rig()
+        rig.bootSession = nil
+        #expect(throws: Helper.Failure.command(.bootSessionUnknown)) { try Helper.command(.enable, rig.system) }
+        rig.pf.anchor = "pass all\n"
+        #expect(rig.round()?.mode == .off)
+        #expect(rig.pf.anchor == "")
+        guard case .valid(let s) = rig.state else { Issue.record("状态文件读不出"); return }
+        #expect(s.bootSession == nil)
+    }
+
+    /// 换规则那轮装失败：anchor 里还是旧规则，摘要不能说成新规则
+    @Test func statusHasNoScopeWhenTheseRulesAreNotLoaded() throws {
+        let rig = try Rig()
+        try Helper.command(.enable, rig.system)
+        _ = rig.round(scope: .testUser)
+        rig.pf.failing = "-f"
+        rig.seconds += 10
+        #expect(rig.round(scope: .everyone)?.scope == nil)
     }
 
     /// 状态文件写不进去时不 -E：拿到的 token 记不下来，下一轮又会 -E，引用越涨越多

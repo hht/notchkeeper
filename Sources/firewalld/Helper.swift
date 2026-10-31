@@ -54,10 +54,13 @@ enum Helper {
             }
             let pf = { (args: [String], input: String?) in sys.run("/sbin/pfctl", args, input) }
 
+            let references = { () -> Set<String>? in
+                let out = pf(["-s", "References"], nil)
+                return out.succeeded ? PFOutput.tokens(fromReferences: out.stdout) : nil
+            }
+
             let anchor = pf(["-a", FirewallPaths.anchor, "-sr"], nil)
-            let references = pf(["-s", "References"], nil)
-            let snapshot = PFSnapshot(anchorEmpty: anchor.succeeded && anchor.stdout.allSatisfy(\.isWhitespace),
-                                      tokens: references.succeeded ? PFOutput.tokens(fromReferences: references.stdout) : nil)
+            let snapshot = PFSnapshot(anchorEmpty: anchor.succeeded && anchor.stdout.allSatisfy(\.isWhitespace), tokens: references())
             var actions = state.tick(at: moment, pf: snapshot, rules: config.rules)
             var failed: [PFStep] = []
             // 先确认状态文件写得进去：写不进去时拿到的 token 记不下来，下一轮又 -E，引用越涨越多
@@ -78,7 +81,11 @@ enum Helper {
                     continue
                 }
                 state.record(action, token: action == .enable ? PFOutput.token(fromEnable: out.stderr) : nil)
-                _ = save() // 做成一件就落盘：拿到 token 后中途崩了，下一轮也知道引用在手里，不会再 -E
+                _ = save() // 做成一件就落盘：拿到 token 后中途崩了（恢复脚本 bootout 也算），下一轮和恢复脚本都知道引用在手里
+                if action == .enable {
+                    state.confirmReference(liveTokens: references())
+                    _ = save()
+                }
             }
 
             var check: FirewallCheck?
@@ -93,7 +100,9 @@ enum Helper {
             _ = save()
 
             let now = sys.now()
-            var status = FirewallStatus(mode: .off, scope: config.scope, check: check, failedSteps: failed, checkedAt: now)
+            // 换规则那轮装失败时 anchor 里还是旧规则，不能说成这一轮的
+            var status = FirewallStatus(mode: .off, scope: state.loadedRules == config.rules ? config.scope : nil, check: check,
+                                        failedSteps: failed, checkedAt: now)
             switch state.mode {
             case .off: status.mode = writable ? .off : .stateUnreadable
             case .trial(let deadline):
@@ -155,9 +164,10 @@ enum Helper {
         let fd = open(sys.directory.appendingPathComponent(FirewallPaths.lockFile).path, O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0o600)
         defer { if fd >= 0 { close(fd) } }
         if fd >= 0 {
-            let deadline = Date().addingTimeInterval(sys.lockTimeout)
+            // 按单调时钟等：等锁时系统时间被往回调，也不会一直等下去
+            let deadline = ContinuousClock.now + .seconds(sys.lockTimeout)
             while flock(fd, LOCK_EX | LOCK_NB) != 0 {
-                guard Date() < deadline else {
+                guard ContinuousClock.now < deadline else {
                     log.error("等了 \(Int(sys.lockTimeout)) 秒没拿到锁")
                     return nil
                 }

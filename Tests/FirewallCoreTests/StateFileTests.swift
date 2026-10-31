@@ -13,7 +13,7 @@ import Testing
         on.record(.enable, token: nil)
         _ = on.check(mainRules: "", anchorRules: "pass all\n  [ Evaluations: 7055 ]\n", info: "", interfaces: "", tunnel: "utun1024")
         #expect(on.lastEvaluations == 7055)
-        for s in [FirewallState(bootSession: boot), trial, on] {
+        for s in [FirewallState(bootSession: boot), FirewallState(bootSession: nil), trial, on] {
             #expect(try FirewallState.restore(from: s.encoded()) == .valid(s))
         }
     }
@@ -32,9 +32,15 @@ import Testing
 
     @Test func missingFileIsMissing() { #expect(FirewallState.restore(from: nil) == .missing) }
 
-    /// 缺字段用默认值：什么都没有就是 off、开机标识对不上（下一轮按新开机处理）
+    /// 缺字段用默认值：什么都没有就是 off、不知道是哪次开机的（下一轮按新开机处理）
     @Test func missingFieldsDefaultToOff() {
-        #expect(FirewallState.restore(from: Data("{}".utf8)) == .valid(FirewallState(bootSession: "")))
+        #expect(FirewallState.restore(from: Data("{}".utf8)) == .valid(FirewallState(bootSession: nil)))
+    }
+
+    /// 不知道是哪次开机的就不写这个字段：恢复脚本读不出它，不会拿去和本次开机比
+    @Test func unknownBootSessionIsOmitted() throws {
+        let json = try JSONSerialization.jsonObject(with: FirewallState(bootSession: nil).encoded()) as? [String: Any]
+        #expect(json?["bootSession"] == nil)
     }
 
     @Test(arguments: [

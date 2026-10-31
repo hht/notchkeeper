@@ -17,7 +17,7 @@ extension FirewallState {
     public static func restore(from data: Data?) -> Restored {
         guard let data else { return .missing }
         guard let f = try? JSONDecoder().decode(Fields.self, from: data) else { return .unreadable }
-        var s = FirewallState(bootSession: f.bootSession ?? "")
+        var s = FirewallState(bootSession: f.bootSession)
         switch (f.mode ?? "off", f.deadline) {
         case ("off", _): s.mode = .off
         case ("trial", let deadline?): s.mode = .trial(deadline: MonotonicTime(milliseconds: deadline))

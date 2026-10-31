@@ -1,22 +1,10 @@
 # HANDOFF
 
-最后更新：2026-10-31（第 5 步：恢复脚本实测过，状态机和辅助程序写完）。只放接下来要做的和没解决的；做完的看 `git log`，规则看 `CLAUDE.md` 和 `docs/*`。开工前 `git log --oneline -5` 核对。实机验证的技巧见 `docs/dev-notes.md`。
+最后更新：2026-10-31（第 5 步：状态机和辅助程序写完、复审结论改完，下一刀安装脚本）。只放接下来要做的和没解决的；做完的看 `git log`，规则看 `CLAUDE.md` 和 `docs/*`。开工前 `git log --oneline -5` 核对。实机验证的技巧见 `docs/dev-notes.md`。
 
 ## 接下来
 
 **新会话从这里开始**：正在做第 5 步防火墙，先看下面「第 5 步」。插件化和第 4 步都做完了（见 `git log`），第 4 步的实机验收用户 10-31 全过。
-
-**防火墙状态机和辅助程序已提交（10-31），但第二轮复审的结论还没改**：用户看过结论后让先提交。`swift build` 零警告、`swift test` 621 个全绿。**新会话先改完下面这些（必须修那条先写会红的测试），再派新的 `reviewer` 审**，还有必须修就停下交用户定；改完照 CLAUDE.md 一类改动一个提交。
-- **必须修**：开机变化后 `advance` 不再清 held 引用（`FirewallState.swift` 的 `advance`），交给 `tick` 按 References 判；但 References 读不出（`tokens == nil`）时 held 旧 token 会配上新 `bootSession` 落盘，恢复脚本据 bootSession 认为它是本次开机的，会 `pfctl -X` 上一次开机的号码；`on` 开机后也永远不再 `-E`。改法：开机变化后只有 References 读得出且含这个 token 才留 held，否则置 nil；docs §4 第 2 步跟着改。
-- **建议**：
-  - 状态摘要的 `scope` 只在 `state.loadedRules == config.rules` 时填，否则 nil（换规则那轮 load 失败时 anchor 里还是旧规则）。
-  - References 解析「成功但对不上」时会每轮 `-E` 一个：`-E` 之后下一轮还找不到这个 token 就降成 `.unknownToken`。
-  - `.unknownToken` 在 pf 已停（核对 `pfEnabled == false`）时置 nil，否则 `pfctl -d` 后卡住。
-  - `runProcess` 的临时文件在 `$TMPDIR`，osascript 提权时可能是用户目录，有符号链接替换的风险（推断）：改成 `open(O_CREAT|O_EXCL|O_NOFOLLOW, 0600)` 拿 fd 后立刻 `unlink`，只用 fd；`commandTimeout` 改成可注入，补 `cat`、`sleep` 两个测试。
-  - 锁上限 30 秒短于一轮最坏耗时（约 8 条 × 6 秒），且按墙上时间算：调大或改用单调时钟。
-  - `FirewallState.swift` 第 1 行注释还写着 `CLOCK_MONOTONIC`，跟 `FirewallSystem.swift` 统一成 RAW。
-  - 词表里「状态文件」已指 `guard-state.json`，`firewall.state` 改叫「防火墙状态文件」。
-- 复审确认无需改：`no state` 两条不影响拦截；References 解析；锁文件权限；恢复脚本清单。
 
 **和用户协作的规矩（10-31）**：
 - 测试时**不能真的断网**、**不能重启这台 Mac**（`docs/firewall.md` §7 开头）。
@@ -39,6 +27,7 @@
 - 已写：`FirewallCore`（状态机、规则、核对、两个 JSON）和 `firewalld`（辅助程序，`round --tunnel <网卡> [--test-rules]` / `enable` / `keep` / `disable`），全在 `swift test` 里测，还没以 root 跑过。
 - 下一刀：安装脚本 `scripts/install-firewall.sh`（编译、给用户看 plist、备份、用户自己 sudo；先只装 `--test-rules`），然后按 §7 第 2～6 步实机测：用 `--tunnel utun9999` 模拟 Clash 断开，`sudo -u nobody curl` / `dig` 看拦没拦；同时用 `pfctl -si` 量状态表占用、看空闲时 Evaluations 涨不涨（§5）。之后才接 App 开关和 shielded 造型。
 - 还没定：Evaluations 空闲不涨时怎么处理（等实测）；正式规则什么时候装（要用户拍板）。
+- 实测时顺带看：`pfctl -E` 之后 `pfctl -s References` 里我们那一行的进程名是什么。是 `notchkeeper-firewall` 的话，核对 token 时可以连进程名一起比，降低 `docs/firewall.md` §5「token 号码复用」误释放别人引用的概率（复审建议，10-31）。
 
 ## 等实机验证
 

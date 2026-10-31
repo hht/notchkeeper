@@ -2,7 +2,7 @@ import Testing
 @testable import FirewallCore
 
 let boot = "B5E97D3E-1F68-4627-B43C-2257F22F12DB"
-func at(_ seconds: Int64, boot session: String = boot) -> Moment {
+func at(_ seconds: Int64, boot session: String? = boot) -> Moment {
     Moment(bootSession: session, now: MonotonicTime(milliseconds: seconds * 1000))
 }
 
@@ -49,6 +49,28 @@ func at(_ seconds: Int64, boot session: String = boot) -> Moment {
         #expect(throws: FirewallCommandError.notInTrial) { try s.keep(at: at(5, boot: "OTHER-BOOT")) }
         #expect(s.mode == .off)
         #expect(s.bootSession == "OTHER-BOOT")
+    }
+
+    /// 命令不读引用列表：开机后旧 token 一律作废，不能配上新的开机标识落盘（关闭时释放失败、重启后再开启就会这样）
+    @Test func commandAfterBootDropsTheOldToken() throws {
+        var s = FirewallState(bootSession: boot)
+        s.reference = .held(token: "1864012227745836441")
+        try s.enable(at: at(5, boot: "OTHER-BOOT"))
+        #expect(s.reference == nil)
+    }
+
+    /// 读不出开机标识时开启、保留都报错（下一轮反正会把试运行当 off，悄悄回滚用户看不出为什么）；
+    /// 不动引用和记下的开机标识：还活着的引用丢了就再也释放不了
+    @Test func commandsRefuseAnUnreadableBootSession() throws {
+        var s = FirewallState(bootSession: boot)
+        s.reference = .held(token: "1864012227745836441")
+        #expect(throws: FirewallCommandError.bootSessionUnknown) { try s.enable(at: at(100, boot: nil)) }
+        #expect(s.mode == .off)
+        #expect(s.reference == .held(token: "1864012227745836441"))
+        #expect(s.bootSession == boot)
+        try s.enable(at: at(100))
+        #expect(throws: FirewallCommandError.bootSessionUnknown) { try s.keep(at: at(110, boot: nil)) }
+        #expect(s.mode == .off)
     }
 
     @Test(arguments: [false, true])

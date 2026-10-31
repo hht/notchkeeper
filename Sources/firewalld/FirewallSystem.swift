@@ -26,10 +26,12 @@ struct FirewallSystem: Sendable {
     var moment: @Sendable () -> Moment
     var now: @Sendable () -> Date
     var run: @Sendable (_ executable: String, _ arguments: [String], _ input: String?) -> Output
-    /// 拿锁最多等多久。锁只有 root 打得开，只会被另一轮或另一条命令拿着；每条子命令有上限，一轮总会结束
-    var lockTimeout: TimeInterval = 30
+    /// 拿锁最多等多久。锁只有 root 打得开，只会被另一轮或另一条命令拿着；每条子命令有上限，一轮总会结束。
+    /// 一轮最坏 9 条子命令（读 2 条、动作 2 条、-E 后再读 1 条、核对 4 条），每条最多 `commandTimeout` + 1 秒，约 54 秒
+    var lockTimeout: TimeInterval = 60
 
-    static let live = FirewallSystem(directory: FirewallPaths.directory, moment: liveMoment, now: { Date() }, run: runProcess)
+    static let live = FirewallSystem(directory: FirewallPaths.directory, moment: liveMoment, now: { Date() },
+                                       run: { runProcess($0, $1, $2, timeout: commandTimeout) })
 
     /// `CLOCK_MONOTONIC_RAW`：睡眠也走，「不受频率和时间调整影响」（man page 原话；`CLOCK_MONOTONIC` 没这么写），开机归零
     /// （开机本来就把 trial 当 off）。@see https://keith.github.io/xcode-man-pages/clock_gettime.3.html
@@ -37,27 +39,22 @@ struct FirewallSystem: Sendable {
         Moment(bootSession: bootSession(), now: MonotonicTime(milliseconds: Int64(clock_gettime_nsec_np(CLOCK_MONOTONIC_RAW) / 1_000_000)))
     }
 
-    /// `kern.bootsessionuuid`；读不出来时是空串：和状态文件里记的对不上，按新开机处理（trial 当 off），往安全方向出错
-    private static func bootSession() -> String {
+    /// `kern.bootsessionuuid`；读不出来（或读出空串）是 `nil`，怎么办见 `FirewallState` 的 `advance`
+    private static func bootSession() -> String? {
         var size = 0
-        guard sysctlbyname("kern.bootsessionuuid", nil, &size, nil, 0) == 0, size > 0 else { return "" }
+        guard sysctlbyname("kern.bootsessionuuid", nil, &size, nil, 0) == 0, size > 0 else { return nil }
         var buffer = [UInt8](repeating: 0, count: size)
-        guard sysctlbyname("kern.bootsessionuuid", &buffer, &size, nil, 0) == 0 else { return "" }
-        return String(decoding: buffer.prefix { $0 != 0 }, as: UTF8.self)
+        guard sysctlbyname("kern.bootsessionuuid", &buffer, &size, nil, 0) == 0 else { return nil }
+        let session = String(decoding: buffer.prefix { $0 != 0 }, as: UTF8.self)
+        return session.isEmpty ? nil : session
     }
 
     /// 子命令最多跑多久。pfctl、ifconfig、launchctl 正常都在毫秒级；卡住的那次当失败，免得一轮不结束、试运行不回滚
     static let commandTimeout: TimeInterval = 5
 
     /// stdout、stderr 写进临时文件而不是管道：子进程卡住或输出很多时，这边都不会跟着卡在读管道上
-    private static func runProcess(_ executable: String, _ arguments: [String], _ input: String?) -> Output {
-        let scratch = FileManager.default.temporaryDirectory.appendingPathComponent("notchkeeper-firewall-\(UUID().uuidString)")
-        let outURL = scratch.appendingPathExtension("out"), errURL = scratch.appendingPathExtension("err")
-        defer { unlink(outURL.path); unlink(errURL.path) }
-        guard FileManager.default.createFile(atPath: outURL.path, contents: nil),
-              FileManager.default.createFile(atPath: errURL.path, contents: nil),
-              let out = FileHandle(forWritingAtPath: outURL.path), let err = FileHandle(forWritingAtPath: errURL.path)
-        else { return Output(status: -1, stdout: "", stderr: "建不了临时文件") }
+    static func runProcess(_ executable: String, _ arguments: [String], _ input: String?, timeout: TimeInterval) -> Output {
+        guard let out = scratchFile(), let err = scratchFile() else { return Output(status: -1, stdout: "", stderr: "建不了临时文件") }
 
         let p = Process()
         p.executableURL = URL(fileURLWithPath: executable)
@@ -76,13 +73,31 @@ struct FirewallSystem: Sendable {
         } catch {
             FileHandle.standardError.write(Data("notchkeeper-firewall: 写 \(executable) 的 stdin 失败：\(error)\n".utf8))
         }
-        if exited.wait(timeout: .now() + commandTimeout) == .timedOut {
+        if exited.wait(timeout: .now() + timeout) == .timedOut {
             p.terminate()
             if exited.wait(timeout: .now() + 1) == .timedOut { kill(p.processIdentifier, SIGKILL) }
-            return Output(status: -1, stdout: "", stderr: "超过 \(Int(commandTimeout)) 秒没结束，已结束它")
+            return Output(status: -1, stdout: "", stderr: "超过 \(timeout) 秒没结束，已结束它")
         }
-        let read = { (url: URL) in (try? String(contentsOf: url, encoding: .utf8)) ?? "" }
-        return Output(status: p.terminationStatus, stdout: read(outURL), stderr: read(errURL))
+        // 子进程和这边共用同一个打开的文件，写完偏移在末尾，从头读。读不出当失败：当成「成功、没输出」会被认成 anchor 是空的
+        let read = { (h: FileHandle) throws in
+            try h.seek(toOffset: 0)
+            return String(decoding: try h.readToEnd() ?? Data(), as: UTF8.self)
+        }
+        do {
+            return Output(status: p.terminationStatus, stdout: try read(out), stderr: try read(err))
+        } catch {
+            return Output(status: -1, stdout: "", stderr: "读不出输出：\(error)")
+        }
+    }
+
+    /// 新建就删掉、只留 fd 的临时文件。$TMPDIR 在 osascript 提权时可能是用户目录（推断）：`O_EXCL | O_NOFOLLOW`
+    /// 不跟着别人事先放好的符号链接写，删掉之后别人也换不掉、读不到它
+    private static func scratchFile() -> FileHandle? {
+        let path = FileManager.default.temporaryDirectory.appendingPathComponent("notchkeeper-firewall-\(UUID().uuidString)").path
+        let fd = open(path, O_RDWR | O_CREAT | O_EXCL | O_NOFOLLOW, 0o600)
+        guard fd >= 0 else { return nil }
+        unlink(path)
+        return FileHandle(fileDescriptor: fd, closeOnDealloc: true)
     }
 }
 
