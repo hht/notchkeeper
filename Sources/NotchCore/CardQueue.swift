@@ -11,6 +11,16 @@ public struct CardQueue<Item: Equatable & Sendable>: Sendable {
         case recovered
         /// 外部插件自己定的组：同一个插件里同组只留最新（照 terminal-notifier `-group`）
         case group(plugin: String, name: String)
+        /// 外部插件的一个活动弹的卡：之后的更新原地刷新它（`update`）
+        case activity(plugin: String, id: String)
+
+        /// 组和活动的卡属于哪个外部插件；内置插件的是 nil
+        public var plugin: String? {
+            switch self {
+            case .group(let p, _), .activity(let p, _): return p
+            case .session, .recovered: return nil
+            }
+        }
     }
 
     /// 每个外部插件至多排这么多张，再来就丢它最旧的那张（用户 10-31）：红卡挂久了，撤掉后不补放一长串
@@ -181,6 +191,28 @@ public struct CardQueue<Item: Equatable & Sendable>: Sendable {
         waiting.removeAll { $0.notice.key == key && $0.notice.lapses }
         guard case .notice(let e) = stage, e.notice.key == key, e.notice.lapses else { return Change() }
         return next(now)
+    }
+
+    /// 撤掉排着的、正在放的这些卡（关掉了发它们的插件）
+    public mutating func discard(where shouldGo: (Notice) -> Bool, now: Date) -> Change {
+        waiting.removeAll { shouldGo($0.notice) }
+        guard case .notice(let e) = stage, shouldGo(e.notice) else { return Change() }
+        return next(now)
+    }
+
+    /// 同一个 key 的卡排着或正在放：原地换成这张，不重放、不响、不重新倒计时；返回找没找到。找不到不放
+    public mutating func update(_ card: Item, key: Key) -> Bool {
+        var found = false
+        for i in waiting.indices where waiting[i].notice.key == key {
+            waiting[i].notice.card = card
+            found = true
+        }
+        if case .notice(var e) = stage, e.notice.key == key {
+            e.notice.card = card
+            stage = .notice(e)
+            found = true
+        }
+        return found
     }
 
     /// 鼠标停在卡上：倒计时暂停；移开从剩下的时间继续

@@ -69,7 +69,8 @@ public struct Card: Identifiable, Equatable, Sendable {
     public static let maxFacts = 4
     public static let maxButtons = 2
 
-    public let id = UUID()
+    /// 活动的卡每次更新都新造，id 沿用第一张：App 认出是同一张，原地换内容（`CardQueue.update`）
+    public let id: UUID
     public let source: Source
     public let title: String
     public private(set) var subtitle: String?
@@ -79,8 +80,9 @@ public struct Card: Identifiable, Equatable, Sendable {
     public let action: Action?
     public let buttons: [Button]
 
-    public init(source: Source, title: String, subtitle: String? = nil, value: String? = nil, outcome: Outcome,
+    public init(id: UUID = UUID(), source: Source, title: String, subtitle: String? = nil, value: String? = nil, outcome: Outcome,
                 block: Block? = nil, action: Action? = nil, buttons: [Button] = []) {
+        self.id = id
         if case .plugin(let id, let name, let symbol) = source {
             self.source = .plugin(id: id, name: Self.capped(name, to: Self.maxValue), symbol: Self.capped(symbol, to: Self.maxValue))
         } else {

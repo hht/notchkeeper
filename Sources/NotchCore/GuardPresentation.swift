@@ -86,5 +86,5 @@ public struct GuardPresentation: Equatable, Sendable {
     }
 
     /// 违规还在（或守卫不响应时最后一次是违规）：用户此刻关掉红卡算关掉这一次
-    var holdsViolation: Bool { status == .violated || status == .violationUnconfirmed }
+    public var holdsViolation: Bool { status == .violated || status == .violationUnconfirmed }
 }

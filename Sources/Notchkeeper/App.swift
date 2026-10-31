@@ -32,7 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         TerminalPlugin.refreshIfInstalled()
         notch = NotchController()
         settings = SettingsWindowController(state: state, notch: notch)
-        notch.onOpenSettings = { [weak self] in self?.openSettings() }
+        notch.onOpenSettings = { [weak self] pane in self?.settings.show(pane) }
         notch.contextMenu = buildMenu()
         NSApp.mainMenu = buildMainMenu()
 
@@ -51,16 +51,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .sink { [weak self] c in
                 self?.notch.setHoverEnabled(c.hoverExpand)
                 MascotDirector.shared.setFollowsMouse(c.mascotFollowsMouse)
+                self?.pluginsChanged(c)
             }
             .store(in: &cancellables)
 
         MascotDirector.shared.onPausedChange = { [weak self] in self?.notch.setScreenAway($0) }
         MascotDirector.shared.start(notchRect: { [weak self] in self?.notch.anchorRect ?? .zero })
+        // 守卫插件关着：在第一次读状态之前关掉提醒，免得启动时红卡闪一下
+        if !ConfigStore.shared.config.isEnabled(PluginID.exitGuard) { state.setGuardEnabled(false) }
         state.start()
-        // 外部插件的卡（docs/ui.md「卡片」）：红卡挂着时排着，由 `CardQueue` 按 `externalPluginID` 管
-        let inbox = InboxWatcher { admitted in
+        state.reloadManifests()
+        // 外部插件的卡和活动（docs/ui.md「卡片」）：红卡挂着时外部的卡排着，由 `CardQueue` 按 `externalPluginID` 管
+        let inbox = InboxWatcher { batch in
             DispatchQueue.main.async { [weak self] in
-                for a in admitted { self?.postExternal(a) }
+                guard let self else { return }
+                // 开没开只在这里按当前配置判：收件箱的队列上读不到，异步告诉它又会和刚关掉的那一下竞争
+                let c = ConfigStore.shared.config
+                var on = batch
+                on.cards.removeAll { !self.isEnabled($0.card) }
+                on.activities.removeAll { !c.isEnabled($0.plugin) }
+                let dropped = batch.cards.count + batch.activities.count - on.cards.count - on.activities.count
+                if dropped > 0 { Log.write("插件：关着的插件发来 \(dropped) 条，丢掉") }
+                for a in on.cards {
+                    Log.write("插件 \(a.card.externalPluginID ?? "")：收到一张卡") // id 已按格式校验过，可以进日志
+                    self.postExternal(a)
+                }
+                for change in self.state.applyInbox(on) { self.notch.activityCard(change) }
             }
         }
         inbox.start()
@@ -169,6 +185,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return i
     }
 
+    /// 上一次看到的插件开关：只在变了时动手
+    private var enabledPlugins: [String: Bool] = [:]
+
+    /// 关掉一个插件（docs/ui.md「面板布局」）：关的是提醒，不是判定。出口守卫撤红卡，Claude Code 撤会话的卡，外部插件撤卡、撤行、之后的消息丢掉
+    private func pluginsChanged(_ c: NKConfig) {
+        let ids = [PluginID.exitGuard, PluginID.claudeCode] + state.manifests.keys
+        let now = Dictionary(uniqueKeysWithValues: ids.map { ($0, c.isEnabled($0)) })
+        defer { enabledPlugins = now }
+        guard !enabledPlugins.isEmpty else { return } // 启动时只记下：守卫的开关在第一次读状态前已经设好
+        for (id, on) in now where enabledPlugins[id, default: true] != on {
+            switch id {
+            case PluginID.exitGuard:
+                state.setGuardEnabled(on)
+                // 红卡由 setGuardEnabled 撤；守卫的另一种卡是恢复卡
+                if !on { notch.discard { $0.key == .recovered } }
+            case PluginID.claudeCode:
+                if !on { notch.discard { if case .session = $0.key { true } else { false } } }
+                Log.write("Claude Code 插件：\(on ? "打开" : "关掉")")
+            default:
+                if !on {
+                    state.removeActivities(of: id)
+                    notch.discard { $0.externalPluginID == id }
+                }
+                Log.write("插件 \(id)：\(on ? "打开" : "关掉")")
+            }
+        }
+    }
+
     /// 点了要跳回的那个终端正在眼前（shell 发来的卡）：不弹
     private func postExternal(_ a: InboxGate.Admitted) {
         guard case .terminal(let terminal) = a.card.action, case .tty = terminal.identity else {
@@ -177,13 +221,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         Ghostty.isFocused(terminal) { focused in
             DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
                 if focused {
                     Log.write("插件：正看着要跳回的终端，这张卡不弹")
-                } else {
-                    self?.notch.post(a.card, key: a.key, staleAt: a.staleAt)
+                } else if self.isEnabled(a.card) { // 等 Ghostty 回话时可能刚关掉这个插件
+                    self.notch.post(a.card, key: a.key, staleAt: a.staleAt)
                 }
             }
         }
+    }
+
+    private func isEnabled(_ card: Card) -> Bool {
+        card.externalPluginID.map(ConfigStore.shared.config.isEnabled) ?? true
     }
 
     @objc func openSettings() { settings.show() }

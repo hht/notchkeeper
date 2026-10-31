@@ -2,12 +2,19 @@ import Darwin
 import Foundation
 import PluginCore
 
-/// 回答：收件箱里来了哪些外部插件的卡。
+/// 回答：收件箱里来了哪些外部插件的卡和活动。
 /// 只做 I/O：建目录（0700，别的用户写不进来）、监听 `inbox/new/`、读完即删、读插件登记；
 /// 解不解得开、放不放、放成哪张卡全归 PluginCore（`Message`、`Manifest`、`InboxGate`）。可变状态只在 `queue` 上读写，所以标 `@unchecked Sendable`。
 /// 消息是外部数据：日志里只记丢的原因（PluginCore 的枚举、errno）和计数，不记内容和文件名（CLAUDE.md 准则 5）。
 final class InboxWatcher: @unchecked Sendable {
-    private let onCards: @Sendable ([InboxGate.Admitted]) -> Void
+    /// 一次扫描收下的：卡、活动，和这时读到的插件登记
+    struct Batch: Sendable {
+        var cards: [InboxGate.Admitted] = []
+        var activities: [ActivityUpdate] = []
+        var plugins: [String: Manifest]
+    }
+
+    private let onBatch: @Sendable (Batch) -> Void
     private let queue = DispatchQueue(label: "com.notchkeeper.inbox")
     private var gate = InboxGate()
     /// 只看目录：照 Maildir 文件是 rename 进来的，不会原地改
@@ -23,10 +30,11 @@ final class InboxWatcher: @unchecked Sendable {
     /// `tmp/` 里这么久的是写到一半崩了的（照 Maildir）
     private static let staleTmp: TimeInterval = 36 * 3600
 
-    /// `onCards` 在内部队列上调用，只在有能放的卡时调用
-    init(onCards: @escaping @Sendable ([InboxGate.Admitted]) -> Void) {
-        self.onCards = onCards
+    /// `onBatch` 在内部队列上调用，只在收下了卡或活动时调用
+    init(onBatch: @escaping @Sendable (Batch) -> Void) {
+        self.onBatch = onBatch
     }
+
 
     func start() {
         queue.async { [self] in
@@ -100,47 +108,58 @@ final class InboxWatcher: @unchecked Sendable {
             }
         }
         guard !messages.isEmpty else { return }
-        let plugins = manifests()
+        // 每次有消息时现读（插件只有几个），装上、卸掉不用重启 App
+        let plugins = Self.manifests { dir, error in
+            if badManifests.insert(dir).inserted { Log.write("插件：\(Self.safe(dir)) 的 manifest.json 读不了或解不开（\(error)），算没登记") }
+        }
+        badManifests.subtract(plugins.keys) // 修好了的：再坏时再记
         let now = Date()
-        var admitted: [InboxGate.Admitted] = []
+        var batch = Batch(plugins: plugins)
         for m in messages.sorted(by: { $0.at < $1.at }) {
             do {
-                admitted.append(try gate.admit(m, plugins: plugins, now: now))
-                Log.write("插件 \(m.plugin)：收到一张卡")
+                if m.activity == nil {
+                    batch.cards.append(try gate.admit(m, plugins: plugins, now: now))
+                } else {
+                    batch.activities.append(try gate.admitActivity(m, plugins: plugins, now: now))
+                }
             } catch .unregistered {
                 drop("插件 \(m.plugin) 没登记") // id 已按格式校验过，可以进日志
             } catch {
                 drop("插件 \(m.plugin)：\(error)")
             }
         }
-        if !admitted.isEmpty { onCards(admitted) }
+        if !batch.cards.isEmpty || !batch.activities.isEmpty { onBatch(batch) }
     }
 
-    /// `plugins/<id>/manifest.json`：每次有消息时现读（插件只有几个），装上、卸掉不用重启 App
-    private func manifests() -> [String: Manifest] {
+    /// 已登记的外部插件：`plugins/<id>/manifest.json`。读不了的交给 `onBad`（目录名、错误），算没登记；设置页也用它列插件
+    static func manifests(onBad: (String, Error) -> Void = { _, _ in }) -> [String: Manifest] {
         let dirs: [String]
         do {
             dirs = try FileManager.default.contentsOfDirectory(atPath: PluginPaths.plugins.path)
+        } catch CocoaError.fileReadNoSuchFile {
+            return [:]
         } catch {
-            Log.write("插件：读不了插件目录（\(Self.code(error))），都算没登记")
+            Log.write("插件：读不了插件目录（\(code(error))），都算没登记")
             return [:]
         }
         var result: [String: Manifest] = [:]
         for dir in dirs {
             let url = PluginPaths.plugins.appendingPathComponent(dir).appendingPathComponent("manifest.json")
             do {
-                let manifest = try Manifest.parse(Self.readRegularFile(url), directoryName: dir)
+                let manifest = try Manifest.parse(readRegularFile(url), directoryName: dir)
                 result[manifest.id] = manifest
-                badManifests.remove(dir)
             } catch POSIXError.ENOENT {
                 continue
             } catch {
-                // 目录名是外部的：只留字母、数字、连字符，截短再记
-                let name = String(String.UnicodeScalarView(dir.unicodeScalars.filter { $0.isASCII && ($0.properties.isAlphabetic || ("0"..."9").contains($0) || $0 == "-") }).prefix(32))
-                if badManifests.insert(dir).inserted { Log.write("插件：\(name) 的 manifest.json 读不了或解不开（\(error)），算没登记") }
+                onBad(dir, error)
             }
         }
         return result
+    }
+
+    /// 目录名是外部的：只留字母、数字、连字符，截短再记
+    private static func safe(_ dir: String) -> String {
+        String(String.UnicodeScalarView(dir.unicodeScalars.filter { $0.isASCII && ($0.properties.isAlphabetic || ("0"..."9").contains($0) || $0 == "-") }).prefix(32))
     }
 
     private func drop(_ why: String) {

@@ -1,37 +1,25 @@
 # HANDOFF
 
-最后更新：2026-10-31（插件化第 4 刀之后）。只放接下来要做的和没解决的；做完的看 `git log`，规则看 `CLAUDE.md` 和 `docs/*`。开工前 `git log --oneline -5` 核对，工作区应是干净的。实机验证的技巧见 `docs/dev-notes.md`。
+最后更新：2026-10-31（插件化做完）。只放接下来要做的和没解决的；做完的看 `git log`，规则看 `CLAUDE.md` 和 `docs/*`。开工前 `git log --oneline -5` 核对。实机验证的技巧见 `docs/dev-notes.md`。
 
 ## 接下来
 
-**新会话从这里开始**：插件化做到第 4 刀（卡片模型和内容块、点击动作和按钮、收件箱 + `PluginCore` + `nk`、终端命令插件都已提交，见 `git log`）。下一刀是第 5 刀。规则已经写进 CLAUDE.md「硬规则·插件」和 `docs/ui.md`「卡片」，设计全文在本机 `~/.claude/plans/agile-swimming-origami.md`（不在仓库里，下面是要点）。用户的偏好：文档尽量少、先做代码；每刀做完先汇报、等用户说「提交」。
+**新会话从这里开始**：插件化做完了（第 1–6 刀都已提交，见 `git log`）。规则在 CLAUDE.md「硬规则·插件」和 `docs/ui.md`「面板布局」「卡片」。用户的偏好：文档尽量少、先做代码；做完先汇报、等用户说「提交」。下一步是第 4 步（App 外壳重写，见下）。
 
-**插件化**（用户 10-31 定方向并批准设计）：App 变成「刘海 + Pip + 卡片队列 + 面板」外壳，三类插件挂上去、产出同一种 `Card`（`Sources/NotchCore/Card.swift`）。
+**插件化**：App 是「刘海 + Pip + 卡片队列 + 面板」外壳，插件产出同一种 `Card`，各报一个 `PluginStatus`（紧急程度），面板里各占一段（`PanelRow`）。内置插件是出口守卫、Claude Code（id 见 `NotchCore/PluginID.swift`，外部插件不能用）。外部插件写收件箱（`nk notify`、`nk activity`），`InboxWatcher` 读，`InboxGate` 收，活动归 `ActivityBoard`；插件开没开只在 App 主线程的收件箱回调里判。
 
-- 内置插件：出口守卫、Claude Code。能在设置里关；来源和判定仍在 `GuardCore` / `AgentCore`（mod 拿不到忙闲和介入、也没有原子写，所以 Claude Code 不改写通用格式）。只有守卫能用红、绿和 danger；外部卡在红卡挂着时排着（`CardQueue.Notice.coversAlert`）。
-- 外部插件：脚本写收件箱，App 监听。消息格式看 `Sources/PluginCore/Message.swift`，`nk notify` 写，`InboxWatcher` 读。第一个是终端插件（`Resources/plugins/terminal/`，设置 › 通知 › 终端安装；第 5 刀挪进「插件」页）。
+**快捷指令（App Intents）：用户 10-31 定先不做**。当时的调研：纯 `swift build` 产不出 `Metadata.appintents`；给 swiftc 加 `-emit-const-values` 和 `-Xfrontend -const-gather-protocols-file <协议清单>`（协议清单抄自 swift-build `SWBCore`），再在 `run.sh` 里手工跑 `xcrun appintentsmetadataprocessor`，/tmp 实测能生成含 intent 和 AppShortcut 的元数据。代价：参数和协议清单都没有文档、Xcode 升级可能坏；要装完整 Xcode；注册进快捷指令要用户在快捷指令 App 里看。出处：swift-build `Sources/SWBCore/SpecImplementations/Tools/SwiftCompiler.swift`、`Sources/SWBApplePlatform/Specs/AppIntentsMetadata.xcspec`。
 
-**等用户定**（10-31 第 3、4 刀汇报时提出，用户还没答复，第 5 刀开工前先问）：
-- 外部插件能在 manifest 里起名「Claude Code」「出口守卫」、配盾牌图标冒充内置插件（外部卡副标题前总有插件标识，内置卡没有）。要不要保留内置插件的 id 和名字？
-- CLAUDE.md 准则 2 的核心 target 列表要不要加 `PluginCore`？
-- 某个插件按限流上限一直发，红卡撤了后最多补放约 60 张（`InboxGate.lifetime` 10 分钟 × 每分钟 6 张），这期间 Claude 卡排在后面。要不要再按插件限排队张数？
-- 「正看着不弹」要在没点击时发 Apple Event（Ghostty 在前台时，只读 id 和 working directory；`docs/agent-integration.md`「跳转到 Ghostty」已改）。不要的话去掉 `Ghostty.isFocused`。
-
-剩下的切片，每刀 TDD → 零警告 + 全绿 → reviewer → 用户说了再提交：
-
-5. **内置插件开关 + 设置页「插件」页**：守卫（允许列表、自动弹红卡、红卡常驻，从「出口守卫」页挪来）、Claude Code（`ClaudeModSection` 挪来）、终端（安装 + source 行）、其他外部插件开关、URL 白名单 `urlSchemes`（现在只能改 config.json）。`NKConfig` 加 `plugins: [id: {enabled}]`。违规中关守卫弹确认「出口仍不合规，确定关掉提醒？」，确认后撤红卡、Pip 不画守卫造型，guardd 照跑，再打开读一次就恢复。
-6. **面板按插件分段 + 外部活动 + 状态与常驻**（和第 4 步的 MascotResolver 一起，用户 10-31 定）：
-   - 面板每个开着的插件一段，行用统一模板（图标、标题、可选副标题、状态指示、右侧「距今多久」或短值、点击动作），内容由插件定；Claude 会话列表改走这个模板；用户在设置里管每段的开关、顺序、最多露几行。
-   - 外部插件用活动（start / update / end，时间戳取新，照 ActivityKit）往自己那段加行、原地刷新进度（`CardQueue` 要加「原地更新不重放不响」）。
-   - 每个插件报一个带紧急程度的状态（平静 / 进行中 / 要你看 / 严重，严重只有守卫能报）；收起时 Pip 和右耳显示最急的那个（照灵动岛 relevanceScore）；都平静时显示用户指定的「常驻插件」（默认守卫，可选不常驻）。
-   - 一个插件都不开：只留左耳 Pip、右耳空着，面板只有「还没有开启的插件」和「打开插件设置」；设置里可关掉 Pip 变纯黑刘海（照 boring.notch 的空闲脸选项）。
-7. 以后：快捷指令（App Intents，SwiftPM 能不能产出它要的元数据没核实）。
-
-插件化这几刀还没实机试的：终端插件在 Ghostty 里的两件事——点卡片跳回 shell 所在的终端（按 tty 认）；焦点正停在跑命令的那个终端上时不弹（用户 10-31 定：只按那一个终端算，同窗口别的标签、分屏、别的窗口都照常弹；日志「正看着要跳回的终端」；同目录只开一个终端时才认得出）。10-31 用 AppleScript 在 Ghostty 里开新窗口试时，窗口在命令跑完前没了、原因没查（用户正在用 Ghostty，没再试）；`script` 伪终端里跑的端到端已通。demo 卡上「看 Swift 文档」（https）按钮；红卡挂着时外部卡排着、红卡撤了再放（`demo.sh alert` 后 `nk notify`）；`demo.sh blocks` 现在 release 构建也能触发（随第 4 步的 DEBUG 监听一起处理，到时要有 DEBUG 版的运行方式）。
+插件化 10-31 实机验证过：设置 › 插件页（开关、面板顺序和行数、常驻插件、链接白名单的显示）；活动卡原地刷新；红卡挂着时外部卡排着、每个插件只补放最新 3 张、排着的活动卡被刷新；红卡挂着时关守卫红卡立刻撤；插件全关时面板的占位和纯黑刘海。还没试的：
+- 面板「打开插件设置」按钮跳到插件页；设置页上移、下移、行数步进、白名单添加和报错（10-31 模拟的键盘输入落到了 Ghostty，之后不再在用户机器上模拟键盘和点击，要用户自己点）。
+- 违规中关守卫的确认框：要真违规（`demo.sh alert` 不算违规，不弹确认）。
+- 设置页往下滚时窗口标题叠在内容上（推断各页都有，原有样式）。
+- 终端插件在 Ghostty 里的两件事：点卡片跳回 shell 所在的终端（按 tty 认）；焦点正停在跑命令的那个终端上时不弹（用户 10-31 定：只按那一个终端算，同窗口别的标签、分屏、别的窗口都照常弹；日志「正看着要跳回的终端」；同目录只开一个终端时才认得出）。10-31 用 AppleScript 在 Ghostty 里开新窗口试时，窗口在命令跑完前没了、原因没查；`script` 伪终端里跑的端到端已通。
+- demo 卡上「看 Swift 文档」（https）按钮；`demo.sh blocks` 现在 release 构建也能触发（随第 4 步的 DEBUG 监听一起处理，到时要有 DEBUG 版的运行方式）。
 
 **第 4 步：App 外壳重写**（排在插件化之后；用户 10-31 定插件化先做）。已做：`NotchCore` 的 `CardQueue`、`GuardPresentation`、`ViolationAlert`、`Card`。剩下：
 
-- `NotchCore`：悬停状态机（HoverMachine）、MascotResolver（并进插件化第 6 刀；现在是 `AppState.look` 临时合成）、布局几何、配置解码（`Tests/NotchkeeperTests` 的测试跟着挪）。
+- `NotchCore`：悬停状态机（HoverMachine）、布局几何（`NotchLayout`、`PanelShape`）、配置解码（`Tests/NotchkeeperTests` 的测试跟着挪）。Pip 画谁已经由 `PluginStatus.lead` 定，晕、睡着还在 App 里叠。
 - 接上「点一下晕」。`MascotDirector` 的时钟决策（醒来、恢复、推迟小动作）抽成值类型测试；从 Coucou 搬来的代码重写掉，删 MIT 声明。
 - 亮色、多语言基础设施：所有文案走 String Catalog；设置窗口去掉强制暗色，刘海窗口设 `.darkAqua`（现在没设），加「在系统设置中更改语言…」。
 - 减弱动态效果时黑色形状的弹簧还没收紧（HIG Accessibility，`docs/ui.md`「灵动岛规范」12）。

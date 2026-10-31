@@ -22,6 +22,8 @@ public struct ViolationAlert: Sendable {
     private var shown: GuardPresentation.Alert?
     /// 这次违规弹过红卡：回到 healthy 才弹恢复卡。中间断网、守卫不响应、用户关掉红卡都算同一次
     private var alerted = false
+    /// 设置里出口守卫插件开着：关着时照常判定，但不挂红卡、不弹恢复卡
+    private var enabled = true
 
     public init(_ d: GuardDisplay) { display = d }
 
@@ -31,6 +33,7 @@ public struct ViolationAlert: Sendable {
     public mutating func read(_ d: GuardDisplay, autoAlert: Bool) -> Action {
         display = d
         if d.verdict == .healthy { dismissedViolationSince = nil }
+        guard enabled else { return .none }
         if presentation.status == .healthy {
             defer { shown = nil; alerted = false }
             return shown != nil || alerted ? .clear(recovered: alerted) : .none
@@ -42,6 +45,15 @@ public struct ViolationAlert: Sendable {
         case alert: return .none
         case .some: shown = alert; return .replaceDetail(alert)
         }
+    }
+
+    /// 开关出口守卫插件。关掉：撤红卡、不弹恢复卡（关的是提醒，不是判定）；打开：按最近一份状态读一次
+    public mutating func setEnabled(_ on: Bool, autoAlert: Bool) -> Action {
+        guard on != enabled else { return .none }
+        enabled = on
+        if on { return read(display, autoAlert: autoAlert) }
+        defer { shown = nil; alerted = false }
+        return shown != nil ? .clear(recovered: false) : .none
     }
 
     /// 红卡收起了、违规没恢复（用户点了 ×，或不常驻的红卡到时）。只在违规还挂着时记下，演示红卡关掉不算

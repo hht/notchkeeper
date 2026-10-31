@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 import NotchCore
-import PluginCore
+@testable import PluginCore
 @testable import nk
 
 private let t0 = Date(timeIntervalSince1970: 1_800_000_000)
@@ -50,5 +50,47 @@ private func notify(_ args: [String]) throws -> Message {
                       ["--plugin", "terminal", "--title", "x", "--open", "no scheme"]])
     func invalidMessages(_ args: [String]) {
         #expect(throws: NotifyError.self) { try Notify.message(args, id: id, now: t0) }
+    }
+}
+
+/// `nk activity start|update|end --id <活动> …`：其余参数和 notify 一样，多一个 `--progress`、`--alert`
+@Suite struct ActivityArguments {
+    private func activity(_ event: String, _ extra: [String]) throws -> Message {
+        try Message.parse(Notify.message(extra + ["--plugin", "dl", "--title", "下载中"], id: id, now: t0, activity: event))
+    }
+
+    @Test func update() throws {
+        let m = try activity("update", ["--id", "xcode", "--progress", "0.62", "--label", "7.4 / 12 GB", "--value", "剩 1 分"])
+        #expect(m.activity == .init(id: "xcode", event: .update, alert: false))
+        #expect(m.block == .progress(0.62, label: "7.4 / 12 GB") && m.value == "剩 1 分")
+    }
+
+    @Test func alertFlag() throws {
+        #expect(try activity("start", ["--id", "x", "--alert"]).activity == .init(id: "x", event: .start, alert: true))
+    }
+
+    @Test(arguments: [["--progress", "0.5"], ["--id", "x", "--progress", "abc"], ["--id", "x", "--progress", "0.5", "--fact", "a=b"],
+                      ["--id", "x", "--group", "g"]])
+    func usageErrors(_ extra: [String]) {
+        #expect(throws: NotifyError.self) { try activity("update", extra) }
+    }
+
+    @Test func badEvent() {
+        #expect(throws: NotifyError.self) { try activity("stop", ["--id", "x"]) }
+    }
+
+    /// 普通卡不收活动的参数
+    @Test(arguments: [["--id", "x"], ["--alert"]])
+    func notifyRejectsActivityOptions(_ extra: [String]) {
+        #expect(throws: NotifyError.self) { try Notify.message(["--plugin", "dl", "--title", "x"] + extra, id: id, now: t0) }
+    }
+}
+
+/// 发出时刻带毫秒：脚本一秒里连发 start、end，App 才分得清先后
+@Suite struct NotifyTimestamp {
+    @Test func fractionalSeconds() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000.25)
+        let m = try Message.parse(Notify.message(["--plugin", "dl", "--title", "x"], id: id, now: now))
+        #expect(m.at == now)
     }
 }

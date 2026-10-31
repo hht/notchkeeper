@@ -3,6 +3,7 @@ import AppKit
 import SwiftUI
 import MascotCore
 import NotchCore
+import PluginCore
 
 /// 卡片的样子和声音：写什么在 NotchCore 的 `Card`，这里按 `outcome` 取流星颜色、Pip 造型、提示音（docs/ui.md「卡片」）。
 /// 什么时候放由 `CardQueue` 决定
@@ -67,10 +68,6 @@ extension Card {
     }
 }
 
-extension TerminalRef {
-    init(_ session: Session) { self.init(pid: session.pid, identity: .started(session.processStart), cwd: session.cwd) }
-}
-
 enum NotchMode: Hashable { case closed, card, dashboard }
 
 /// 「状态测试」的覆盖（StateTest.swift）：只在内存里，只经 NotchController 改，重开 App 就没了
@@ -81,8 +78,40 @@ final class NotchOverrides: ObservableObject {
 
     var isReal: Bool { look == nil && pin == .auto }
 
-    /// Pip 实际显示的造型：强制的优先，否则是真实的守卫状态
+    /// Pip 实际显示的造型：强制的优先，否则是真实的（上位插件的）
     func mascot(real: Look) -> Look { look ?? real }
+    /// 右耳实际显示的指示：强制时跟着强制的造型
+    func ear(real: EarIndicator) -> EarIndicator { look.map { .for($0, probeFailed: false) } ?? real }
+}
+
+extension AppState {
+    /// 面板此刻的形状：视图和命中测试按同一份算
+    var panel: PanelShape { PanelShape(guardEnabled: store.config.isEnabled(PluginID.exitGuard), sections: sections) }
+
+    /// 收起时长不长耳朵：左耳画 Pip，或右耳有东西
+    func ears(_ overrides: NotchOverrides) -> Bool {
+        store.config.showsEarMascot || overrides.ear(real: lead?.indicator ?? .none) != .none
+    }
+}
+
+/// 点卡片、按钮、面板里的行都走这里：动作只有三种（CLAUDE.md 硬规则「插件」）。
+/// 打开 URL 按 `urlSchemes` 白名单放行，拦下时只记 scheme（截短：外部来源）
+@MainActor
+enum CardActions {
+    static func perform(_ action: Card.Action) {
+        switch action {
+        case .open(let url):
+            if URLPolicy(schemes: ConfigStore.shared.config.urlSchemes).allows(url) {
+                NSWorkspace.shared.open(url)
+            } else {
+                Log.write("卡片：链接的 scheme 不在白名单里，没打开（\((url.scheme ?? "无").prefix(32))）")
+            }
+        case .activate(let bundleID):
+            if !Apps.activate(bundleID) { Log.write("卡片：没装要切换的 App") }
+        case .terminal(let terminal):
+            Ghostty.focus(terminal)
+        }
+    }
 }
 
 @MainActor
@@ -142,8 +171,8 @@ enum NotchLayout {
     /// 状态区和会话容器之间、底栏和面板底之间
     static let listGap: CGFloat = 10
     static let footerBottom: CGFloat = 4
-    /// 会话列表最多露出几行，再多就在列表里滚动（用户 10-29：开的会话多了面板不能无限变长）
-    static let maxRows = 5
+    /// 面板里段与段之间
+    static let sectionGap: CGFloat = 6
     /// 小字（时间、底栏、空列表）的白色不透明度：≤17pt 的字对比度至少 4.5:1（HIG Accessibility）
     static let secondaryTextOpacity = 0.5
 
@@ -166,17 +195,61 @@ enum NotchLayout {
     /// 卡片内容的上沿
     static func cardTop(_ notch: CGSize) -> CGFloat { topInset(notch) - 2 }
 
-    /// cardContent：卡片内容量出来的高度（第一行 + 内容块），形状跟着它用弹簧长
-    static func size(_ mode: NotchMode, notch: CGSize, rows: Int, cardContent: CGFloat) -> CGSize {
+    /// cardContent：卡片内容量出来的高度（第一行 + 内容块），形状跟着它用弹簧长。
+    /// ears：收起时长不长耳朵（没有刘海的屏幕本来就不长；左耳不画 Pip、右耳也没东西时不长，就是一块纯黑的刘海）
+    static func size(_ mode: NotchMode, notch: CGSize, panel: PanelShape, cardContent: CGFloat, ears: Bool) -> CGSize {
         switch mode {
         case .closed:
-            return hasEars(notch) ? CGSize(width: notch.width + 2 * earWidth, height: notch.height) : notch
+            return hasEars(notch) && ears ? CGSize(width: notch.width + 2 * earWidth, height: notch.height) : notch
         case .card: return CGSize(width: dashWidth + 2 * openFlare, height: cardTop(notch) + cardContent + cardBottom)
         case .dashboard:
-            let n = min(rows, maxRows)
-            let list = (n == 0 ? rowHeight : CGFloat(n) * rowHeight) + 2 * listInset
-            return CGSize(width: dashWidth + 2 * openFlare, height: dashTop(notch) + dashStatusHeight + listGap + list + footerHeight + footerBottom)
+            let list: CGFloat = switch panel.list {
+            case nil: 0
+            case []?: listGap + rowHeight + 2 * listInset
+            case let sections?: listGap + sections.map { CGFloat($0.rows) * rowHeight + 2 * listInset }.reduce(0, +)
+                + CGFloat(sections.count - 1) * sectionGap
+            }
+            return CGSize(width: dashWidth + 2 * openFlare,
+                          height: dashTop(notch) + (panel.header ? dashStatusHeight : 0) + list + footerHeight + footerBottom)
         }
+    }
+}
+
+/// 面板长什么样：顶上有没有出口守卫的状态区，下面各段露几行（docs/ui.md「面板布局」）。视图和悬停命中测试共用
+struct PanelShape: Equatable {
+    struct Visible: Equatable {
+        var plugin: String
+        var rows: Int
+    }
+
+    var header: Bool
+    /// nil：没有列表（只开了出口守卫）；空：一行占位（段都空着，或一个插件都没开）
+    var list: [Visible]?
+
+    /// 各段合起来至多露这么多行：排在前面的段先拿，拿不到的不画（面板再高就挡住半个屏幕了）
+    static let maxRows = 6
+
+    init(header: Bool, list: [Visible]?) {
+        self.header = header
+        self.list = list
+    }
+
+    /// sections：开着的段，按顺序
+    init(guardEnabled: Bool, sections: [PanelSection]) {
+        header = guardEnabled
+        guard !sections.isEmpty else {
+            list = guardEnabled ? nil : []
+            return
+        }
+        var left = Self.maxRows
+        var visible: [Visible] = []
+        for s in sections {
+            let n = min(s.rows.count, s.maxRows, left)
+            guard n > 0 else { continue }
+            visible.append(Visible(plugin: s.plugin, rows: n))
+            left -= n
+        }
+        list = visible
     }
 }
 
@@ -185,7 +258,8 @@ enum NotchLayout {
 /// 所以不会抢焦点，也不会挡住别处的点击。
 @MainActor
 final class NotchController {
-    static let windowSize = CGSize(width: 580, height: 320)
+    /// 装得下最满的面板（`PanelShape.maxRows` 行分在最多 6 段里）和最满的卡片
+    static let windowSize = CGSize(width: 580, height: 440)
     /// 收起时的层级：在系统菜单栏之上，但在下拉菜单之下
     static let restLevel = NSWindow.Level(rawValue: NSWindow.Level.mainMenu.rawValue + 3)
     /// 展开时的层级：要压过铺满顶部的第三方菜单栏覆盖层，否则卡片上沿会被盖住一截。
@@ -212,8 +286,8 @@ final class NotchController {
     private var leaveWork: DispatchWorkItem?
     private var screenFrame: NSRect = .zero
 
-    /// 齿轮按钮：打开设置
-    var onOpenSettings: () -> Void = {}
+    /// 齿轮按钮、「打开插件设置」：打开设置（nil 是上次的页）
+    var onOpenSettings: (SettingsPane?) -> Void = { _ in }
     /// 在刘海或展开的形状上右键时弹出
     var contextMenu: NSMenu?
     /// 红卡没等到 healthy 就收起（用户点 ×，或非常驻红卡到时）：记作用户关掉了这一次违规
@@ -234,32 +308,20 @@ final class NotchController {
         // @see https://developer.apple.com/documentation/appkit/nswindow/allowstooltipswhenapplicationisinactive
         window.allowsToolTipsWhenApplicationIsInactive = true
 
-        let host = FirstMouseHostingView(rootView: NotchRoot(model: model, overrides: model.overrides, state: state, onDismiss: { [weak self] in
+        let host = FirstMouseHostingView(rootView: NotchRoot(model: model, overrides: model.overrides, state: state, store: ConfigStore.shared, onDismiss: { [weak self] in
             // 点了卡片的 ×
             guard let self else { return }
             self.apply(self.queue.dismiss(now: Date()))
         }, onOpenCard: { [weak self] action in
-            // 点了卡片 × 以外的地方或按钮：去它说的地方，这张卡算关掉（docs/ui.md「卡片」）。
-            // 动作只有三种（CLAUDE.md 硬规则「插件」）；打开 URL 按 `urlSchemes` 白名单放行，拦下时只记 scheme（截短：外部来源）
+            // 点了卡片 × 以外的地方或按钮：去它说的地方，这张卡算关掉（docs/ui.md「卡片」）
             guard let self else { return }
-            switch action {
-            case .open(let url):
-                if URLPolicy(schemes: ConfigStore.shared.config.urlSchemes).allows(url) {
-                    NSWorkspace.shared.open(url)
-                } else {
-                    Log.write("卡片：链接的 scheme 不在白名单里，没打开（\((url.scheme ?? "无").prefix(32))）")
-                }
-            case .activate(let bundleID):
-                if !Apps.activate(bundleID) { Log.write("卡片：没装要切换的 App") }
-            case .terminal(let terminal):
-                Ghostty.focus(terminal)
-            }
+            CardActions.perform(action)
             self.apply(self.queue.dismiss(now: Date()))
         }, onCardResized: { [weak self] in
             self?.cardResized()
-        }, onSettings: { [weak self] in
+        }, onSettings: { [weak self] pane in
             self?.setHovering(false)
-            self?.onOpenSettings()
+            self?.onOpenSettings(pane)
         }))
         host.sizingOptions = []
         host.frame = NSRect(origin: .zero, size: Self.windowSize)
@@ -304,6 +366,21 @@ final class NotchController {
 
     private func orderFront() { window.orderFrontRegardless() }
 
+    /// 活动的卡：排着或正在放就原地刷新（不重放、不响、不重新倒计时）；不在且要弹才弹
+    func activityCard(_ change: ActivityBoard.CardChange) {
+        if queue.update(change.card, key: change.key) {
+            apply(CardQueue.Change())
+        } else if change.alert {
+            // 和普通卡一样排久了就不放：红卡挂了几个小时，撤掉后不补放早就结束了的活动
+            post(change.card, key: change.key, staleAt: min(change.staleAt ?? .distantFuture, Date().addingTimeInterval(InboxGate.lifetime)))
+        }
+    }
+
+    /// 关掉了插件：它排着的、正在放的卡都撤
+    func discard(where shouldGo: (CardQueue<Card>.Notice) -> Bool) {
+        apply(queue.discard(where: shouldGo, now: Date()))
+    }
+
     /// 临时卡进队列（docs/ui.md「卡片」）。seconds 默认是「卡片停留」设置
     func post(_ card: Card, key: CardQueue<Card>.Key?, seconds: TimeInterval? = nil, lapses: Bool = false, staleAt: Date? = nil) {
         let notice = CardQueue.Notice(card: card, key: key, seconds: seconds ?? ConfigStore.shared.config.cardAutoDismissSeconds,
@@ -346,7 +423,12 @@ final class NotchController {
         case nil: card = nil
         }
         if let card {
-            if card.id != model.card?.id || !model.expanded { present(card) }
+            if card.id != model.card?.id || !model.expanded {
+                present(card)
+            } else if card != model.card {
+                // 同一张卡换了内容（活动原地刷新）：不重新进场
+                model.card = card
+            }
             if change.sound, ConfigStore.shared.config.soundEnabled, let sound = card.sound { NSSound(named: sound)?.play() }
         } else if model.expanded {
             collapse()
@@ -524,7 +606,7 @@ final class NotchController {
     /// 收起的形状（刘海加两只耳朵，或无刘海屏顶端中间一条细带）略放大一点作为悬停、点击热区
     var triggerRect: NSRect {
         let f = screenFrame
-        let n = NotchLayout.size(.closed, notch: model.notchSize, rows: 0, cardContent: 0)
+        let n = NotchLayout.size(.closed, notch: model.notchSize, panel: state.panel, cardContent: 0, ears: state.ears(overrides))
         let w = (hasNotch ? n.width : 200) + 16
         let h = hasNotch ? n.height + 2 : 6
         return NSRect(x: f.midX - w / 2, y: f.maxY - h, width: w, height: h + Self.topEdgeSlack)
@@ -538,7 +620,7 @@ final class NotchController {
 
     /// 当前可见形状的屏幕区域（与视图共用 NotchLayout 的尺寸）
     private var shapeRect: NSRect {
-        let s = NotchLayout.size(model.mode, notch: model.notchSize, rows: state.sessions.count, cardContent: model.cardContentHeight)
+        let s = NotchLayout.size(model.mode, notch: model.notchSize, panel: state.panel, cardContent: model.cardContentHeight, ears: state.ears(overrides))
         let f = screenFrame
         return NSRect(x: f.midX - s.width / 2, y: f.maxY - s.height, width: s.width, height: s.height + Self.topEdgeSlack)
     }
@@ -654,18 +736,21 @@ struct NotchRoot: View {
     @ObservedObject var model: NotchModel
     @ObservedObject var overrides: NotchOverrides
     @ObservedObject var state: AppState
+    /// 插件开关、顺序、常驻插件、左耳画不画 Pip 都在配置里
+    @ObservedObject var store: ConfigStore
     let onDismiss: () -> Void
     let onOpenCard: (Card.Action) -> Void
     /// 卡片量出了新高度：命中区跟着变
     let onCardResized: () -> Void
-    let onSettings: () -> Void
+    let onSettings: (SettingsPane?) -> Void
 
     @ObservedObject private var director = MascotDirector.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         let mode = model.mode
-        let size = NotchLayout.size(mode, notch: model.notchSize, rows: state.sessions.count, cardContent: model.cardContentHeight)
+        let panel = state.panel
+        let size = NotchLayout.size(mode, notch: model.notchSize, panel: panel, cardContent: model.cardContentHeight, ears: state.ears(overrides))
         let open = mode != .closed
         let t: CGFloat = open ? NotchLayout.openFlare : NotchLayout.closedFlare
         let b: CGFloat = open ? NotchLayout.openBottomRadius : 8
@@ -675,7 +760,7 @@ struct NotchRoot: View {
             shape
                 .fill(Color.black)
                 .frame(width: size.width, height: size.height)
-                .overlay(alignment: .top) { content(mode, inset: t) }
+                .overlay(alignment: .top) { content(mode, panel: panel, inset: t) }
                 .overlay(alignment: .topLeading) { corners(mode, size: size, flare: t) }
                 .overlay {
                     // 面板是一条很淡的白线；卡片的边缘是流星，画在裁切外面（见下）
@@ -698,7 +783,7 @@ struct NotchRoot: View {
                     }
                 }
                 .shadow(color: .black.opacity(open ? 0.3 : 0), radius: 18, y: 6)
-                .animation(NotchSpring.page, value: state.sessions.count)
+                .animation(NotchSpring.page, value: panel)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
@@ -719,9 +804,15 @@ struct NotchRoot: View {
             let top = NotchLayout.dashCornerTop + c / 2
             let right = size.width - flare - NotchLayout.contentInset - c / 2
             let card = mode == .card ? model.card : nil
-            let look = card?.look ?? overrides.mascot(real: state.look)
-            // 右边跟着左边实际画的造型走（犯困时左耳睡着，右耳就不亮）
+            let lead = state.lead
+            let look = card?.look ?? overrides.mascot(real: lead?.look ?? .idle)
             let shown = overrides.look != nil ? look : look.shown(drowsy: director.drowsy)
+            let ear = overrides.ear(real: lead?.indicator ?? .none)
+            // 右边跟着左边实际画的造型走（犯困时左耳睡着，右耳就不亮）；探针没结果的灰环不随造型变
+            let indicator = shown == look ? ear : EarIndicator.for(shown, probeFailed: ear == .ring)
+            let guardOn = store.config.isEnabled(PluginID.exitGuard)
+            // 关掉了左耳的 Pip：收起时不画，展开时照常飞出来
+            let mascotHidden = mode == .closed && !store.config.showsEarMascot
             let mascotAt: CGPoint = switch mode {
             case .closed: CGPoint(x: NotchLayout.earCenterInset, y: notch.height / 2)
             case .dashboard: CGPoint(x: flare + NotchLayout.contentInset + NotchLayout.rowIcon / 2, y: top)
@@ -729,22 +820,24 @@ struct NotchRoot: View {
             }
             ZStack(alignment: .topLeading) {
                 // 告示（sign）在右边，Pip 只管表情；卡片上没有右边，画回来
-                MascotView(look: look, size: c, hidesSigns: card == nil)
+                MascotView(look: look, size: c, hidesSigns: card == nil, playing: !mascotHidden)
                     .environment(\.mascotLiteral, overrides.look != nil || card != nil)
                     .scaleEffect(mode == .closed ? NotchLayout.earMascotSize / c : 1)
+                    .opacity(mascotHidden ? 0 : 1)
                     .position(mascotAt)
                     .id(reduceMotion ? mode : .closed)
                     .transition(.opacity)
                 ZStack {
-                    EarIndicatorView(indicator: .for(shown, probeFailed: state.presentation.status == .probeFailed && overrides.look == nil),
+                    EarIndicatorView(indicator: indicator,
                                      size: CGSize(width: NotchLayout.earWidth, height: notch.height),
                                      // 外面已经把这一组的中心放在离右边 earCenterInset 处，这里以自身中心为准，不再偏一次
                                      center: CGPoint(x: NotchLayout.earWidth / 2, y: notch.height / 2),
                                      playing: mode == .closed)
                         .frame(width: NotchLayout.earWidth, height: notch.height)
                         .opacity(mode == .closed ? 1 : 0)
+                    // 徽章是出口守卫那一段的：关掉守卫就不画
                     GuardBadge(presentation: state.presentation, size: c)
-                        .opacity(open ? 1 : 0)
+                        .opacity(open && guardOn ? 1 : 0)
                         .scaleEffect(open || reduceMotion ? 1 : 0.4)
                 }
                 .frame(width: c, height: c)
@@ -759,7 +852,7 @@ struct NotchRoot: View {
     }
 
     @ViewBuilder
-    private func content(_ mode: NotchMode, inset: CGFloat) -> some View {
+    private func content(_ mode: NotchMode, panel: PanelShape, inset: CGFloat) -> some View {
         let top = NotchLayout.cardTop(model.notchSize)
         switch mode {
         case .card:
@@ -778,7 +871,7 @@ struct NotchRoot: View {
                     .transition(Self.contentTransition(reduceMotion))
             }
         case .dashboard:
-            NotchDashboard(state: state, onSettings: onSettings)
+            NotchDashboard(state: state, panel: panel, onSettings: onSettings)
                 .frame(width: NotchLayout.dashWidth)
                 .padding(.top, NotchLayout.dashTop(model.notchSize))
                 .transition(Self.contentTransition(reduceMotion))
@@ -845,46 +938,53 @@ struct GuardBadge: View {
     }
 }
 
-/// 悬停展开的内容：刘海正下方的出口状态、会话列表、底栏（检查时间 + 设置）。左上的 Pip 和右上的徽章在 NotchRoot。
+/// 悬停展开的内容：刘海正下方出口守卫的状态、各插件的段、底栏（检查时间 + 设置）。左上的 Pip 和右上的徽章在 NotchRoot。
+/// 出口守卫那一段固定在顶上（状态区 + 底栏的检查时间），关掉就不画；其余插件各一段，按设置里的顺序（docs/ui.md「面板布局」）。
 /// 只显示路径 / 状态 / 时间，不显示任何对话内容。
 struct NotchDashboard: View {
     @ObservedObject var state: AppState
-    let onSettings: () -> Void
+    let panel: PanelShape
+    let onSettings: (SettingsPane?) -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         let p = state.presentation
-        let m = NotchLayout.dashMargin
         VStack(spacing: 0) {
-            // 刘海正下方（灵动岛的 center 区）：标题用中等以上字重（HIG Live Activities），圆体配圆润的 Pip（HIG Typography）
-            VStack(spacing: 2) {
-                Text(p.title)
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                Text(state.display.egressIP ?? "—")
-                    .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .foregroundStyle(p.ipColor)
-                    // 出口换 IP 时数字逐位滚过去（Apple「Displaying live data」）；减弱动态效果只淡入淡出
-                    .contentTransition(reduceMotion ? .opacity : .numericText())
-                    .animation(.smooth, value: state.display.egressIP)
+            if panel.header {
+                // 刘海正下方（灵动岛的 center 区）：标题用中等以上字重（HIG Live Activities），圆体配圆润的 Pip（HIG Typography）
+                VStack(spacing: 2) {
+                    Text(p.title)
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                    Text(state.display.egressIP ?? "—")
+                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .foregroundStyle(p.ipColor)
+                        // 出口换 IP 时数字逐位滚过去（Apple「Displaying live data」）；减弱动态效果只淡入淡出
+                        .contentTransition(reduceMotion ? .opacity : .numericText())
+                        .animation(.smooth, value: state.display.egressIP)
+                }
+                // 两侧让开 Pip 和徽章
+                .padding(.horizontal, NotchLayout.contentInset + NotchLayout.rowIcon / 2 + NotchLayout.dashCorner / 2 + 6)
+                .frame(height: NotchLayout.dashStatusHeight)
             }
-            // 两侧让开 Pip 和徽章
-            .padding(.horizontal, NotchLayout.contentInset + NotchLayout.rowIcon / 2 + NotchLayout.dashCorner / 2 + 6)
-            .frame(height: NotchLayout.dashStatusHeight)
 
-            SessionList(sessions: state.sessions)
-                .padding(.top, NotchLayout.listGap)
-                .padding(.horizontal, m)
+            if let list = panel.list {
+                PanelList(list: list, sections: state.sections, onSettings: { onSettings(.plugins) })
+                    .padding(.top, NotchLayout.listGap)
+                    .padding(.horizontal, NotchLayout.dashMargin)
+            }
 
             HStack(spacing: 6) {
-                TimelineView(.periodic(from: .now, by: 1)) { _ in
-                    Text(checkedText)
-                        .font(.system(size: 11, weight: .medium).monospacedDigit())
-                        .foregroundStyle(.white.opacity(NotchLayout.secondaryTextOpacity))
+                if panel.header {
+                    TimelineView(.periodic(from: .now, by: 1)) { _ in
+                        Text(checkedText)
+                            .font(.system(size: 11, weight: .medium).monospacedDigit())
+                            .foregroundStyle(.white.opacity(NotchLayout.secondaryTextOpacity))
+                    }
                 }
                 Spacer()
-                NotchGearButton(action: onSettings)
+                NotchGearButton { onSettings(nil) }
                     .padding(.trailing, -5) // 齿轮的点击框 24、图形约 14：让图形右缘落在右对齐线上
             }
             .padding(.horizontal, NotchLayout.contentInset)
@@ -899,31 +999,60 @@ struct NotchDashboard: View {
     }
 }
 
-/// 会话列表：内嵌的圆角容器（HIG Live Activities：用内嵌圆角容器分隔内容）。最多露出 maxRows 行，多的在里面滚
-struct SessionList: View {
-    let sessions: [Session]
+/// 各插件的段：每段一个内嵌的圆角容器（HIG Live Activities：用内嵌圆角容器分隔内容），露 `PanelShape` 定的行数，多的在段里滚。
+/// 段都空着时一行占位；一个插件都没开时是「还没有开启的插件」和「打开插件设置」
+struct PanelList: View {
+    let list: [PanelShape.Visible]
+    let sections: [PanelSection]
+    let onSettings: () -> Void
 
     var body: some View {
-        Group {
-            if sessions.isEmpty {
-                Text("没有看到正在运行的 Claude Code")
+        if list.isEmpty {
+            HStack(spacing: 10) {
+                Text(placeholder)
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.white.opacity(NotchLayout.secondaryTextOpacity))
-                    .frame(maxWidth: .infinity)
-                    .frame(height: NotchLayout.rowHeight)
-            } else {
-                ScrollView(.vertical) {
-                    VStack(spacing: 0) {
-                        ForEach(sessions, id: \.pid) { SessionRow(session: $0) }
-                    }
+                if sections.isEmpty {
+                    Button("打开插件设置", action: onSettings)
+                        .buttonStyle(.plain)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 10)
+                        .frame(height: 24)
+                        .background(Capsule().fill(.white.opacity(0.14)))
                 }
-                .scrollBounceBehavior(.basedOnSize)
-                .environment(\.colorScheme, .dark) // 系统亮色、滚动条设成「始终」时，别在黑底上画浅色槽
-                .frame(height: CGFloat(min(sessions.count, NotchLayout.maxRows)) * NotchLayout.rowHeight)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: NotchLayout.rowHeight)
+            .padding(NotchLayout.listInset)
+            .background(Self.container)
+        } else {
+            VStack(spacing: NotchLayout.sectionGap) {
+                ForEach(list, id: \.plugin) { visible in
+                    let rows = sections.first { $0.plugin == visible.plugin }?.rows ?? []
+                    ScrollView(.vertical) {
+                        VStack(spacing: 0) {
+                            ForEach(rows) { PanelRowView(row: $0) }
+                        }
+                    }
+                    .scrollBounceBehavior(.basedOnSize)
+                    .environment(\.colorScheme, .dark) // 系统亮色、滚动条设成「始终」时，别在黑底上画浅色槽
+                    .frame(height: CGFloat(visible.rows) * NotchLayout.rowHeight)
+                    .padding(NotchLayout.listInset)
+                    .background(Self.container)
+                }
             }
         }
-        .padding(NotchLayout.listInset)
-        .background(RoundedRectangle(cornerRadius: NotchLayout.listRadius, style: .continuous).fill(.white.opacity(0.06)))
+    }
+
+    private var placeholder: String {
+        if sections.isEmpty { return String(localized: "还没有开启的插件") }
+        if sections.map(\.plugin) == [PluginID.claudeCode] { return String(localized: "没有看到正在运行的 Claude Code") }
+        return String(localized: "没有进行中的会话或活动")
+    }
+
+    private static var container: some View {
+        RoundedRectangle(cornerRadius: NotchLayout.listRadius, style: .continuous).fill(.white.opacity(0.06))
     }
 }
 
@@ -950,79 +1079,137 @@ struct NotchGearButton: View {
     }
 }
 
-/// 一行会话：agent 的标志、路径、状态指示、状态变化距今。已停止的标志和路径变暗，时间不暗（保住对比度）。
+/// 面板里的一行（`PanelRow`）：图标、标题和可选的副标题、状态指示、右侧距今多久或短值。已停止的会话图标和标题变暗，时间不暗（保住对比度）。
 /// 状态只用指示表达，不写字（用户 10-29）；状态名留给悬停提示和旁白
-struct SessionRow: View {
-    let session: Session
+struct PanelRowView: View {
+    let row: PanelRow
     @State private var hover = false
 
-    /// 工作中和右耳一样是三蓝点；需要你介入用 Pip 这两个造型自己的装饰（带 ? 的气泡、举起的手），比一个点好认；已停止不画
+    /// 工作中、进行中和右耳一样是三蓝点；等你回答、批准用 Pip 这两个造型自己的装饰（带 ? 的气泡、举起的手），比一个点好认；进度是一圈环
     private var indicator: EarIndicator {
-        switch session.state {
+        switch row.indicator {
+        case .none, .progress: return .none
         case .working: return .dots
-        case .needsYou(.question): return .decoration(.question)
-        case .needsYou(.approval): return .decoration(.approval)
-        case .stopped: return .none
+        case .question: return .decoration(.question)
+        case .approval: return .decoration(.approval)
+        case .attention: return .dot(.question)
         }
     }
 
     private var stateTitle: String {
-        switch session.state {
-        case .working: return String(localized: "工作中")
-        case .needsYou(.question): return String(localized: "等你回答")
-        case .needsYou(.approval): return String(localized: "等你批准")
-        case .stopped: return String(localized: "已停止")
+        if row.dimmed { return String(localized: "已停止") }
+        switch row.indicator {
+        case .none: return ""
+        case .working: return row.icon == .claude ? String(localized: "工作中") : String(localized: "进行中")
+        case .question: return String(localized: "等你回答")
+        case .approval: return String(localized: "等你批准")
+        case .attention: return String(localized: "要你看")
+        case .progress(let p): return p.formatted(.percent.precision(.fractionLength(0)))
         }
     }
 
     var body: some View {
-        let path = (session.cwd as NSString).abbreviatingWithTildeInPath
-        let dimmed = session.state == .stopped ? 0.55 : 1
-        // 点一行跳到 Ghostty 里这个会话的窗口（docs/ui.md「面板布局」）
-        Button { Ghostty.focus(TerminalRef(session)) } label: { row(path: path, dimmed: dimmed) }
-            .buttonStyle(.plain)
-            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(hover ? 0.06 : 0)))
-            .onHover { hover = $0 }
-            .accessibilityElement(children: .combine)
-            .accessibilityValue(stateTitle)
-            .accessibilityHint("在 Ghostty 中打开")
+        Group {
+            if let action = row.action {
+                Button { CardActions.perform(action) } label: { label }
+                    .buttonStyle(.plain)
+                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(hover ? 0.06 : 0)))
+                    .onHover { hover = $0 }
+                    .accessibilityHint(Self.hint(action))
+            } else {
+                label
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityValue(stateTitle)
     }
 
-    private func row(path: String, dimmed: Double) -> some View {
-        HStack(spacing: 10) {
-            // 是哪个 agent 只靠行首的厂商标志表示（用户 10-29）
-            ClaudeMark()
-                .fill(ClaudeMark.color)
-                .frame(width: 15, height: 15)
+    private var label: some View {
+        let dimmed = row.dimmed ? 0.55 : 1
+        return HStack(spacing: 10) {
+            icon
                 .frame(width: NotchLayout.rowIcon, height: NotchLayout.rowIcon)
                 .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(.white.opacity(0.08)))
                 .opacity(dimmed)
-                .help("Claude Code")
-                .accessibilityLabel("Claude Code")
-            // 太长从前面截成「…」，留住最后几段（用户 10-29）
-            Text(path)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.white)
-                .lineLimit(1)
-                .truncationMode(.head)
-                .opacity(dimmed)
-                .help(path)
-            Spacer(minLength: 8)
-            EarIndicatorView(indicator: indicator, size: CGSize(width: 20, height: 20), center: CGPoint(x: 13, y: 10))
-                .frame(width: 20, height: 20)
-                .contentShape(Rectangle())
-                .help(stateTitle)
-            // TimelineView 每秒重算一次 body，按当时的现在算
-            TimelineView(.periodic(from: .now, by: 1)) { _ in
-                Text(session.stateSince.formatted(.relative(presentation: .numeric, unitsStyle: .abbreviated)))
-                    .font(.system(size: 11, weight: .medium).monospacedDigit())
-                    .foregroundStyle(.white.opacity(NotchLayout.secondaryTextOpacity))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(row.title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .truncationMode(row.titleIsPath ? .head : .tail)
+                    .help(row.title)
+                if let subtitle = row.subtitle {
+                    Text(subtitle)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.white.opacity(NotchLayout.secondaryTextOpacity))
+                        .lineLimit(1)
+                }
             }
-            .frame(width: 66, alignment: .trailing)
+            .opacity(dimmed)
+            Spacer(minLength: 8)
+            Group {
+                if case .progress(let p) = row.indicator {
+                    ZStack {
+                        Circle().stroke(.white.opacity(0.15), lineWidth: 2)
+                        Circle().trim(from: 0, to: p).stroke(.white.opacity(0.85), style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                            .rotationEffect(.degrees(-90))
+                    }
+                    .frame(width: 12, height: 12)
+                    .animation(.smooth, value: p)
+                } else {
+                    EarIndicatorView(indicator: indicator, size: CGSize(width: 20, height: 20), center: CGPoint(x: 13, y: 10))
+                }
+            }
+            .frame(width: 20, height: 20)
+            .contentShape(Rectangle())
+            .help(stateTitle)
+            trailing
+                .font(.system(size: 11, weight: .medium).monospacedDigit())
+                .foregroundStyle(.white.opacity(NotchLayout.secondaryTextOpacity))
+                .lineLimit(1)
+                .frame(width: 66, alignment: .trailing)
         }
         .padding(.horizontal, NotchLayout.rowPadding)
         .frame(height: NotchLayout.rowHeight)
         .contentShape(Rectangle())
+    }
+
+    @ViewBuilder
+    private var icon: some View {
+        switch row.icon {
+        case .claude:
+            // 是哪个 agent 只靠行首的厂商标志表示（用户 10-29）
+            ClaudeMark()
+                .fill(ClaudeMark.color)
+                .frame(width: 15, height: 15)
+                .help("Claude Code")
+                .accessibilityLabel("Claude Code")
+        case .symbol(let name):
+            Image(systemName: name)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.85))
+        }
+    }
+
+    @ViewBuilder
+    private var trailing: some View {
+        switch row.trailing {
+        case .since(let date):
+            // TimelineView 每秒重算一次 body，按当时的现在算
+            TimelineView(.periodic(from: .now, by: 1)) { _ in
+                Text(date.formatted(.relative(presentation: .numeric, unitsStyle: .abbreviated)))
+            }
+        case .value(let v):
+            Text(v)
+        }
+    }
+
+    private static func hint(_ action: Card.Action) -> String {
+        switch action {
+        case .terminal: return String(localized: "在 Ghostty 中打开")
+        case .open: return String(localized: "打开链接")
+        case .activate: return String(localized: "切换 App")
+        }
     }
 }
 

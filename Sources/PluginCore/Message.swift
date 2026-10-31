@@ -18,6 +18,16 @@ public struct Message: Equatable, Sendable {
         public var action: Action
     }
 
+    /// 活动的哪一步（照 ActivityKit 的 start / update / end）。活动在面板里插件那一段占一行，`alert` 时弹卡、之后的更新原地刷新它
+    /// @see https://developer.apple.com/documentation/activitykit/activity
+    public struct Activity: Equatable, Sendable {
+        public enum Event: Equatable, Sendable { case start, update, end }
+        /// 插件自己起的名字，同一个插件里认同一个活动
+        public var id: String
+        public var event: Event
+        public var alert: Bool
+    }
+
     public var plugin: String
     public var id: UUID
     public var at: Date
@@ -31,8 +41,10 @@ public struct Message: Equatable, Sendable {
     public var block: Card.Block?
     public var action: Action?
     public var buttons: [Button]
-    /// 过了这个时刻还没放就不放
+    /// 过了这个时刻还没放就不放；活动是这一行留到什么时候
     public var staleAt: Date?
+    /// nil：这是一张普通卡，不是活动
+    public var activity: Activity?
 
     public static func parse(_ data: Data) throws(MessageError) -> Message {
         let wire: Wire
@@ -85,6 +97,17 @@ extension Message {
             return Button(title: title, action: try Self.action(a))
         }
         staleAt = wire.staleAt
+        activity = try wire.activity.map { a throws(MessageError) in
+            guard !a.id.isEmpty, a.id.count <= 64 else { throw .badActivity }
+            let event: Activity.Event
+            switch a.event {
+            case "start": event = .start
+            case "update": event = .update
+            case "end": event = .end
+            default: throw .badActivity
+            }
+            return Activity(id: a.id, event: event, alert: a.alert ?? false)
+        }
     }
 
     private static func block(_ b: Wire.Block) throws(MessageError) -> Card.Block {
@@ -150,6 +173,8 @@ public enum MessageError: Error, Equatable, Sendable {
     case badBlock
     /// 动作类型不认识、缺字段，或按钮没有标题
     case badAction
+    /// 活动的 id 是空的或太长，或 event 不认识
+    case badActivity
 }
 
 /// 收件箱文件的 JSON 格式（`nk` 拼的也是它）。缺字段、类型不对在这里就解不开
@@ -168,6 +193,14 @@ private struct Wire: Decodable {
     var action: Action?
     var buttons: [Action]?
     var staleAt: Date?
+    var activity: Activity?
+
+    struct Activity: Decodable {
+        var id: String
+        /// start、update、end
+        var event: String
+        var alert: Bool?
+    }
 
     /// `type` 是 TextBlock、FactSet、checklist、progress，各用各的字段
     struct Block: Decodable {

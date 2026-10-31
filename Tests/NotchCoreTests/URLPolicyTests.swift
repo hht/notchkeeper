@@ -39,3 +39,16 @@ import Testing
         #expect(p.allows(URL(string: "https:")!))
     }
 }
+
+/// 设置页新增白名单条目：统一成小写、去掉「://」；不合 RFC 3986 scheme 语法的不收
+@Suite struct URLPolicySchemeEntry {
+    @Test(arguments: [("Raycast", "raycast"), ("raycast://", "raycast"), (" x-callback+v1.2 ", "x-callback+v1.2")])
+    func normalized(_ entry: String, _ scheme: String) {
+        #expect(URLPolicy.scheme(entry) == scheme)
+    }
+
+    @Test(arguments: ["", "://", "1abc", "ray cast", "http:", "a/b", "https"])
+    func rejected(_ entry: String) {
+        #expect(URLPolicy.scheme(entry) == nil)
+    }
+}

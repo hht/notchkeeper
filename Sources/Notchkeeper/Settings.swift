@@ -2,23 +2,27 @@ import AppKit
 import SwiftUI
 import MascotCore
 import NotchCore
+import PluginCore
 
 // 设置窗口：按 macOS 系统设置的布局，只用原生控件。
 // 每个开关直接绑定 ConfigStore，改了立刻写盘，不在视图里缓存配置值。
 
 enum SettingsPane: String, CaseIterable, Identifiable {
-    case general, notch, exitGuard, notifications, mascot, stateTest, about
+    case general, notch, plugins, exitGuard, claudeCode, terminal, notifications, mascot, stateTest, about
     var id: Self { self }
 
-    /// 侧边栏分组，组与组之间空一行
-    static let groups: [[SettingsPane]] = [[.general, .notch], [.exitGuard],
+    /// 侧边栏分组，组与组之间空一行。内置插件和自带的终端插件各有一页，别的外部插件只在「插件」页里开关
+    static let groups: [[SettingsPane]] = [[.general, .notch], [.plugins, .exitGuard, .claudeCode, .terminal],
                                            [.notifications, .mascot], [.stateTest], [.about]]
 
     var title: String {
         switch self {
         case .general: return "通用"
         case .notch: return "刘海与外观"
+        case .plugins: return "插件"
         case .exitGuard: return "出口守卫"
+        case .claudeCode: return "Claude Code"
+        case .terminal: return "终端"
         case .notifications: return "通知"
         case .mascot: return "Pip"
         case .stateTest: return "状态测试"
@@ -30,7 +34,10 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         switch self {
         case .general: return "gearshape.fill"
         case .notch: return "rectangle.topthird.inset.filled"
+        case .plugins: return "puzzlepiece.extension.fill"
         case .exitGuard: return "shield.lefthalf.filled"
+        case .claudeCode: return "sparkle"
+        case .terminal: return "terminal.fill"
         case .notifications: return "bell.badge.fill"
         case .mascot: return "face.smiling.inverse"
         case .stateTest: return "testtube.2"
@@ -42,7 +49,10 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         switch self {
         case .general: return .gray
         case .notch: return .blue
+        case .plugins: return .indigo
         case .exitGuard: return .green
+        case .claudeCode: return .brown
+        case .terminal: return .gray
         case .notifications: return .red
         case .mascot: return .orange
         case .stateTest: return .purple
@@ -56,6 +66,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
 final class SettingsModel: ObservableObject {
     @Published var pane: SettingsPane = .general
     @Published var allowDraft = ""
+    @Published var schemeDraft = ""
 }
 
 struct SettingsView: View {
@@ -96,7 +107,10 @@ struct SettingsView: View {
         switch model.pane {
         case .general: GeneralPane()
         case .notch: NotchPane(store: store)
+        case .plugins: PluginsPane(model: model, state: state, store: store)
         case .exitGuard: ExitGuardPane(model: model, state: state, store: store)
+        case .claudeCode: Form { PluginOffNote(store: store, plugin: PluginID.claudeCode); ClaudeModSection() }
+        case .terminal: Form { TerminalPluginSection(state: state) }
         case .notifications: NotificationsPane(store: store)
         case .mascot: MascotPane(store: store)
         case .stateTest: StateTestPane(overrides: notch.overrides, state: state, notch: notch)
@@ -242,6 +256,7 @@ private struct ExitGuardPane: View {
     var body: some View {
         let p = state.presentation
         Form {
+            PluginOffNote(store: store, plugin: PluginID.exitGuard)
             Section("当前状态") {
                 LabeledContent("状态") {
                     HStack(spacing: 6) {
@@ -330,14 +345,185 @@ private struct NotificationsPane: View {
                 }
             }
             .disabled(store.fileUnreadable)
-            ClaudeModSection()
-            TerminalPluginSection()
         }
     }
 }
 
-/// 装、卸终端插件，给出要加进 ~/.zshrc 的一行。Notchkeeper 不改 ~/.zshrc（CLAUDE.md 硬规则）
+// MARK: - 插件
+
+/// 内置插件的页上：插件关着时说清楚关掉的是什么
+private struct PluginOffNote: View {
+    @ObservedObject var store: ConfigStore
+    let plugin: String
+
+    var body: some View {
+        if !store.config.isEnabled(plugin) {
+            Section {
+                LabeledContent {
+                    Button("打开插件") { store.config.setEnabled(true, for: plugin) }
+                        .controlSize(.small)
+                        .disabled(store.fileUnreadable)
+                } label: {
+                    Text("这个插件关着")
+                    Text(plugin == PluginID.exitGuard ? "不弹红卡，Pip 和面板不显示出口；后台守卫照常检查" : "不弹卡，面板里不列会话")
+                }
+            }
+        }
+    }
+}
+
+/// 插件的开关、面板里各段的顺序和行数、收起时常驻谁、链接白名单（docs/ui.md「面板布局」「卡片」）
+private struct PluginsPane: View {
+    @ObservedObject var model: SettingsModel
+    @ObservedObject var state: AppState
+    @ObservedObject var store: ConfigStore
+    @State private var confirmGuardOff = false
+    @State private var badScheme = false
+
+    var body: some View {
+        let c = store.config
+        let ids = state.sectionPlugins
+        Form {
+            Section {
+                Toggle(isOn: Binding(get: { c.isEnabled(PluginID.exitGuard) }, set: setGuard)) {
+                    PluginLabel(plugin: PluginID.exitGuard, state: state, detail: "出口不合规时弹红卡，面板顶上显示出口")
+                }
+                ForEach(ids, id: \.self) { id in
+                    Toggle(isOn: Binding(get: { c.isEnabled(id) }, set: { store.config.setEnabled($0, for: id) })) {
+                        PluginLabel(plugin: id, state: state,
+                                    detail: id == PluginID.claudeCode ? "会话列表，做完、出错、等你时弹卡" : "外部插件 · \(id)")
+                    }
+                }
+            } header: {
+                Text("插件")
+            } footer: {
+                Text("关掉的是提醒，不是判定：出口守卫照常检查。外部插件在 ~/Library/Application Support/Notchkeeper/plugins/<id>/manifest.json 登记，关掉后它发来的卡和活动都丢掉。")
+            }
+            .disabled(store.fileUnreadable)
+
+            let enabled = ids.filter(c.isEnabled)
+            if !enabled.isEmpty {
+                Section {
+                    ForEach(enabled, id: \.self) { id in
+                        LabeledContent {
+                            HStack(spacing: 8) {
+                                Stepper("最多 \(c.maxRows(id)) 行", value: Binding(get: { c.maxRows(id) }, set: { store.config.setMaxRows($0, for: id) }),
+                                        in: PluginSettings.rowRange)
+                                ControlGroup {
+                                    Button { store.config.move(id, by: -1, in: enabled) } label: { Image(systemName: "chevron.up") }
+                                        .disabled(enabled.first == id)
+                                        .help("上移")
+                                    Button { store.config.move(id, by: 1, in: enabled) } label: { Image(systemName: "chevron.down") }
+                                        .disabled(enabled.last == id)
+                                        .help("下移")
+                                }
+                                .fixedSize()
+                            }
+                        } label: {
+                            PluginLabel(plugin: id, state: state, detail: nil)
+                        }
+                    }
+                } header: {
+                    Text("面板")
+                } footer: {
+                    Text("出口守卫固定在最上面。各段合起来至多露 \(PanelShape.maxRows) 行，排在前面的先拿；多的在段里滚动。")
+                }
+                .disabled(store.fileUnreadable)
+            }
+
+            Section {
+                Picker("常驻插件", selection: $store.config.residentPlugin) {
+                    Text("不常驻").tag("")
+                    Divider()
+                    ForEach([PluginID.exitGuard] + ids, id: \.self) { id in
+                        Text(state.pluginName(id)).tag(id)
+                    }
+                }
+            } header: {
+                Text("收起时")
+            } footer: {
+                Text("有插件在忙或要你看时，收起的刘海显示最急的那个；都平静时显示常驻插件的状态。")
+            }
+            .disabled(store.fileUnreadable)
+
+            Section {
+                ForEach(c.urlSchemes, id: \.self) { scheme in
+                    LabeledContent {
+                        Button { store.config.urlSchemes.removeAll { $0 == scheme } } label: { Image(systemName: "minus.circle") }
+                            .buttonStyle(.borderless)
+                            .help("移除 \(scheme)")
+                    } label: {
+                        Text("\(scheme)://").monospaced()
+                    }
+                }
+                HStack {
+                    TextField("新增", text: $model.schemeDraft, prompt: Text("例如 raycast"))
+                        .onSubmit(addScheme)
+                        .onChange(of: model.schemeDraft) { badScheme = false }
+                    Button("添加", action: addScheme).disabled(model.schemeDraft.isEmpty)
+                }
+            } header: {
+                Text("链接白名单")
+            } footer: {
+                if badScheme {
+                    Text("不是有效的 scheme，或已在列表里。").foregroundStyle(.red)
+                } else {
+                    Text("卡片和面板里的链接默认只打开 https。这里加的 scheme 也放行：它们能让别的 App 执行动作，只加你信得过的。")
+                }
+            }
+            .disabled(store.fileUnreadable)
+        }
+        .onAppear { state.reloadManifests() } // 可能刚装了插件
+        .confirmationDialog("出口仍不合规，确定关掉提醒？", isPresented: $confirmGuardOff) {
+            Button("关掉提醒", role: .destructive) { store.config.setEnabled(false, for: PluginID.exitGuard) }
+        } message: {
+            Text("关掉后红卡撤下，Pip 和面板不再显示出口；后台守卫照常检查，再打开马上恢复。")
+        }
+    }
+
+    /// 违规中关守卫要确认（用户 10-31）
+    private func setGuard(_ on: Bool) {
+        if !on, state.presentation.holdsViolation {
+            confirmGuardOff = true
+        } else {
+            store.config.setEnabled(on, for: PluginID.exitGuard)
+        }
+    }
+
+    private func addScheme() {
+        guard let scheme = URLPolicy.scheme(model.schemeDraft), !store.config.urlSchemes.contains(scheme) else {
+            badScheme = true
+            return
+        }
+        store.config.urlSchemes.append(scheme)
+        model.schemeDraft = ""
+    }
+}
+
+/// 插件的图标和名字：内置的用设置页侧栏的图标，外部的用它登记的 SF Symbol
+private struct PluginLabel: View {
+    let plugin: String
+    @ObservedObject var state: AppState
+    let detail: String?
+
+    var body: some View {
+        HStack(spacing: 8) {
+            switch plugin {
+            case PluginID.exitGuard: SettingsIcon(symbol: SettingsPane.exitGuard.symbol, color: SettingsPane.exitGuard.color)
+            case PluginID.claudeCode: SettingsIcon(symbol: SettingsPane.claudeCode.symbol, color: SettingsPane.claudeCode.color)
+            default: SettingsIcon(symbol: state.manifests[plugin]?.symbol ?? "questionmark", color: .indigo)
+            }
+            VStack(alignment: .leading, spacing: 1) {
+                Text(state.pluginName(plugin))
+                if let detail { Text(detail).font(.caption).foregroundStyle(.secondary) }
+            }
+        }
+    }
+}
+
+/// 装、卸终端插件，给出要加进 ~/.zshrc 的一行。Notchkeeper 不改 ~/.zshrc（CLAUDE.md 硬规则）。开关在「插件」页（它是外部插件）
 private struct TerminalPluginSection: View {
+    @ObservedObject var state: AppState
     @State private var installed = TerminalPlugin.isInstalled
     @State private var error: String?
 
@@ -353,6 +539,7 @@ private struct TerminalPluginSection: View {
                         Log.write("终端插件：操作失败：\(error.localizedDescription)")
                     }
                     installed = TerminalPlugin.isInstalled
+                    state.reloadManifests()
                 }
             } label: {
                 Text("命令跑完时弹卡")
@@ -455,6 +642,10 @@ private struct MascotPane: View {
                 Toggle(isOn: $store.config.mascotFollowsMouse) {
                     Text("跟随鼠标")
                     Text("眼睛看着鼠标、身体往那边歪；鼠标到刘海上时探头。关掉后眼睛一直看正前方")
+                }
+                Toggle(isOn: $store.config.showsEarMascot) {
+                    Text("收起时显示 Pip")
+                    Text("关掉后左耳不画 Pip，右耳也没东西时就是一块纯黑的刘海；展开和弹卡时照常出来")
                 }
             }
             .disabled(store.fileUnreadable)

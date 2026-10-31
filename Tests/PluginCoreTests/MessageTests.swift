@@ -170,3 +170,27 @@ private func minimal(_ extra: String = "") -> String {
         #expect(throws: MessageError.badAction) { try parse(minimal(#","buttons":[{"type":"Action.OpenUrl","url":"https://example.com"}]"#)) }
     }
 }
+
+/// 活动（照 ActivityKit 的 start / update / end）：面板里插件那一段的一行，`alert` 时弹卡
+@Suite struct ActivityParsing {
+    @Test(arguments: [("start", Message.Activity.Event.start), ("update", .update), ("end", .end)])
+    func events(_ raw: String, _ event: Message.Activity.Event) throws {
+        let m = try parse(minimal(#","activity":{"id":"xcode","event":"\#(raw)"}"#))
+        #expect(m.activity == Message.Activity(id: "xcode", event: event, alert: false))
+    }
+
+    @Test func alert() throws {
+        #expect(try parse(minimal(#","activity":{"id":"x","event":"update","alert":true}"#)).activity?.alert == true)
+    }
+
+    @Test func plainMessageHasNoActivity() throws {
+        #expect(try parse(minimal()).activity == nil)
+    }
+
+    /// id 只在内存里当键用：不能空，也别太长
+    @Test(arguments: [#"{"id":"","event":"start"}"#, #"{"id":"x","event":"stop"}"#,
+                      #"{"id":"\#(String(repeating: "a", count: 65))","event":"start"}"#])
+    func badActivityRejected(_ activity: String) {
+        #expect(throws: MessageError.badActivity) { try parse(minimal(#","activity":\#(activity)"#)) }
+    }
+}

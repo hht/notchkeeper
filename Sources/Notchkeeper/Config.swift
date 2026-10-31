@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import GuardCore
+import NotchCore
 
 /// 持久化到 ~/Library/Application Support/Notchkeeper/config.json。
 /// 缺失的字段用默认值，未知字段忽略；字段类型不对就整份解不开，由 `ConfigStore` 保留原文件。
@@ -19,6 +20,14 @@ struct NKConfig: Codable, Equatable {
     var cardAutoDismissSeconds = 6.0
     /// 卡片上「打开 URL」除 https 外还放行的 scheme（`URLPolicy`）
     var urlSchemes: [String] = []
+    // 插件：内置的按 `PluginID`，外部的按 `plugins/<id>/` 的目录名。没写的插件开着、每段最多露 5 行
+    var plugins: [String: PluginSettings] = [:]
+    /// 面板里各段的顺序（出口守卫固定在顶上，不在这里）；没排过的跟在后面
+    var pluginOrder: [String] = []
+    /// 都平静时收起态显示谁（docs/ui.md「面板布局」）；空串是不常驻
+    var residentPlugin = PluginID.exitGuard
+    /// 收起时左耳画 Pip；关掉后什么都没有要显示时就是一块纯黑的刘海（照 boring.notch 的空闲脸选项）
+    var showsEarMascot = true
 
     init() {}
 
@@ -36,6 +45,48 @@ struct NKConfig: Codable, Equatable {
         alertPersistent = try v(.alertPersistent, d.alertPersistent)
         cardAutoDismissSeconds = min(10, max(2, try v(.cardAutoDismissSeconds, d.cardAutoDismissSeconds)))
         urlSchemes = try v(.urlSchemes, d.urlSchemes)
+        plugins = try v(.plugins, d.plugins)
+        pluginOrder = try v(.pluginOrder, d.pluginOrder)
+        residentPlugin = try v(.residentPlugin, d.residentPlugin)
+        showsEarMascot = try v(.showsEarMascot, d.showsEarMascot)
+    }
+
+    func isEnabled(_ plugin: String) -> Bool { plugins[plugin]?.enabled ?? true }
+    func maxRows(_ plugin: String) -> Int { plugins[plugin]?.maxRows ?? PluginSettings().maxRows }
+    var resident: String? { residentPlugin.isEmpty ? nil : residentPlugin }
+
+    mutating func setEnabled(_ on: Bool, for plugin: String) { plugins[plugin, default: PluginSettings()].enabled = on }
+    mutating func setMaxRows(_ n: Int, for plugin: String) { plugins[plugin, default: PluginSettings()].maxRows = PluginSettings.clamp(n) }
+
+    /// 排过的在前、没排过的按 `available` 原来的顺序跟在后面；排过但已经不在 `available` 里的不出现
+    func ordered(_ available: [String]) -> [String] {
+        let listed = pluginOrder.filter(available.contains)
+        return listed + available.filter { !listed.contains($0) }
+    }
+
+    /// 上移（-1）或下移（+1）一格；到头了不动。存下整份当前顺序
+    mutating func move(_ plugin: String, by offset: Int, in available: [String]) {
+        var order = ordered(available)
+        guard let i = order.firstIndex(of: plugin), order.indices.contains(i + offset) else { return }
+        order.swapAt(i, i + offset)
+        pluginOrder = order
+    }
+}
+
+struct PluginSettings: Codable, Equatable {
+    var enabled = true
+    /// 面板里这一段最多露几行，多的在段里滚
+    var maxRows = 5
+
+    static let rowRange = 1...5
+    static func clamp(_ n: Int) -> Int { min(rowRange.upperBound, max(rowRange.lowerBound, n)) }
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? true
+        maxRows = Self.clamp(try c.decodeIfPresent(Int.self, forKey: .maxRows) ?? 5)
     }
 }
 

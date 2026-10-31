@@ -499,3 +499,58 @@ private let silent = Queue.Change()
         #expect(shown == ["b1", "b2", "b3", "b4"])
     }
 }
+
+/// 关掉一个插件：它排着的、正在放的卡都撤（docs/ui.md「卡片」）
+@Suite struct DiscardNotices {
+    @Test func discardsWaitingAndShowing() {
+        var q = Queue()
+        _ = q.post(notice("a", session: 1), now: t0)
+        _ = q.post(Queue.Notice(card: "ext", key: nil, seconds: 6, externalPluginID: "build"), now: t0)
+        _ = q.post(notice("b", session: 2), now: t0)
+        #expect(q.discard(where: { $0.key == .session(1) || $0.key == .session(2) }, now: at(1)) == sound)
+        #expect(q.showing == .notice("ext"))
+        _ = q.tick(now: at(7))
+        #expect(q.showing == nil)
+    }
+
+    @Test func discardingNothingChangesNothing() {
+        var q = Queue()
+        _ = q.post(notice("a"), now: t0)
+        #expect(q.discard(where: { $0.externalPluginID == "build" }, now: at(1)) == silent)
+        #expect(q.showing == .notice("a"))
+        #expect(q.deadline(now: at(1)) == at(6))
+    }
+}
+
+/// 活动的卡原地刷新（照 ActivityKit 不带 alert 的 update）：换内容，不重放、不响、不重新倒计时
+@Suite struct UpdateInPlace {
+    private func activity(_ card: String) -> Queue.Notice {
+        Queue.Notice(card: card, key: .activity(plugin: "dl", id: "x"), seconds: 6, externalPluginID: "dl")
+    }
+
+    @Test func updatesShowingCard() {
+        var q = Queue()
+        _ = q.post(activity("10%"), now: t0)
+        let found = q.update("60%", key: .activity(plugin: "dl", id: "x"))
+        #expect(found)
+        #expect(q.showing == .notice("60%"))
+        #expect(q.deadline(now: at(3)) == at(6))
+    }
+
+    @Test func updatesWaitingCard() {
+        var q = Queue()
+        _ = q.post(notice("a"), now: t0)
+        _ = q.post(activity("10%"), now: t0)
+        let found = q.update("60%", key: .activity(plugin: "dl", id: "x"))
+        #expect(found)
+        #expect(q.tick(now: at(6)) == sound)
+        #expect(q.showing == .notice("60%"))
+    }
+
+    @Test func absentKeyIsNotPosted() {
+        var q = Queue()
+        let found = q.update("60%", key: .activity(plugin: "dl", id: "x"))
+        #expect(!found)
+        #expect(q.showing == nil)
+    }
+}

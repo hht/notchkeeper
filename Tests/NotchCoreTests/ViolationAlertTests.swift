@@ -109,3 +109,52 @@ private func run(_ reads: [GuardDisplay], autoAlert: Bool = true) -> [ViolationA
         #expect(a.read(healthy, autoAlert: false) == .clear(recovered: true))
     }
 }
+
+/// 关掉出口守卫插件（设置）：关的是提醒，不是判定。红卡撤掉、不弹恢复卡；再打开按当前状态读一次（docs/egress-guard.md）
+@Suite struct DisabledGuard {
+    @Test func disablingClearsAlertWithoutRecoveredCard() {
+        var alert = ViolationAlert(missing)
+        _ = alert.read(violated, autoAlert: true)
+        #expect(alert.setEnabled(false, autoAlert: true) == .clear(recovered: false))
+        #expect(alert.read(healthy, autoAlert: true) == .none)
+    }
+
+    @Test func disabledReadsNeverAlert() {
+        var alert = ViolationAlert(missing)
+        #expect(alert.setEnabled(false, autoAlert: true) == .none)
+        #expect(run([violated, stale, healthy], on: &alert) == [.none, .none, .none])
+        // 判定照旧：设置页还看得到真实状态
+        _ = alert.read(violated, autoAlert: true)
+        #expect(alert.presentation.status == .violated)
+    }
+
+    @Test func enablingDuringViolationRaisesAgain() {
+        var alert = ViolationAlert(missing)
+        _ = alert.read(violated, autoAlert: true)
+        _ = alert.setEnabled(false, autoAlert: true)
+        #expect(alert.setEnabled(true, autoAlert: true) == .raise(.violated))
+        #expect(alert.read(healthy, autoAlert: true) == .clear(recovered: true))
+    }
+
+    @Test func enablingWhileHealthyDoesNothing() {
+        var alert = ViolationAlert(missing)
+        _ = alert.setEnabled(false, autoAlert: true)
+        _ = alert.read(healthy, autoAlert: true)
+        #expect(alert.setEnabled(true, autoAlert: true) == .none)
+    }
+
+    /// 关掉期间用户关红卡的记录不该留着：关之前点过 ×，再打开同一次违规也不再挂（这一次已经关掉了）
+    @Test func dismissedViolationStaysDismissed() {
+        var alert = ViolationAlert(missing)
+        _ = alert.read(violated, autoAlert: true)
+        alert.dismiss()
+        _ = alert.setEnabled(false, autoAlert: true)
+        #expect(alert.setEnabled(true, autoAlert: true) == .none)
+    }
+
+    @Test func settingSameValueDoesNothing() {
+        var alert = ViolationAlert(missing)
+        _ = alert.read(violated, autoAlert: true)
+        #expect(alert.setEnabled(true, autoAlert: true) == .none)
+    }
+}

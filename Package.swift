@@ -31,10 +31,11 @@ let package = Package(
         // Claude Code 会话此刻在什么状态、回合什么时候结束：解析 ~/.claude/sessions/<pid>.json、跟踪回合（docs/agent-integration.md）。纯值类型，不读目录、不查进程
         .target(name: "AgentCore"),
         .testTarget(name: "AgentCoreTests", dependencies: ["AgentCore"]),
-        // 卡上写什么、刘海此刻放哪张卡、放多久、放出来时响不响：红卡一层 + 临时卡队列（docs/ui.md「卡片」）；守卫读数画成什么、红卡挂上还是撤掉（docs/egress-guard.md）。纯值类型，不知道卡长什么样、不放声音、不起定时器
-        .target(name: "NotchCore", dependencies: ["GuardCore", "MascotCore"]),
-        .testTarget(name: "NotchCoreTests", dependencies: ["NotchCore", "GuardCore", "MascotCore"]),
-        // 外部插件发来的一条消息合不合法、变成哪张卡：解析收件箱里的消息和插件登记、限流、过期。纯值类型，不读目录
+        // 卡上写什么、刘海此刻放哪张卡、放多久、放出来时响不响：红卡一层 + 临时卡队列（docs/ui.md「卡片」）；守卫读数画成什么、红卡挂上还是撤掉（docs/egress-guard.md）；
+        // 各插件多急、收起时谁上位、面板一行画什么。纯值类型，不知道卡长什么样、不放声音、不起定时器
+        .target(name: "NotchCore", dependencies: ["AgentCore", "GuardCore", "MascotCore"]),
+        .testTarget(name: "NotchCoreTests", dependencies: ["NotchCore", "AgentCore", "GuardCore", "MascotCore"]),
+        // 外部插件发来的一条消息合不合法、变成哪张卡或面板里哪一行：解析收件箱里的消息和插件登记、限流、过期，跟踪活动。纯值类型，不读目录
         .target(name: "PluginCore", dependencies: ["GuardCore", "NotchCore"]),
         .testTarget(name: "PluginCoreTests", dependencies: ["PluginCore", "NotchCore"]),
         // 外部插件的命令行：`nk notify …` 把一张卡写进收件箱（先写 tmp/ 再 rename 到 new/），格式由 PluginCore 校验

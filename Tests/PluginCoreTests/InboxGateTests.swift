@@ -145,3 +145,64 @@ private func message(plugin: String = "terminal", id: UUID = UUID(), sent: Date 
         }
     }
 }
+
+private func activity(_ event: Message.Activity.Event = .update, alert: Bool = false, sent: Date = t0, staleAt: Date? = nil) -> Message {
+    var m = message(sent: sent, staleAt: staleAt)
+    m.activity = .init(id: "xcode", event: event, alert: alert)
+    return m
+}
+
+/// 活动消息不弹卡（除非 alert），也不进限流；只有 alert 的占名额，超了只是不弹，行照样更新
+@Suite struct ActivityAdmission {
+    @Test func becomesUpdate() throws {
+        var gate = InboxGate()
+        let u = try gate.admitActivity(activity(.start), plugins: plugins, now: t0)
+        #expect(u.plugin == "terminal" && u.id == "xcode" && u.event == .start && u.at == t0 && !u.alert)
+        #expect(u.card.title == "npm 跑完了" && u.card.source == .plugin(id: "terminal", name: "终端", symbol: "terminal"))
+    }
+
+    @Test func updatesAreNotRateLimited() throws {
+        var gate = InboxGate()
+        for i in 0..<20 { _ = try gate.admitActivity(activity(sent: at(Double(i))), plugins: plugins, now: at(Double(i))) }
+        _ = try gate.admit(message(sent: at(20)), plugins: plugins, now: at(20))
+    }
+
+    @Test func alertOverLimitStillUpdatesRow() throws {
+        var gate = InboxGate()
+        for _ in 0..<6 { _ = try gate.admit(message(), plugins: plugins, now: t0) }
+        let u = try gate.admitActivity(activity(alert: true), plugins: plugins, now: t0)
+        #expect(!u.alert)
+    }
+
+    @Test func alertCountsAgainstLimit() throws {
+        var gate = InboxGate()
+        for _ in 0..<6 {
+            let u = try gate.admitActivity(activity(alert: true), plugins: plugins, now: t0)
+            #expect(u.alert)
+        }
+        #expect(throws: InboxGate.Rejection.rateLimited) { try gate.admit(message(), plugins: plugins, now: t0) }
+    }
+
+    /// 活动最长 8 小时（照 ActivityKit）：发出更早的不收；写了 staleAt 且过了也不收
+    @Test func staleActivityDropped() throws {
+        var gate = InboxGate()
+        #expect(throws: InboxGate.Rejection.stale) { try gate.admitActivity(activity(), plugins: plugins, now: at(8 * 3600)) }
+        _ = try gate.admitActivity(activity(), plugins: plugins, now: at(8 * 3600 - 1))
+        #expect(throws: InboxGate.Rejection.stale) { try gate.admitActivity(activity(staleAt: at(5)), plugins: plugins, now: at(5)) }
+    }
+
+    @Test func unregisteredDropped() {
+        var gate = InboxGate()
+        #expect(throws: InboxGate.Rejection.unregistered) { try gate.admitActivity(activity(), plugins: [:], now: t0) }
+    }
+}
+
+/// 发出时刻在未来（钟不准、本地时间错加了 Z）按收到时刻算：不然那一行永远不过期，之后的 update、end 也都算旧的
+@Suite struct FutureActivity {
+    @Test func futureAtClampedToNow() throws {
+        var gate = InboxGate()
+        var m = message(sent: at(86400))
+        m.activity = .init(id: "x", event: .start, alert: false)
+        #expect(try gate.admitActivity(m, plugins: plugins, now: t0).at == t0)
+    }
+}

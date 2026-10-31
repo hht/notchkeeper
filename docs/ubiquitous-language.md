@@ -27,6 +27,11 @@
 | inbox | 收件箱 | 外部插件写消息的目录，App 监听 |
 | message | 消息 | 外部插件写进收件箱的一份 JSON，说要弹哪张卡（`PluginCore` 的 `Message`）。不叫「通知」 |
 | manifest | 登记 | `plugins/<id>/manifest.json`：外部插件的 id、名字、图标。没登记的插件发来的消息丢掉 |
+| activity | 活动 | 外部插件报的一件进行中的事（照 ActivityKit 的 start / update / end），在面板里插件那一段占一行。不叫「任务」「进度」 |
+| urgency | 紧急程度 | 插件此刻多急：calm 平静 / active 进行中 / attention 要你看 / critical 严重（只有守卫）。代码里是 `PluginStatus.Urgency` |
+| lead | 上位 | 收起时 Pip 和右耳显示的那个插件：最急的，都平静时是常驻插件 |
+| resident plugin | 常驻插件 | 都平静时收起态显示谁（默认出口守卫，可选不常驻） |
+| section | 段 | 面板里一个插件占的那一块；出口守卫的段是顶上的状态区 |
 | group | 组 | 消息自带的分组：同一个插件里同组的卡排着时只留最新 |
 | block | 内容块 | 卡片第一行下面的一块：正文、日志尾巴、键值、勾叉列表、进度 |
 | card | 卡片 | 刘海下弹出的提示：完成卡、出错卡、介入卡、红卡、恢复卡 |

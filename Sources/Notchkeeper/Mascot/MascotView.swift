@@ -11,6 +11,8 @@ struct MascotView: View {
     let size: CGFloat
     /// 收起态的左耳、面板：sign 装饰挪到右边，这里不画
     var hidesSigns = false
+    /// false：此刻透明、看不见（关掉了收起时的 Pip），停掉动画，导演的时钟也跟着停
+    var playing = true
 
     @ObservedObject private var director = MascotDirector.shared
     /// @see https://developer.apple.com/documentation/swiftui/environmentvalues/accessibilityreducemotion
@@ -33,7 +35,7 @@ struct MascotView: View {
         Color.clear
             .frame(width: size, height: size)
             .overlay(alignment: .topLeading) {
-                MascotLayer(look: shown, size: c.size, unit: c.unit, reduceMotion: reduceMotion, hidesSigns: hidesSigns)
+                MascotLayer(look: shown, size: c.size, unit: c.unit, reduceMotion: reduceMotion, hidesSigns: hidesSigns, playing: playing)
                     .frame(width: c.frame.width, height: c.frame.height)
                     .offset(x: c.frame.minX, y: c.frame.minY)
                     .allowsHitTesting(false)
@@ -51,12 +53,16 @@ private struct MascotLayer: NSViewRepresentable {
     let unit: CGFloat
     let reduceMotion: Bool
     let hidesSigns: Bool
+    let playing: Bool
 
     func makeNSView(context: Context) -> MascotFigureView {
-        MascotFigureView(look: look, size: size, unit: unit, reduceMotion: reduceMotion, entrance: true, hidesSigns: hidesSigns)
+        let v = MascotFigureView(look: look, size: size, unit: unit, reduceMotion: reduceMotion, entrance: true, hidesSigns: hidesSigns)
+        v.playing = playing
+        return v
     }
 
     func updateNSView(_ v: MascotFigureView, context: Context) {
+        v.playing = playing
         v.setReduceMotion(reduceMotion)
         v.setLook(look, hidesSigns: hidesSigns)
     }
