@@ -926,7 +926,7 @@ struct PanelList: View {
     }
 }
 
-/// 展开岛右上角的设置入口（Emily 规格：13pt 常规字重，白 55%，悬停白 90% + 白 10% 圆底 + 转 30°）
+/// 面板底栏右边的设置入口。平时压暗不抢眼（白 0.55 在黑底上仍够 4.5:1），悬停时变亮、垫圆底、转一下，说明它能点
 struct NotchGearButton: View {
     let action: () -> Void
     @State private var hover = false
