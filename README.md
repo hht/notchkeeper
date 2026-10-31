@@ -4,6 +4,17 @@ Haitao 本机自用的刘海应用（SwiftPM，macOS 14+），没有菜单栏图
 
 正在重写：App 层和 Pip 动画会全部重做，另外新增一个一键开关的防火墙。阶段与待办见 `HANDOFF.md`。
 
+## 断网了？防火墙逃生
+
+按顺序试：
+
+1. 什么都不做：开启后 2 分钟内没点「保留」，会自动回滚。
+2. 在 App 里关掉防火墙。
+3. 终端里执行 **`cd ~/Documents/Projects/notchkeeper && sudo scripts/firewall-rescue.sh`**：卸掉防火墙的守护进程、规则和文件，不需要网络和 App，重复执行没有副作用。
+4. 还不行：`sudo scripts/firewall-rescue.sh --disable-pf`，连整个 pf 一起停掉（AirDrop、互联网共享等用到 pf 的功能要重开）。
+
+已经点过「保留」的，重启不能逃生（开机会重新装上规则），先跑第 3 步。
+
 ## 现在能用的
 
 - **出口守卫（只监测）**：后台进程 `guardd` 每 5 秒检查一次 Clash、utun 路由和出口 IP，结果写进 `guard-state.json`。App 读这个文件：出口违规时刘海亮红卡，恢复后弹出绿色恢复卡。
@@ -15,7 +26,7 @@ Haitao 本机自用的刘海应用（SwiftPM，macOS 14+），没有菜单栏图
 
 ## 还没做
 
-- **防火墙**：设计见 `docs/firewall.md`。顺序是先写恢复脚本并实测通过，再写拦截规则。
+- **防火墙**：设计见 `docs/firewall.md`。顺序是先写恢复脚本并实测通过，再写拦截规则。恢复脚本已经有了，用 `sudo scripts/firewall-drill.sh` 装一套什么都不拦的假防火墙来演练它。
 
 ## 运行
 

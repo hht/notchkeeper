@@ -100,14 +100,14 @@ block drop   in  quick all
 - 一个 root 所有的脚本 `/Library/PrivilegedHelperTools/notchkeeper-firewall`；
 - 一个 LaunchDaemon（`RunAtLoad`，`StartInterval` 10）；
 - 目录 `/Library/Application Support/Notchkeeper/`，所有者 root，权限 0755。普通用户进程不能在里面写文件，也就伪造不了状态摘要。
-  - 状态文件 `firewall.state`，root 0600，记录 `mode`、`deadline`（单调时钟）、`token`、`boottime`；
+  - 状态文件 `firewall.state`，root 0600，JSON，记录 `mode`、`deadline`（单调时钟）、`token`（字符串）、`bootSession`（`kern.bootsessionuuid`，每次开机都换；不用 `kern.boottime`，因为改系统时间时内核会跟着调它（推断），会被误判成重启）；
   - 状态摘要 `firewall-status.json`，root 0644，记录模式、截止时间、核对结果、`checkedAt`。
 
 LaunchDaemon 每一轮做这几件事：
-1. `kern.boottime` 和状态文件里记的不一样（重启过）：`trial` 改成 `off`，`on` 丢掉旧 token，然后把新的 `boottime` 写回状态文件。所以每次开机只会判一次「重启过」，不会每一轮都重新 `pfctl -E`、让引用计数越涨越多。
+1. `kern.bootsessionuuid` 和状态文件里的 `bootSession` 不一样（重启过）：`trial` 改成 `off`，`on` 丢掉旧 token，然后把新的 `bootSession` 写回状态文件。所以每次开机只会判一次「重启过」，不会每一轮都重新 `pfctl -E`、让引用计数越涨越多。
 2. `mode` 不是 `off`：
    - 没有有效 token 就执行 `pfctl -E`，把 token 落盘；
-   - 加载规则；
+   - anchor 里的规则和要装的不一样才加载（每次加载都换上一批新规则，Evaluations 从 0 数起，下一条的「在增长」就核对不了）；
    - 核对：主规则集里还有 `anchor "com.apple/*"`、本 anchor 的 Evaluations 计数在增长、TUN 网卡存在。
 3. `mode` 是 `trial` 且已过截止时间：执行关闭流程。
 4. `mode` 是 `off`：卸掉规则、释放 token。
@@ -148,17 +148,19 @@ LaunchDaemon 每一轮做这几件事：
 已查清（macOS 26.5）：
 - **接口组**：XNU 的 `pfi_kif_match` 只比较指针，所以没有接口组。kif 按名字绑定，`utun1024` 删除后重建，规则会自动重新挂上（[pf_if.c L224](https://github.com/apple-oss-distributions/xnu/blob/f6217f891ac0bb64f3d375211650a4c1ff8ca1ea/bsd/net/pf_if.c#L224)）。
 - **`user root`**：IPv4、IPv6 的 TCP/UDP 都能匹配（`man pf.conf`；[pf.c L4136](https://github.com/apple-oss-distributions/xnu/blob/f6217f891ac0bb64f3d375211650a4c1ff8ca1ea/bsd/net/pf.c#L4136)）。
-- **`com.apple/*`**：本机 `/etc/pf.conf` 是系统默认内容，开机时由 `com.apple.pfctl` 载入，但 pf 默认不启用。Clash 不使用 pf。
-- **token**：引用计数归零时才真正停掉 pf；`pfctl -d` 会强制停掉 pf 并作废所有人的 token；进程退出不会释放 token；重启后 token 全部丢失（推断）（[pf_ioctl.c L1615](https://github.com/apple-oss-distributions/xnu/blob/f6217f891ac0bb64f3d375211650a4c1ff8ca1ea/bsd/net/pf_ioctl.c#L1615)）。
+- **`com.apple/*`**：本机 `/etc/pf.conf` 是系统默认内容，开机时由 `com.apple.pfctl` 载入。Clash 不使用 pf。本机 pf 平时就是启用的：系统的 `pfd`（`com.apple.pfd`）拿着一个引用，进程早已退出、引用还在（实测，10-31）。
+- **token**：引用计数归零时才真正停掉 pf；`pfctl -d` 会强制停掉 pf 并作废所有人的 token；进程退出不会释放 token（上面的 `pfd` 实测）；重启后 token 全部丢失（推断）（[pf_ioctl.c L1615](https://github.com/apple-oss-distributions/xnu/blob/f6217f891ac0bb64f3d375211650a4c1ff8ca1ea/bsd/net/pf_ioctl.c#L1615)）。
 - **osascript 管理员权限**：以 root 运行（TN2065）。后台子进程在 osascript 返回后能否存活，官方没有说明，所以试运行计时不交给它。
 - Mullvad 源码：[talpid-core/src/firewall/macos.rs @ 33a63e2](https://github.com/mullvad/mullvadvpn-app/blob/33a63e2916adf294d3b4332c4274e2aa1cb1f811/talpid-core/src/firewall/macos.rs)
 
-还要用 root 实测，结果写进第 7 节：
-- `pfctl -E` 的输出格式（token 在 stdout 还是 stderr）；
-- `pfctl -s References` 的输出；
-- 子 anchor 的 Evaluations 计数会不会增长；
-- 规则用 `block return` 时，断开 Clash 后浏览器能不能很快报错；
-- 本机 pf 当前是否已启用。
+root 实测（`scripts/firewall-drill.sh`，10-31）：
+- `pfctl -E`：stdout 为空，token 在 stderr 的一行 `Token : <数字>`；`pfctl -X` 释放后提示还剩几个引用。
+- `pfctl -s References`：每行一个引用，列出 PID、进程名、token、拿了多久。
+- 子 anchor 里的规则 Evaluations 会涨，规则匹配不到包也照样计数。
+- 对还不存在的 anchor 执行 `pfctl -a … -sr`：退出码 0，stdout 为空。
+- pfctl 每条命令都往 stderr 打「No ALTQ support in kernel」「ALTQ related functions disabled」，不是错误。
+
+还没测：规则用 `block return` 时，断开 Clash 后浏览器能不能很快报错。
 
 ## 7. 实机验收
 
@@ -172,3 +174,5 @@ LaunchDaemon 每一轮做这几件事：
 6. **fail-open 检测**：手动执行 `pfctl -d` 后，App 在 10 秒内显示异常。
 
 每一步的命令和结果都记在这里。
+
+- 第 1 步（10-31）：`sudo scripts/firewall-drill.sh` 装上假防火墙，手动清空 anchor 后 11 秒内被守护进程装回；`sudo scripts/firewall-rescue.sh` 依次 bootout、清 anchor、`pfctl -X` 释放自己的引用（`pfd` 的引用留着，pf 仍启用）、删文件，核对全过，目录也删掉了。重启后的复查：待做。
