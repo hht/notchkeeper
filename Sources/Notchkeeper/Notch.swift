@@ -596,7 +596,7 @@ struct NotchShape: Shape {
 struct NotchRoot: View {
     @ObservedObject var model: NotchModel
     @ObservedObject var overrides: NotchOverrides
-    @ObservedObject var state: AppState
+    let state: AppState
     /// 插件开关、顺序、常驻插件、左耳画不画 Pip 都在配置里
     @ObservedObject var store: ConfigStore
     let onDismiss: () -> Void
@@ -812,7 +812,7 @@ struct GuardBadge: View {
 /// 出口守卫那一段固定在顶上（状态区 + 底栏的检查时间），关掉就不画；其余插件各一段，按设置里的顺序（docs/ui.md「面板布局」）。
 /// 只显示路径 / 状态 / 时间，不显示任何对话内容。
 struct NotchDashboard: View {
-    @ObservedObject var state: AppState
+    let state: AppState
     let panel: PanelShape
     let onSettings: (SettingsPane?) -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion

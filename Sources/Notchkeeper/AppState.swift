@@ -1,41 +1,49 @@
 import AgentCore
 import AppKit
-import Combine
 import MascotCore
-import GuardCore
+// 只取用到的：GuardCore 有个叫 `Observation` 的类型（守卫一轮的观测），整个导入会盖住 @Observable 展开时用的 Observation 模块
+import struct GuardCore.GuardDisplay
+import enum GuardCore.GuardPaths
+import enum GuardCore.GuardStateReader
+import struct GuardCore.IPv4
 import GuardWatch
 import NotchCore
+import Observation
 import PluginCore
 
+/// 视图按属性订阅（Observation）：只有读了 `display` 的视图（展开的面板、设置页）才随 guardd 每轮写盘重算，
+/// 收起的刘海只跟着 `presentation` 等真正变了的东西走
+/// @see https://developer.apple.com/documentation/observation
 @MainActor
-final class AppState: ObservableObject {
+@Observable
+final class AppState {
     static let shared = AppState()
 
     let store = ConfigStore.shared
 
     /// 最近一次读到的 guard-state.json（guardd 写，App 只读）
-    @Published private(set) var display: GuardDisplay
+    private(set) var display: GuardDisplay
     /// 由 display 和用户关掉的是哪一次算出来（`ViolationAlert`），界面只看它
-    @Published private(set) var presentation: GuardPresentation
+    private(set) var presentation: GuardPresentation
     /// 面板列的会话（AgentCore 判定的、活着的终端 claude）
-    @Published private(set) var sessions: [Session] = []
+    private(set) var sessions: [Session] = []
     /// Claude Code 各会话合起来此刻是什么（AgentCore 判定）；没有要画的是 nil
-    @Published private(set) var agentActivity: AgentActivity?
+    private(set) var agentActivity: AgentActivity?
     /// 已登记的外部插件（`plugins/<id>/manifest.json`）
-    @Published private(set) var manifests: [String: Manifest] = [:]
+    private(set) var manifests: [String: Manifest] = [:]
     /// 外部插件开着的活动
-    @Published private(set) var activities = ActivityBoard()
-    private var activityExpiry: DispatchWorkItem?
+    private(set) var activities = ActivityBoard()
+    @ObservationIgnored private var activityExpiry: DispatchWorkItem?
 
-    private var violationAlert: ViolationAlert
+    @ObservationIgnored private var violationAlert: ViolationAlert
 
     /// 每次读完都调用（不论有没有变化），参数是红卡要做的事
-    var onAlertAction: ((ViolationAlert.Action) -> Void)?
+    @ObservationIgnored var onAlertAction: ((ViolationAlert.Action) -> Void)?
     /// AgentCore 判定的事件，连同同一次更新的会话列表
-    var onAgentEvents: (([AgentEvent], [Session]) -> Void)?
+    @ObservationIgnored var onAgentEvents: (([AgentEvent], [Session]) -> Void)?
     /// 订阅 guard-state 显示流的长任务；`stopWatchingGuard()` / deinit 取消，流随之结束、监听关掉
-    private var guardTask: Task<Void, Never>?
-    private var agentWatcher: AgentWatcher?
+    @ObservationIgnored private var guardTask: Task<Void, Never>?
+    @ObservationIgnored private var agentWatcher: AgentWatcher?
 
     init() {
         let d = GuardStateReader.display(data: nil, now: Date())

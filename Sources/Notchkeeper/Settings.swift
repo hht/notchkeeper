@@ -64,7 +64,7 @@ final class SettingsModel: ObservableObject {
 
 struct SettingsView: View {
     @ObservedObject var model: SettingsModel
-    @ObservedObject var state: AppState
+    let state: AppState
     @ObservedObject var store: ConfigStore
     let notch: NotchController
 
@@ -232,7 +232,7 @@ private struct GeneralPane: View {
 
 private struct ExitGuardPane: View {
     @ObservedObject var model: SettingsModel
-    @ObservedObject var state: AppState
+    let state: AppState
     @ObservedObject var store: ConfigStore
     @State private var invalid = false
 
@@ -328,7 +328,7 @@ private struct PluginOffNote: View {
 /// 插件的开关、面板里各段的顺序和行数、收起时常驻谁、链接白名单（docs/ui.md「面板布局」「卡片」）
 private struct PluginsPane: View {
     @ObservedObject var model: SettingsModel
-    @ObservedObject var state: AppState
+    let state: AppState
     @ObservedObject var store: ConfigStore
     @State private var confirmGuardOff = false
     @State private var badScheme = false
@@ -456,7 +456,7 @@ private struct PluginsPane: View {
 /// 插件的图标和名字：内置的用设置页侧栏的图标，外部的用它登记的 SF Symbol
 private struct PluginLabel: View {
     let plugin: String
-    @ObservedObject var state: AppState
+    let state: AppState
     let detail: String?
 
     var body: some View {
@@ -476,7 +476,7 @@ private struct PluginLabel: View {
 
 /// 装、卸终端插件，给出要加进 ~/.zshrc 的一行。Notchkeeper 不改 ~/.zshrc（CLAUDE.md 硬规则）。开关在「插件」页（它是外部插件）
 private struct TerminalPluginSection: View {
-    @ObservedObject var state: AppState
+    let state: AppState
     @State private var installed = TerminalPlugin.isInstalled
     @State private var error: String?
 
@@ -610,7 +610,7 @@ private struct MascotPane: View {
 
 private struct StateTestPane: View {
     @ObservedObject var overrides: NotchOverrides
-    @ObservedObject var state: AppState
+    let state: AppState
     let notch: NotchController
     @ObservedObject private var director = MascotDirector.shared
 
