@@ -28,7 +28,7 @@ Haitao 本机自用的 macOS 刘海应用（SwiftPM，SwiftUI + AppKit，macOS 1
 - **插件**：出口守卫和 Claude Code 是内置插件，能在设置里关（关的是提醒，不是判定；违规中关守卫要确认）。外部插件可信但受限：卡上标明来源；不能用红色、绿色和 danger、不能撤或盖住红卡（`Card` 构造时把 violation、recovered 降级，`CardQueue` 让它们在红卡挂着时排着）；按插件限流；没登记的丢弃；点击只能打开 https 或白名单 scheme 的 URL、切换 App、跳回终端；不收要执行的命令、图片路径和原始色值。
 - **除防火墙外不碰网络与 shell 环境**：不改 `~/.zshrc` 和系统网络设置；出口探测只请求第三方服务，不碰 Claude / Anthropic 域名；guardd 不要 sudo。
 - **密钥不打印，日志不记 IP**（界面上完整显示出口 IP）。测试与文档里的 IP 用 `198.51.100.x`。
-- **品牌**：Pip 是原创角色，不用 Grok、Codex、Coucou、Mochi 等别家的名字、形象和音效；代码里用 `Mascot` 前缀。会话行可以用 agent 厂商自己的标志标明是哪家的会话。从 Coucou（MIT）移植的代码在第 4 步重写删掉之前，保留 MIT 声明和设置页致谢。
+- **品牌**：Pip 是原创角色，不用 Grok、Codex、Coucou、Mochi 等别家的名字、形象和音效；代码里用 `Mascot` 前缀。会话行可以用 agent 厂商自己的标志标明是哪家的会话。
 - **看不见就不调度**：收起、被遮挡、熄屏、锁屏时停掉动画和计时器。
 - **配置与状态文件**：JSON 字段 lowerCamelCase，缺失字段用默认值，未知字段忽略，时间用 ISO 8601。
 

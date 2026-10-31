@@ -1,61 +1,33 @@
-// Ported from Coucou (https://github.com/louis-cfm/coucou @ 47d1c2d).
-//
-// MIT License
-//
-// Copyright (c) 2026 Louis Raillé
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in all
-// copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-// SOFTWARE.
-//
-// Modified for Notchkeeper. 本文件有一部分（犯困、熄屏锁屏）是从 Coucou 移植来、带这份声明的旧代码原样搬来的，
-// 按 CLAUDE.md 的过渡期规则保留，第 4 步重写这些代码时一起删掉。
-
 import AppKit
 import QuartzCore
 import MascotCore
 
-/// 所有 Pip 共用的一份：唯一的时钟（眨眼、空闲小动作，左耳和面板同步）、鼠标、犯困、熄屏锁屏暂停。
-/// 不知道 Pip 怎么画、动作长什么样；什么时候做什么由 `IdleDirector` 定，这里只按它给的时刻醒来、把提示发给看得见的 Pip。
-/// 一只都看不见、或者熄屏锁屏时，时钟和犯困计时器都停掉（docs/mascot.md §5「渲染」）。
+/// 所有 Pip 共用的一份：登记看得见的 Pip、按 `MascotClock` 给的时刻醒来把提示发给它们、转发鼠标、熄屏锁屏时停下。
+/// 什么时候眨眼、做小动作、回正、犯困都由 `MascotClock` 定；不知道 Pip 怎么画、动作长什么样。
+/// 一只都看不见、或者熄屏锁屏时，时钟停掉（docs/mascot.md §5「渲染」）。
 @MainActor
 final class MascotDirector: ObservableObject {
     static let shared = MascotDirector()
 
+    /// `MascotClock` 的镜像，变了才发布：视图按它叠睡着（`shown`）
     @Published private(set) var drowsy = false
-    /// 熄屏或锁屏。没有视图读它，所以不发布：每只 Pip 由 `set(asleep:locked:)` 逐个通知
-    private(set) var paused = false
+    /// 熄屏或锁屏。没有视图读它，所以不发布：每只 Pip 由 `refreshActive` 逐个看
+    var paused: Bool { !away.isEmpty }
     /// 熄屏或锁屏变了：卡片队列跟着停、跟着放（docs/ui.md「卡片」8）
     var onPausedChange: ((Bool) -> Void)?
 
+    /// 鼠标离刘海这么近算靠近（不犯困）
     static let nearDistance: CGFloat = 150
-    static let drowsyAfter: TimeInterval = 120
+
+    private enum Away { case screensAsleep, locked }
+    private var away: Set<Away> = []
 
     private var notchRect: () -> NSRect = { .zero }
-    private var lastNear = Date()
-    private var screensAsleep = false
-    private var locked = false
-    private var drowsyTimer: Timer?
-
     private var views: [Weak] = []
-    private var idle = IdleDirector(seed: UInt64.random(in: 1...UInt64.max), now: CACurrentMediaTime())
-    private var clock: Timer?
-    /// 鼠标停下后这一刻眼睛回正；nil = 没在看鼠标
-    private var restAt: CFTimeInterval?
+    private var clock = MascotClock(seed: UInt64.random(in: 1...UInt64.max), now: CACurrentMediaTime())
+    private var timer: Timer?
+    /// 定时器定在哪一刻醒；nil = 停着
+    private var timerAt: CFTimeInterval?
     /// 设置里的「跟随鼠标」
     private var followsMouse = true
 
@@ -69,47 +41,43 @@ final class MascotDirector: ObservableObject {
     /// App 启动时调用一次，传入刘海在屏幕上的位置
     func start(notchRect: @escaping () -> NSRect) {
         self.notchRect = notchRect
+        let ws = NSWorkspace.shared.notificationCenter
+        let dn = DistributedNotificationCenter.default()
+        // 锁屏没有公开的通知；com.apple.screenIsLocked / Unlocked 是系统发的分布式通知，Apple 文档没列出。
+        // 哪个系统版本不再发，也只是少了锁屏这一路：熄屏和窗口遮挡照样让 Pip 停下
         // @see https://developer.apple.com/documentation/appkit/nsworkspace/screensdidsleepnotification
         // @see https://developer.apple.com/documentation/appkit/nsworkspace/screensdidwakenotification
-        let ws = NSWorkspace.shared.notificationCenter
-        ws.addObserver(forName: NSWorkspace.screensDidSleepNotification, object: nil, queue: .main) { _ in
-            MainActor.assumeIsolated { MascotDirector.shared.set(asleep: true) }
-        }
-        ws.addObserver(forName: NSWorkspace.screensDidWakeNotification, object: nil, queue: .main) { _ in
-            MainActor.assumeIsolated { MascotDirector.shared.set(asleep: false) }
-        }
-        // 锁屏没有公开的 API 通知；这两个名字是系统发出的分布式通知，Apple 文档里没有列出。
-        // 万一哪个系统版本不再发，也只是少了锁屏这一路：熄屏和窗口遮挡照样会让 Pip 停下。
         // @see https://developer.apple.com/documentation/foundation/distributednotificationcenter
-        let dn = DistributedNotificationCenter.default()
-        dn.addObserver(forName: Notification.Name("com.apple.screenIsLocked"), object: nil, queue: .main) { _ in
-            MainActor.assumeIsolated { MascotDirector.shared.set(locked: true) }
-        }
-        dn.addObserver(forName: Notification.Name("com.apple.screenIsUnlocked"), object: nil, queue: .main) { _ in
-            MainActor.assumeIsolated { MascotDirector.shared.set(locked: false) }
+        let sources: [(NotificationCenter, Notification.Name, Away, Bool)] = [
+            (ws, NSWorkspace.screensDidSleepNotification, .screensAsleep, true),
+            (ws, NSWorkspace.screensDidWakeNotification, .screensAsleep, false),
+            (dn, Notification.Name("com.apple.screenIsLocked"), .locked, true),
+            (dn, Notification.Name("com.apple.screenIsUnlocked"), .locked, false),
+        ]
+        for (center, name, reason, on) in sources {
+            center.addObserver(forName: name, object: nil, queue: .main) { _ in
+                MainActor.assumeIsolated { MascotDirector.shared.set(reason, on) }
+            }
         }
     }
 
-    private func set(asleep: Bool? = nil, locked: Bool? = nil) {
-        if let asleep { screensAsleep = asleep }
-        if let locked { self.locked = locked }
-        let p = screensAsleep || self.locked
-        guard p != paused else { return }
-        paused = p
+    private func set(_ reason: Away, _ on: Bool) {
+        let was = paused
+        if on { away.insert(reason) } else { away.remove(reason) }
+        guard paused != was else { return }
         views.forEach { $0.view?.refreshActive() }
-        onPausedChange?(p)
+        onPausedChange?(paused)
     }
 
-    private func checkDrowsy(mouse: NSPoint, now: Date) {
-        if Self.distance(from: mouse, to: notchRect()) <= Self.nearDistance { lastNear = now }
-        let d = now.timeIntervalSince(lastNear) > Self.drowsyAfter
-        if d != drowsy { drowsy = d }
-    }
+    /// 实际画哪个造型：睡着叠在给的造型上
+    func shown(_ look: Look) -> Look { look.shown(drowsy: drowsy) }
 
     /// 点到矩形的距离，点在矩形里为 0
     nonisolated static func distance(from p: NSPoint, to r: NSRect) -> CGFloat {
         hypot(max(r.minX - p.x, 0, p.x - r.maxX), max(r.minY - p.y, 0, p.y - r.maxY))
     }
+
+    private func mouseNear(_ p: NSPoint) -> Bool { Self.distance(from: p, to: notchRect()) <= Self.nearDistance }
 
     // MARK: Pip 登记
 
@@ -123,55 +91,54 @@ final class MascotDirector: ObservableObject {
         activityChanged()
     }
 
-    /// 有 Pip 变得看得见或看不见、熄屏锁屏：时钟和犯困计时器跟着开停
+    /// 有 Pip 变得看得见或看不见、熄屏锁屏：时钟跟着开停
     func activityChanged() {
-        let wasRunning = clock != nil
-        clock?.invalidate()
-        clock = nil
         let on = !live.isEmpty
-        if on != (drowsyTimer != nil) {
-            drowsyTimer?.invalidate()
-            drowsyTimer = nil
-            if on {
-                let t = Timer(timeInterval: 2, repeats: true) { _ in
-                    MainActor.assumeIsolated { MascotDirector.shared.checkDrowsy(mouse: NSEvent.mouseLocation, now: Date()) }
-                }
-                t.tolerance = 0.5
-                RunLoop.main.add(t, forMode: .common)
-                drowsyTimer = t
-            }
+        guard on != (timerAt != nil) else { return }
+        if on {
+            clock.resume(at: CACurrentMediaTime())
+            schedule()
+        } else {
+            timer?.invalidate()
+            timer = nil
+            timerAt = nil
         }
-        guard on else { return }
-        if !wasRunning { idle.resume(at: CACurrentMediaTime()) }
-        schedule()
     }
 
     // MARK: 时钟
 
     private func schedule() {
-        let wake = min(idle.nextWake, restAt ?? .infinity)
-        let t = Timer(fire: Date(timeIntervalSinceNow: max(0, wake - CACurrentMediaTime())), interval: 0, repeats: false) { _ in
+        timer?.invalidate()
+        let at = clock.nextWake
+        let t = Timer(fire: Date(timeIntervalSinceNow: max(0, at - CACurrentMediaTime())), interval: 0, repeats: false) { _ in
             MainActor.assumeIsolated { MascotDirector.shared.tick() }
         }
         // 眨眼、小动作差几十毫秒看不出来，让系统合并唤醒
         // @see https://developer.apple.com/documentation/foundation/timer/tolerance
         t.tolerance = 0.05
         RunLoop.main.add(t, forMode: .common)
-        clock = t
+        timer = t
+        timerAt = at
+    }
+
+    /// 时钟改完：镜像跟上；在跑并且要早于定好的时刻醒就改定时器（推迟的不用改：到点 tick 会按新的时刻再定）
+    private func clockChanged() {
+        if drowsy != clock.drowsy { drowsy = clock.drowsy }
+        if let at = timerAt, clock.nextWake < at { schedule() }
     }
 
     private func tick() {
-        clock = nil
-        let now = CACurrentMediaTime()
         let views = live
-        // 看得见的 Pip 没走 refreshActive 就没了：时钟和犯困计时器一起停
-        guard !views.isEmpty else { return activityChanged() }
-        if let r = restAt, now >= r {
-            restAt = nil
-            // 看不见的也要回正：它们只记下目标，回来时不会斜眼看着旧位置
-            all.forEach { $0.follow(mouse: nil) }
+        // 看得见的 Pip 没走 refreshActive 就没了：时钟停掉
+        guard !views.isEmpty else {
+            timer = nil
+            timerAt = nil
+            return
         }
-        for cue in idle.cues(at: now) { views.forEach { $0.perform(cue) } }
+        let t = clock.tick(now: CACurrentMediaTime(), mouseNear: mouseNear(NSEvent.mouseLocation))
+        if t.gazeRested { all.forEach { $0.follow(mouse: nil) } }
+        for cue in t.cues { views.forEach { $0.perform(cue) } }
+        clockChanged()
         schedule()
     }
 
@@ -182,37 +149,30 @@ final class MascotDirector: ObservableObject {
 
     // MARK: 鼠标
 
-    /// 关掉时眼睛回正、不再探头，鼠标事件直接丢掉
+    /// 关掉时眼睛回正、不再探头，之后只看鼠标近不近刘海（犯困）
     func setFollowsMouse(_ on: Bool) {
         guard on != followsMouse else { return }
         followsMouse = on
         guard !on else { return }
-        restAt = nil
+        clock.endGaze()
         for v in all {
             v.follow(mouse: nil)
             v.setPeeking(false)
         }
     }
 
-    /// NotchController 的全局鼠标监听转过来（屏幕坐标）。Pip 看鼠标、鼠标在刘海上时探头；
-    /// 有 Pip 在看鼠标时不做小动作，鼠标停下 4s 后回正（docs/mascot.md §5「跟随鼠标」）
+    /// NotchController 的全局鼠标监听转过来（屏幕坐标）。Pip 看鼠标、鼠标在刘海上时探头（docs/mascot.md §5「跟随鼠标」）
     func mouseMoved(to p: NSPoint) {
-        guard followsMouse else { return }
-        let views = live
-        guard !views.isEmpty else { return }
-        let peek = Self.distance(from: p, to: notchRect()) == 0
-        for v in views {
-            v.follow(mouse: p)
-            v.setPeeking(peek)
+        var looking = false
+        if followsMouse {
+            let peek = Self.distance(from: p, to: notchRect()) == 0
+            for v in live {
+                v.follow(mouse: p)
+                v.setPeeking(peek)
+                looking = looking || v.isLooking
+            }
         }
-        guard views.contains(where: \.isLooking) else { return }
-        let now = CACurrentMediaTime()
-        let wasResting = restAt == nil
-        restAt = now + Choreography.gazeRestAfter
-        idle.postponeMotions(until: now + Choreography.gazeRestAfter)
-        if wasResting {
-            clock?.invalidate()
-            schedule()
-        }
+        clock.mouseMoved(near: mouseNear(p), looking: looking, now: CACurrentMediaTime())
+        clockChanged()
     }
 }

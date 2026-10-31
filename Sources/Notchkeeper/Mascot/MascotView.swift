@@ -5,7 +5,7 @@ import MascotCore
 /// Pip 嵌进 SwiftUI 的地方。
 /// 布局占 size × size，正好是身体圆的外框；画布按 docs/mascot.md §1 的比例画在 overlay 里，装饰在右上方出框。
 /// size ≤ 24 用 20pt 画法（左耳），更大用 40pt 画法按比例缩放（面板、卡片、设置页）。
-/// 这里只决定画哪个造型（开心、犯困盖不盖过调用方给的造型）；怎么画、怎么动见 `MascotFigureView`。
+/// 这里只决定画哪个造型（犯困盖不盖过调用方给的造型）；怎么画、怎么动见 `MascotFigureView`。
 struct MascotView: View {
     let look: Look
     let size: CGFloat
@@ -19,7 +19,7 @@ struct MascotView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.mascotLiteral) private var literal
 
-    private var shown: Look { literal ? look : look.shown(drowsy: director.drowsy) }
+    private var shown: Look { literal ? look : director.shown(look) }
 
     /// 画布相对身体外框（原点 = 身体左上）的位置，单位 pt。身体外框在画布里是 (4, 6.5) 起的 20 × 20 单位
     private var canvas: (size: Size, unit: CGFloat, frame: CGRect) {
@@ -68,14 +68,7 @@ private struct MascotLayer: NSViewRepresentable {
     }
 }
 
-extension Look {
-    /// 实际画哪个：守卫照画；空闲时鼠标久不靠近刘海就睡着。完整的优先级第 4 步由 NotchCore 负责
-    func shown(drowsy: Bool) -> Look {
-        self == .idle && drowsy ? .sleeping : self
-    }
-}
-
-/// 「状态测试」强制显示时为 true：照给的造型画，不让犯困盖掉（强制空闲不会自己睡着）
+/// 「状态测试」强制显示、卡片上时为 true：照给的造型画，不让犯困盖掉（强制空闲不会自己睡着）
 /// @see https://developer.apple.com/documentation/swiftui/environmentkey
 private struct MascotLiteralKey: EnvironmentKey {
     static let defaultValue = false

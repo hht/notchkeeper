@@ -1,6 +1,6 @@
 # Pip：造型与动效
 
-Pip 是 Notchkeeper 的原创吉祥物，在刘海左耳、展开面板和卡片里用表情说出此刻的状态。本文记每个造型的意思、谁压过谁、动效的规矩和原因。**数值以代码为准**：造型数据在 `Sources/MascotCore/Look.swift`、装饰形状在 `Shapes.swift`、眼形在 `Eyes.swift`、动画在 `Choreography.swift`、空闲调度在 `IdleDirector.swift`、跟随鼠标在 `Gaze.swift`。这些数值用户逐条确认过；要改先问用户。
+Pip 是 Notchkeeper 的原创吉祥物，在刘海左耳、展开面板和卡片里用表情说出此刻的状态。本文记每个造型的意思、谁压过谁、动效的规矩和原因。**数值以代码为准**：造型数据在 `Sources/MascotCore/Look.swift`、装饰形状在 `Shapes.swift`、眼形在 `Eyes.swift`、动画在 `Choreography.swift`、空闲调度在 `IdleDirector.swift`、时钟（犯困、回正、晕）在 `MascotClock.swift`、跟随鼠标在 `Gaze.swift`。这些数值用户逐条确认过；要改先问用户。
 
 ## 1. 几何
 
@@ -112,7 +112,7 @@ idle、working、interrupted、dizzy 没有装饰。
 
 **原则**：克制的幅度，活泼的节奏。每次只动一两个部件；进场稍慢、退场稍快；用弹簧和正弦缓动（星星自转是线性）。
 
-**渲染**：用 Core Animation，每个动作只在开始时提交一次，中间帧由系统合成。帧率交给系统按屏幕刷新率走（用户定画面优先；代价是 120Hz 下常驻循环的合成功耗记在 WindowServer 上）。看不见（遮挡、熄屏、锁屏）时撤掉全部动画，停掉时钟和犯困计时器。
+**渲染**：用 Core Animation，每个动作只在开始时提交一次，中间帧由系统合成。帧率交给系统按屏幕刷新率走（用户定画面优先；代价是 120Hz 下常驻循环的合成功耗记在 WindowServer 上）。看不见（遮挡、熄屏、锁屏）时撤掉全部动画，停掉时钟。
 
 - **disc 按屏幕倍率栅格化**：不这样做，头一转眼睛边缘就发软，展开时 Pip 总看着鼠标，用户看到的就是「一展开眼睛就糊」（机制推断是三维子树拍平时被重采样）。按两倍栅格化时左耳缩小倍数太大会出锯齿，所以用一倍。disc 里一动就重画，代价没量（`HANDOFF.md`）。
 

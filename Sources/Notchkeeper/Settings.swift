@@ -770,9 +770,6 @@ private struct AboutPane: View {
                     Text(tilde(Log.url.path))
                 }
             }
-            Section("致谢") {
-                Text("改编自 Coucou（MIT），仅供自用")
-            }
         }
     }
 

@@ -118,7 +118,7 @@ final class AppState: ObservableObject {
 
     /// 收起时 Pip 和右耳画谁（docs/ui.md「面板布局」）；nil：Pip 空闲、右耳空着
     var lead: PluginStatus? { PluginStatus.lead(statuses, resident: store.config.resident) }
-    /// Pip 画哪个（docs/mascot.md §2「优先级」换成了插件的紧急程度）。晕、睡着在外面叠
+    /// Pip 画哪个（docs/mascot.md §2「优先级」换成了插件的紧急程度）。晕、睡着由 `MascotDirector.shown` 叠上去
     var look: Look { lead?.look ?? .idle }
 
     /// 面板里开着的段和它们的行（空的段也在，画不画由面板定）

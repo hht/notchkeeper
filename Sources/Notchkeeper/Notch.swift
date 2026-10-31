@@ -667,7 +667,7 @@ struct NotchRoot: View {
             let card = mode == .card ? model.card : nil
             let lead = state.lead
             let look = card?.look ?? overrides.mascot(real: lead?.look ?? .idle)
-            let shown = overrides.look != nil ? look : look.shown(drowsy: director.drowsy)
+            let shown = overrides.look != nil || card != nil ? look : director.shown(look)
             let ear = overrides.ear(real: lead?.indicator ?? .none)
             // 右边跟着左边实际画的造型走（犯困时左耳睡着，右耳就不亮）；探针没结果的灰环不随造型变
             let indicator = shown == look ? ear : EarIndicator.for(shown, probeFailed: ear == .ring)
