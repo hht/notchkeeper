@@ -49,7 +49,7 @@ Haitao 本机自用的 macOS 刘海应用（SwiftPM，SwiftUI + AppKit，macOS 1
 ## 命令
 
 - **验收**：`swift build` 零警告，并且 `swift test` 全绿。
-- `./scripts/run.sh`：打包并启动 App（先结束旧实例）；`./scripts/demo.sh done|failed|question|approval|alert|blocks`：实机弹卡。它靠分布式通知，本机任何进程都能发，第 4 步起只在 DEBUG 构建里监听。
+- `./scripts/run.sh`：打包并启动 App（先结束旧实例）；`./scripts/demo.sh done|failed|question|approval|alert|blocks`：实机弹卡。它靠分布式通知，本机任何进程都能发，所以只有 DEBUG 构建听（`CONFIG=debug ./scripts/run.sh`）。
 - 新增 lint / format 工具或依赖要用户明示同意。
 
 ## 提交与汇报

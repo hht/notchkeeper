@@ -186,8 +186,10 @@ final class AppState: ObservableObject {
         publishPresentation()
     }
 
+    #if DEBUG
     /// scripts/demo.sh alert
     func demoAlert() { onAlertAction?(violationAlert.demo()) }
+    #endif
 
     /// 允许列表用 GuardCore 的 IPv4 校验，和 guardd 解析 config.json 的规则一致
     @discardableResult

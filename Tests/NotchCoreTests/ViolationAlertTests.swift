@@ -77,6 +77,7 @@ private func run(_ reads: [GuardDisplay], autoAlert: Bool = true) -> [ViolationA
         #expect(run([violated, healthy], autoAlert: false) == [.none, .none])
     }
 
+    #if DEBUG
     @Test func demoAlertClearsOnHealthyWithoutRecovered() {
         var a = ViolationAlert(missing)
         #expect(a.demo() == .raise(.violated))
@@ -89,6 +90,7 @@ private func run(_ reads: [GuardDisplay], autoAlert: Bool = true) -> [ViolationA
         _ = a.demo()
         #expect(run([violated, healthy], on: &a) == [.none, .clear(recovered: true)])
     }
+    #endif
 }
 
 /// 旧 --selftest 的「任何以 healthy 结尾的序列都没有红卡」

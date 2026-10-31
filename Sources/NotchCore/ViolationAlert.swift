@@ -63,9 +63,11 @@ public struct ViolationAlert: Sendable {
         dismissedViolationSince = .some(display.violatedSince)
     }
 
-    /// scripts/demo.sh alert：挂一张红卡，下次读到 healthy 撤掉，不弹恢复卡
+    #if DEBUG
+    /// scripts/demo.sh alert：挂一张红卡，下次读到 healthy 撤掉，不弹恢复卡。只有 DEBUG 构建听 demo.sh
     public mutating func demo() -> Action {
         shown = .violated
         return .raise(.violated)
     }
+    #endif
 }

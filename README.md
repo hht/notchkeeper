@@ -21,8 +21,9 @@ Haitao 本机自用的刘海应用（SwiftPM，macOS 14+），没有菜单栏图
 
 ```bash
 ./scripts/run.sh            # release 编译，打包 build/Notchkeeper.app，ad-hoc 签名，结束旧实例后启动
+CONFIG=debug ./scripts/run.sh   # debug 构建：只有它听 demo.sh
 ./scripts/demo.sh done      # 演示：完成卡（还有 failed、question、approval），挂在最近的 Claude Code 会话上，点了跳 Ghostty
-./scripts/demo.sh alert     # 演示：红卡
+./scripts/demo.sh alert     # 演示：红卡（还有 blocks：五种内容块）
 ```
 
 - **单实例**：同时只会有一个实例在跑，第二个启动后直接退出。界面卡住时用 `pkill -x Notchkeeper` 结束。
