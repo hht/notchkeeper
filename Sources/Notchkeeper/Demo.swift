@@ -12,9 +12,15 @@ extension AppDelegate {
             suspensionBehavior: .deliverImmediately)
     }
 
-    /// scripts/demo.sh：agent 的卡挂在最近变过状态的会话上，和真卡走同一条路（同样的文案，点了也跳 Ghostty）；alert 当一次新违规；blocks 弹五种内容块
+    /// scripts/demo.sh：agent 的卡挂在最近变过状态的会话上，和真卡走同一条路（同样的文案，点了也跳 Ghostty）；alert 当一次新违规；blocks 弹五种内容块；
+    /// settings 打开设置的插件页（实机截设置页不用人去点）
     @objc func handleCardNotification(_ n: Notification) {
         let kind = n.object as? String ?? ""
+        if kind == "settings" {
+            settings.show(.plugins)
+            Log.write("外部触发：设置")
+            return
+        }
         if kind == "alert" {
             state.demoAlert()
             Log.write("外部触发：红卡")
