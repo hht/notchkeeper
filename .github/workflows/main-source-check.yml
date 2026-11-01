@@ -1,0 +1,14 @@
+name: main-source-check
+on:
+  pull_request:
+    branches: [main]
+jobs:
+  only-dev:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Only dev may merge into main
+        run: |
+          if [ "${{ github.head_ref }}" != "dev" ] || [ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]; then
+            echo "Only hht's own dev branch may be merged into main (got ${{ github.head_ref }})."
+            exit 1
+          fi
