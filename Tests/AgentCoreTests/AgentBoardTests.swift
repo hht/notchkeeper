@@ -122,7 +122,7 @@ private func makeBoard() -> AgentBoard { AgentBoard(since: t0) }
         #expect(board.update(TurnReport(sessionId: "s1", ended: nil), at: t0) == nil)
     }
 
-    /// sessions 文件变成已停止不是回合结束（10-30：出错、取消、后台 agent 完成时都会闪一下 idle）
+    /// sessions 文件变成已停止不是回合结束（实测出错、取消、后台 agent 完成时都会闪一下 idle）
     @Test func stoppingIsNotATurnEnd() {
         var board = makeBoard()
         #expect(feed(&board, session(.stopped), session(.working, at: 1), session(.stopped, at: 9)) == [nil, nil, nil])
@@ -159,7 +159,7 @@ private func makeBoard() -> AgentBoard { AgentBoard(since: t0) }
 
 /// App 启动时、或第一次看到某个文件时，它已经在回合里（docs/agent-integration.md「中途接手」）
 @Suite struct PickingUpMidTurn {
-    /// 已经在等你：不补响 Ping（用户 10-29），之后照常结束介入
+    /// 已经在等你：不补响 Ping，之后照常结束介入
     @Test func needingYouAtFirstSightDoesNotPing() {
         var board = makeBoard()
         #expect(feed(&board, session(.needsYou(.approval)), session(.working, at: 3)) == [nil, .needsYouEnded(pid: 1)])

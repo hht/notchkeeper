@@ -2,7 +2,7 @@
 # 防火墙的恢复脚本：把 Notchkeeper 防火墙装进系统的东西全部卸掉，断网时用。设计见 docs/firewall.md §3。
 # 用法：sudo scripts/firewall-rescue.sh [--disable-pf]；--dry-run 不要 root，只打印会做哪几步。
 # 不依赖网络、App 和已安装的防火墙脚本，只用系统自带的 launchctl、pfctl、plutil；重复执行、什么都没装时执行都安全。
-# 绝不卡住终端：pf 在内核里卡死时（10-31 实测，user 规则死锁，docs/firewall.md §5）所有 pfctl 都不返回，
+# 绝不卡住终端：pf 在内核里卡死时（比如 user 规则死锁，docs/firewall.md §5）所有 pfctl 都不返回，
 # launchctl bootout 也会等着卡在 pfctl 里的守护进程。所以：
 #   1. 先删开机会加载的 plist 和辅助程序：只动文件、不碰 pf，删完重启一定恢复；辅助程序没了，守护进程下一轮也起不来；
 #   2. 之后每条 launchctl / pfctl 都限时，超时不再等（卡在内核里的进程杀不掉，留着它），最后告诉人重启。

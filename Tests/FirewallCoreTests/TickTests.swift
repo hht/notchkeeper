@@ -3,7 +3,7 @@ import Testing
 
 private let rules = FirewallRules(tunnel: "utun1024", directory: "/nk")!
 private let token = "1864012227745836441"
-/// 系统 pfd 的引用（10-31 本机 `pfctl -s References` 里就有一个）
+/// 系统 pfd 的引用（macOS 26.5 上 pfd 进程退出后引用还留着，docs/firewall.md §6）
 private let pfdToken = "12184426722627826779"
 
 /// 此刻 pf 的样子：anchor 空不空、`pfctl -s References` 里有哪些 token

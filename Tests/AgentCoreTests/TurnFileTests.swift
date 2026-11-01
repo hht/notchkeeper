@@ -24,7 +24,7 @@ private func file(_ overrides: [String: Any?] = [:], sessionId: Any? = sessionId
         #expect(try outcome(["lastStop": lastStop]) == .done)
     }
 
-    /// 在批准框里拒绝：reason 照样是 answer，最后一步停在 tool_use（10-30 实测）
+    /// 在批准框里拒绝：reason 照样是 answer，最后一步停在 tool_use（实测）
     @Test func answerStoppedAtToolUseIsCanceled() throws {
         #expect(try outcome(["lastStop": "tool_use"]) == .canceled)
     }

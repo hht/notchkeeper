@@ -10,7 +10,7 @@ import GuardCore
 ///
 /// 三种通知，来了都把两个目录整个重读一遍（会话只有几个，每份不到 1KB）：
 /// - 目录 `.write`：新会话加文件、正常退出删文件。
-/// - 每份 `.json` 自己的 `.write` / `.extend`：Claude Code 原地重写状态（inode 不变，目录收不到事件，10-29 实测）；
+/// - 每份 `.json` 自己的 `.write` / `.extend`：Claude Code 原地重写状态（inode 不变，目录收不到事件，实测）；
 ///   文件被删或改名（`.delete` / `.rename`）就关掉它的监听，重读时按目录现状重开。
 /// - 每个会话进程的退出通知：`kill -9` 后文件留着、目录不变（docs/agent-integration.md「实测」4）。
 /// @see https://developer.apple.com/documentation/dispatch/dispatchsource/makefilesystemobjectsource(filedescriptor:eventmask:queue:)

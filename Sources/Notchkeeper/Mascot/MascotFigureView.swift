@@ -6,7 +6,7 @@ import MascotCore
 /// 中间帧由系统合成器在 App 进程外插值，App 只在换造型、动作开始、鼠标换了目标时提交一次（docs/mascot.md §5「渲染」）。
 /// 不知道造型从哪来、什么时候眨眼（MascotDirector）。
 ///
-/// 二维图形模拟三维（docs/mascot.md §1，照原型方案 (a)）：身体是球，眼睛贴在球面上，所有动作都是头的朝向。
+/// 二维图形模拟三维（docs/mascot.md §1 方案 (a)）：身体是球，眼睛贴在球面上，所有动作都是头的朝向。
 /// stage ⊃ body（呼吸，锚点在身体底部）⊃ disc（圆形遮罩，不转）⊃ 渐变 + pose ⊃ yaw ⊃ pitch ⊃ roll ⊃ 两只眼；stage ⊃ 装饰。
 /// pose 放造型的静止朝向，yaw / pitch 的静止值给跟随鼠标，动作叠加在 yaw / pitch / roll 上。
 /// 眼睛图层锚点在眼睛中心、`anchorPointZ` 退到球心，按经纬度转到球面上；转到背面由 `isDoubleSided = false` 藏掉。
@@ -137,7 +137,7 @@ final class MascotFigureView: MascotLayerView {
     }
 
     /// 头一转（yaw / pitch 不为 0），眼睛边缘就发软；展开时 Pip 总在看刘海上的鼠标，眼睛就一直是糊的。
-    /// 推断是三维子树拍平到 disc 时被重采样。disc 显式按屏幕倍率栅格化就清楚了（10-30 实测，docs/mascot.md §5「渲染」）
+    /// 推断是三维子树拍平到 disc 时被重采样。disc 显式按屏幕倍率栅格化就清楚了（实测，docs/mascot.md §5「渲染」）
     /// @see https://developer.apple.com/documentation/quartzcore/calayer/shouldrasterize
     /// @see https://developer.apple.com/documentation/quartzcore/calayer/rasterizationscale
     override func viewDidChangeBackingProperties() {

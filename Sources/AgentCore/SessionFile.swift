@@ -37,7 +37,7 @@ public enum SessionFileError: Error, Equatable {
 /// 只取判定和显示要的字段；不读文件、不查进程。
 /// @see docs/agent-integration.md「实测」（Claude Code 2.1.296）
 public enum SessionFile {
-    /// 不是终端里开的交互式 `claude`（`claude -p`、SDK、VS Code、后台会话等，用户 10-29），
+    /// 不是终端里开的交互式 `claude`（`claude -p`、SDK、VS Code、后台会话等），
     /// 或者会话刚起来还没写状态，返回 `nil`，其余字段不再检查。
     public static func parse(_ data: Data) throws -> Session? {
         let gate = try JSONDecoder().decode(Gate.self, from: data)
@@ -77,7 +77,7 @@ public enum SessionFile {
         }
     }
 
-    /// Claude Code 自己把这几种 `waitingFor` 归为 permission；`input needed`、`dialog open` 和没见过的都归等你回答（用户 10-29）
+    /// Claude Code 自己把这几种 `waitingFor` 归为 permission；`input needed`、`dialog open` 和没见过的都归等你回答
     private static let approvalKinds: Set = ["permission prompt", "sandbox request", "worker request", "goal proposal"]
 
     /// `procStart` 是 `LC_ALL=C TZ=UTC ps -o lstart=` 的输出，例如 `Thu Oct 29 17:54:51 2026`

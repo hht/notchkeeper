@@ -18,7 +18,7 @@ enum Ghostty {
     private static let queue = DispatchQueue(label: "com.notchkeeper.ghostty")
     /// 每个 Apple Event 最多等这么久（默认约 2 分钟）
     private static let timeout = "with timeout of 3 seconds"
-    /// Ghostty 在 IO 线程上解析 tty 输出、再到主线程改标题：标记最多等这么久。10-30 实测第一次查询（约 90ms）就看到了
+    /// Ghostty 在 IO 线程上解析 tty 输出、再到主线程改标题：标记最多等这么久。实测第一次查询（约 90ms）就看到了
     private static let markerWait: TimeInterval = 1
 
     /// 标记找不到时的退路：目录对上的只有一个才是它（同目录常还开着 dev server）。认不出来是 nil
@@ -70,7 +70,7 @@ enum Ghostty {
     }
 
     /// 这个终端此刻就在眼前：Ghostty 在前台，并且前台窗口选中的标签里聚焦的就是它（照 Ghostty 的 `notify-on-command-finish = unfocused`）。
-    /// 只按这一个 terminal 算：同窗口别的标签、分屏、别的窗口都不算（用户 10-31 定）。
+    /// 只按这一个 terminal 算：同窗口别的标签、分屏、别的窗口都不算。
     /// 卡片到达时用户没点任何东西：只读 id 和 working directory，不读标题、不写标记（CLAUDE.md 硬规则：标题只在点击跳转时读）。
     /// 所以先查进程（shell 的 tty 对得上、是 Ghostty 直接开的终端），再按目录认：聚焦的 terminal 目录对得上、并且是唯一在这个目录的（`pick`）才算；
     /// 同目录开着两个、有 terminal 不报目录、shell 不在 Ghostty 里，都认不准，照常弹。
@@ -119,7 +119,7 @@ enum Ghostty {
             guard let ids = execute("tell application id \"\(bundleID)\"\n\(timeout)\nget id of every terminal whose name is \"\(marker)\"\nend timeout\nend tell")
             else { return nil }
             if let id = ids.atIndex(1)?.stringValue {
-                // 没写回的话 Claude Code 不会自己改回来：它只在标题变了时才重写（10-30 实测）。
+                // 没写回的话 Claude Code 不会自己改回来：它只在标题变了时才重写（实测）。
                 // 读标题到写回之间 Claude 刚好换了状态字符的话，写回的是旧字符，等它下次换状态才改过来
                 let original = terminals.first { $0.id == id }
                 // 快照里没有这个 terminal（读快照之后才开的）也算没写回
@@ -137,7 +137,7 @@ enum Ghostty {
     }
 
     /// 进程没了是 nil。用 sysctl 而不是 proc_pidinfo：Ghostty 的直接子进程是 setuid root 的 `/usr/bin/login`，
-    /// proc_pidinfo 读别的用户的进程会被拒（10-30 实测 EPERM），sysctl 不会（`ps` 也是这么读的）
+    /// proc_pidinfo 读别的用户的进程会被拒（实测 EPERM），sysctl 不会（`ps` 也是这么读的）
     /// @see https://developer.apple.com/library/archive/qa/qa2004/qa1123.html
     private static func process(_ pid: Int32) -> kinfo_proc? {
         var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]

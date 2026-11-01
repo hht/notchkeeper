@@ -73,7 +73,7 @@ private let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().d
     }
 
     /// 安装脚本的语法检查：从脚本里原样取出 `check_syntax`，用 macOS 自带的 /bin/bash（3.2）跑，喂辅助程序打印的测试规则。
-    /// 10-31 实机：bash 3.2 把 `${…//模式/"替换"}` 的引号原样留下，表文件路径变成 `""/private/tmp/…"`，pfctl 报 cannot load
+    /// bash 3.2 把 `${…//模式/"替换"}` 的引号原样留下，表文件路径变成 `""/private/tmp/…"`，pfctl 报 cannot load
     @Test func installerSyntaxCheckRunsOnSystemBash() throws {
         let script = try String(contentsOf: root.appendingPathComponent("scripts/install-firewall.sh"), encoding: .utf8)
         let start = try #require(script.range(of: "check_syntax() {"))

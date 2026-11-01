@@ -3,7 +3,7 @@ import NotchCore
 import QuartzCore
 import SwiftUI
 
-/// 卡片边缘的流星（docs/ui.md「卡片」，用户 10-30）：卡片弹出、形状长好后，两颗流星从顶部两端沿边匀速流到底边中间，
+/// 卡片边缘的流星（docs/ui.md「卡片」）：卡片弹出、形状长好后，两颗流星从顶部两端沿边匀速流到底边中间，
 /// 1.5 秒走完、汇合处淡出。只走一趟，不循环；不再代表倒计时，卡片停多久照设置。
 /// 悬停、熄屏锁屏时卡片停住，还没走完的光也停在原处。常驻红卡没有倒计时、或开了减弱动态效果：不流，
 /// 只画一条很淡的同色细边（照灵动岛的 keylineTint）。
@@ -90,7 +90,7 @@ final class CardEdgeView: NSView {
     private static let nucleusLength: CGFloat = 16
     private static let nucleusRadius: CGFloat = 1.5
     private static let blurPad: CGFloat = 16
-    /// 流星走一趟的时长（用户 10-30）
+    /// 流星走一趟的时长
     private static let sweep: TimeInterval = 1.5
     /// 卡片弹出后等形状快长好再流，免得拐角错开；和 `Notch.swift` 里流星视图的淡入延迟是同一个数
     static let appearDelay: TimeInterval = 0.35

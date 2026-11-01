@@ -30,7 +30,7 @@ public enum CountryDatabase {
     }
 
     /// 放行表的国内段像不像一个国家：合起来不超过 IPv4 地址空间的 1/8、IPv6 地址空间的 2^-14。按总量算：错开的小段合并不起来，
-    /// 只看前缀挡不住。真库（10-31）IPv4 覆盖 8.26%，IPv6 约 2^-17.4；中国已分配的 IPv6 约 2^-15.9（推断），收全了的库也要能过。库被改成大半个互联网都算 CN 时，正式规则等于什么都不拦、核对却全过
+    /// 只看前缀挡不住。真库（Clash Verge Rev 自带 mihomo v1.19.21 时目录里的 Country.mmdb）IPv4 覆盖 8.26%，IPv6 约 2^-17.4；中国已分配的 IPv6 约 2^-15.9（推断），收全了的库也要能过。库被改成大半个互联网都算 CN 时，正式规则等于什么都不拦、核对却全过
     public static func isPlausible(_ networks: [IPNetwork]) -> Bool {
         // 用 Double 求和不会溢出（构造过的库段数可以很多）；2 的整数次幂在 Double 里是精确的
         let share = { (family: Int) in

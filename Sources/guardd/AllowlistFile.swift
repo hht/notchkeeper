@@ -1,12 +1,12 @@
 import Foundation
 import GuardCore
 
-/// 回答：Haitao 在 App 里设置的出口 IP 允许列表现在是什么。
+/// 回答：用户在 App 里设置的出口 IP 允许列表现在是什么。
 /// 读 App 写的 `config.json`（格式归 Sources/Notchkeeper/Config.swift 的 `NKConfig`），只解 `allowlist` 一个键，
 /// 其余键忽略。每轮重读，App 设置页改了下一轮就生效，不用重启 guardd。
 /// 读不到（文件不存在、解不开、缺 `allowlist` 键）就退回默认值，默认值是空集合：源码里不写任何真实出口 IP。
 /// 允许列表为空时 GuardCore 对出口 IP 的判断是 nil，verdict 最多到 unknown，绝不因此 violated；
-/// 路由不走 utun 照样 violated，这一条不依赖允许列表。真实地址只存在 Haitao 的 config.json 里。
+/// 路由不走 utun 照样 violated，这一条不依赖允许列表。真实地址只存在用户的 config.json 里。
 enum AllowlistFile {
     static let defaults: Set<IPv4> = []
 

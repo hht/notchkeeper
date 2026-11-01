@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Claude 的标志（星芒）：会话行用它标明这是 Claude Code 的会话（用户 10-29：图标和 agent 厂商的一致）。
+/// Claude 的标志（星芒）：会话行用它标明这是 Claude Code 的会话：图标和 agent 厂商的一致。
 /// 不知道它画在哪、多大。路径和颜色原样照抄 Wikimedia Commons 的「Claude AI symbol.svg」，画布 100 × 100。
 /// 它是 Anthropic 的商标，只用来标明会话是哪家的（CLAUDE.md「品牌」）。
 /// 不用 NSImage 直接读 SVG：那靠私有的 `_NSSVGImageRep`，Apple 没写进文档。

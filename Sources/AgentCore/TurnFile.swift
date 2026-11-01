@@ -70,7 +70,7 @@ public enum TurnFile {
     }
 
     /// `reason` 的取值出自 Claude Code 2.1.296 的 `TurnCompleteReason`。在批准框里拒绝时 reason 照样是 answer，
-    /// 但最后一步停在 tool_use：工具结果之后没再请求模型（10-30 实测）
+    /// 但最后一步停在 tool_use：工具结果之后没再请求模型（实测）
     private static func outcome(_ reason: String, lastStop: String?) throws -> TurnOutcome {
         switch reason {
         case "answer": return lastStop == "tool_use" ? .canceled : .done

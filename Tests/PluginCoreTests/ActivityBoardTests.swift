@@ -190,7 +190,7 @@ private func update(_ event: Message.Activity.Event = .update, id: String = "xco
     }
 }
 
-/// 结束了的活动（end、到 8 小时或 staleAt、被挤掉）不再收 update，只有新的 start 能重开（照 ActivityKit，用户 10-31）
+/// 结束了的活动（end、到 8 小时或 staleAt、被挤掉）不再收 update，只有新的 start 能重开（照 ActivityKit）
 @Suite struct EndedActivity {
     @Test func updateAfterEndIgnored() {
         var board = ActivityBoard()

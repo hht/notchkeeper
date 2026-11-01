@@ -11,7 +11,7 @@ public struct PanelRow: Identifiable, Equatable, Sendable {
         case symbol(String)
     }
 
-    /// 不写字，只用指示（用户 10-29）；文案留给悬停提示和旁白
+    /// 不写字，只用指示；文案留给悬停提示和旁白
     public enum Indicator: Equatable, Sendable {
         case none, working, question, approval, attention
         case progress(Double)
@@ -26,7 +26,7 @@ public struct PanelRow: Identifiable, Equatable, Sendable {
     public var id: String
     public var icon: Icon
     public var title: String
-    /// 标题是路径：太长从前面截，留住最后几段（用户 10-29）
+    /// 标题是路径：太长从前面截，留住最后几段
     public var titleIsPath = false
     public var subtitle: String?
     public var indicator: Indicator

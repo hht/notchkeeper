@@ -47,7 +47,7 @@ export function register(on) {
     return next(e)
   })
 
-  // 只在主回合触发（10-30 实测）
+  // 只在主回合触发（实测）
   on('turn.start', async ($, e, next) => {
     running = { id: e.turnId, lastStop: null }
     return next(e)
@@ -63,7 +63,7 @@ export function register(on) {
 
   on('turn.complete', async ($, e, next) => {
     if (e.agentId !== undefined) {
-      // 子 agent 的回合（含被 TaskStop 停掉的，10-30 实测）：只关心后台的那些什么时候完成
+      // 子 agent 的回合（含被 TaskStop 停掉的，实测）：只关心后台的那些什么时候完成
       background.delete(e.agentId)
     } else if (running && running.id === e.turnId) {
       const ended = { turnId: e.turnId, reason: e.reason, lastStop: running.lastStop, backgroundAgents: background.size,

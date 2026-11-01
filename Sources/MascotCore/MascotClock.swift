@@ -59,7 +59,7 @@ public struct MascotClock: Sendable {
     /// 点了一下 Pip；晕着再点从这一下重新算
     public mutating func poke(now: Double) { dizzyUntil = now + Self.dizzyFor }
 
-    /// Pip 都看不见了，时钟要停：晕只有 `tick` 收得掉，停着时留下来会一直盖着别的造型（10-31 审查发现）。
+    /// Pip 都看不见了，时钟要停：晕只有 `tick` 收得掉，停着时留下来会一直盖着别的造型。
     /// 晕是对那一下的反应，看不见了就算过去了
     public mutating func suspend() { dizzyUntil = nil }
 

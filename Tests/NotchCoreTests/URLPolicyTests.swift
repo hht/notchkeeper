@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import NotchCore
 
-/// 卡片上「打开 URL」默认只放行 https，用户在设置里加的 scheme 也放行（用户 10-31）。
+/// 卡片上「打开 URL」默认只放行 https，用户在设置里加的 scheme 也放行。
 /// 自定义 scheme 能拉起别的 App 执行动作，所以不在白名单里的一律拦下
 @Suite struct URLPolicyRules {
     @Test(arguments: ["https://example.com/x", "HTTPS://example.com"])

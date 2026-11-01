@@ -3,7 +3,7 @@ import Foundation
 /// 回答：根据一轮观测，出口现在是 healthy、egressMismatch、unknown 还是 violated。
 /// 不知道观测从哪来（Clash 进程、路由表、HTTP 探针都在外层），也不知道判定结果拿去做什么。
 ///
-/// 规则（Haitao 2026-10-28；完整说明见 docs/egress-guard.md）：守卫只监测，不拦截；拦截归防火墙（docs/firewall.md）。
+/// 规则（完整说明见 docs/egress-guard.md）：守卫只监测，不拦截；拦截归防火墙（docs/firewall.md）。
 /// 1. 去往公网的路由不走 utun（见 GuardProbes.RouteProbe，不是默认路由）→ 立即 violated（红卡）。
 /// 2. 探针拿到不在允许列表的 IP → egressMismatch：只亮琥珀色。回显服务可能被 Clash 分到和
 ///    别的 App 不同的节点，这个信号只是间接证据。允许列表为空是配置问题，IP 一律算未知。

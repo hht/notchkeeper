@@ -42,7 +42,7 @@ public struct AgentBoard: Sendable {
 
     public mutating func update(_ session: Session, at now: Date) -> AgentEvent? {
         guard let old = tracked[session.pid], old.session.processStart == session.processStart else {
-            // 第一次看到这个进程（含 pid 被复用）就是中途接手：已经在工作就以进入这个状态的时刻作工作开始，不补发事件（用户 10-29）。
+            // 第一次看到这个进程（含 pid 被复用）就是中途接手：已经在工作就以进入这个状态的时刻作工作开始，不补发事件。
             // pid 被复用时旧进程正在需要你介入，就是旧进程的介入结束
             let replaced = tracked[session.pid]
             tracked[session.pid] = (session, session.state == .stopped ? nil : session.stateSince)

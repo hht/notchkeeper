@@ -29,7 +29,7 @@ class MascotLayerView: NSView {
     required init?(coder: NSCoder) { preconditionFailure("只用代码创建") }
 
     /// 和画布坐标一致：原点左上、+y 向下。AppKit 会把翻转视图的 layer 设成 geometryFlipped，子层跟着翻转。
-    /// 实测（原型，10-29）：rotation.y 正 = 脸朝右，rotation.x 正 = 抬头，rotation.z 正 = 顺时针
+    /// 实测：rotation.y 正 = 脸朝右，rotation.x 正 = 抬头，rotation.z 正 = 顺时针
     /// @see https://developer.apple.com/documentation/quartzcore/calayer/isgeometryflipped
     override var isFlipped: Bool { true }
     /// 点击交给外面的 SwiftUI

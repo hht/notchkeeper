@@ -13,7 +13,7 @@ import Testing
         try #require(FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions] as? Int)
     }
 
-    /// 只有 Haitao 自己可读写；建目录、首次写入都是 0600
+    /// 只有用户自己可读写；建目录、首次写入都是 0600
     @Test func writesOwnerOnly() throws {
         let file = try scratch().appendingPathComponent("sub/guard-state.json")
         try StateFile.write(Data("a".utf8), to: file)

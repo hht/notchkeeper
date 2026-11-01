@@ -467,7 +467,7 @@ private let silent = Queue.Change()
     }
 }
 
-/// 外部插件每个至多排 3 张（用户 10-31）：红卡挂久了，撤掉后不该补放一长串，也不该把内置的卡压在后面
+/// 外部插件每个至多排 3 张：红卡挂久了，撤掉后不该补放一长串，也不该把内置的卡压在后面
 @Suite struct ExternalWaitingCap {
     private func external(_ card: String, _ plugin: String = "build") -> Queue.Notice {
         Queue.Notice(card: card, key: nil, seconds: 6, externalPluginID: plugin)

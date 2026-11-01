@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import GuardCore
 
-/// 红卡撤不掉的回归（2026-10-28 Haitao：断网→恢复后红卡一直在）。这里钉 guardd 一侧：
+/// 红卡撤不掉的回归（断网→恢复后红卡一直在）。这里钉 guardd 一侧：
 /// - 只有路由不走 utun 才 violated；断网、探针失败、出口不符都不会产生 violated。
 /// - violated 粘住，只有一轮 healthy 才解除；经过 unknown / egressMismatch 不解除，也不卡死。
 /// App 侧（任何路径进入 healthy 都撤卡）由 Notchkeeper 的测试覆盖，见 Vera 的回归清单 1–12。

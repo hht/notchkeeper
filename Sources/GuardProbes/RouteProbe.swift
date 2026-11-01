@@ -2,7 +2,7 @@ import Foundation
 
 /// 回答：内核把去往公网的流量交给哪个网卡。
 /// 不看默认路由，也不看 SCDynamicStore 的 PrimaryInterface：Clash Verge 的 TUN 模式用 `1/8`、`16/4`、
-/// `128.0/1` 等更具体的路由把流量导进 utun，默认路由和主网卡仍是 en0（2026-10-28 在 Haitao 的 Mac 上实测，
+/// `128.0/1` 等更具体的路由把流量导进 utun，默认路由和主网卡仍是 en0（Clash Verge TUN 开着时实测，
 /// macOS 26.5）。
 /// @see https://keith.github.io/xcode-man-pages/route.8.html  `route -n get <dest>` 打印内核为该地址选的路由
 public enum RouteProbe {

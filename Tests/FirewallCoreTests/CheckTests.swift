@@ -1,7 +1,7 @@
 import Testing
 @testable import FirewallCore
 
-/// `pfctl -sr`：主规则集，10-31 本机的实际输出（stdout）
+/// `pfctl -sr`：主规则集，macOS 26.5、系统默认 /etc/pf.conf 下的实际输出（stdout，docs/firewall.md §6）
 private let mainRules = """
 scrub-anchor "com.apple/*" all fragment reassemble
 scrub-anchor "com.apple.internet-sharing" all fragment reassemble
@@ -10,7 +10,7 @@ anchor "com.apple.internet-sharing" all
 
 """
 
-/// `pfctl -a com.apple/300.Notchkeeper -vsr`，格式照 10-31 演练时的实际输出
+/// `pfctl -a com.apple/300.Notchkeeper -vsr`，格式照 macOS 26.5 上演练时的实际输出
 private func anchorRules(_ evaluations: [Int]) -> String {
     evaluations.map {
         """
@@ -23,7 +23,7 @@ private func anchorRules(_ evaluations: [Int]) -> String {
 }
 
 private let interfaces = "lo0 gif0 stf0 en0 awdl0 utun0 utun1024 bridge100\n"
-/// `pfctl -s info` 的第一行，照 10-31 演练时的实际输出
+/// `pfctl -s info` 的第一行，照 macOS 26.5 上演练时的实际输出
 private let info = "Status: Enabled for 18 days 12:22:58          Debug: Urgent\n\n"
 
 @Suite struct Check {
@@ -93,7 +93,7 @@ private let info = "Status: Enabled for 18 days 12:22:58          Debug: Urgent\
 }
 
 @Suite struct EnableOutput {
-    /// 10-31 演练时 `pfctl -E` 的实际输出：stdout 空，token 在 stderr
+    /// macOS 26.5 上演练时 `pfctl -E` 的实际输出：stdout 空，token 在 stderr
     @Test func readsTheToken() {
         let stderr = "No ALTQ support in kernel\nALTQ related functions disabled\npf enabled\nToken : 1864012227745836441\n"
         #expect(PFOutput.token(fromEnable: stderr) == "1864012227745836441")
@@ -106,7 +106,7 @@ private let info = "Status: Enabled for 18 days 12:22:58          Debug: Urgent\
 }
 
 @Suite struct ReferencesOutput {
-    /// 10-31 演练时 `pfctl -s References` 的实际输出（stdout）
+    /// macOS 26.5 上演练时 `pfctl -s References` 的实际输出（stdout）
     @Test func readsTokens() {
         let out = """
         TOKENS:

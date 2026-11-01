@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Notchkeeper
 
-/// 「多久以前」只说过去：刚写完的守卫状态、和现在一样或稍晚的时间，不说成「0 秒后」（10-31 英文界面实机看到「in 0 sec.」）
+/// 「多久以前」只说过去：刚写完的守卫状态、和现在一样或稍晚的时间，不说成「0 秒后」（英文界面是「in 0 sec.」）
 @Suite struct AgoTextTense {
     private let now = Date(timeIntervalSinceReferenceDate: 800_000_000)
     private let en = Locale(identifier: "en_US")

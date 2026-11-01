@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 /// 设置窗口：普通 NSWindow（内容铺满），宽度固定 715，高度可调。外观跟随系统（docs/ui.md「亮色与暗色」）。
-/// 标题栏照常画背景：设成透明时，往下滚的内容从页面标题底下穿过去、字叠在一起（用户 10-31 截图）；
+/// 标题栏照常画背景：设成透明时，往下滚的内容从页面标题底下穿过去、字叠在一起；
 /// 不透明时顶部的渐隐和模糊交给系统的滚动边缘效果（macOS 26 起滚动视图默认就有），和系统设置一样；工具栏里还得有按钮（见 SettingsView 的侧栏）
 /// @see https://developer.apple.com/documentation/swiftui/view/scrolledgeeffectstyle(_:for:)
 /// 第一次打开居中，之后记住位置；关掉窗口不退出 App。

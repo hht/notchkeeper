@@ -28,7 +28,7 @@ private let defaults = AllowlistFile.defaults
     /// 和 App 的 Config 一致：缺这个键就用默认值，不算问题
     @Test func missingKeyUsesDefaults() { #expect(load("{}") == .init(allowlist: defaults, problem: nil)) }
 
-    /// 空列表是 Haitao 的设置，照用（判定里 IP 一律算未知），不偷偷换成默认值
+    /// 空列表是用户的设置，照用（判定里 IP 一律算未知），不偷偷换成默认值
     @Test func emptyListIsRespected() { #expect(load(#"{"allowlist":[]}"#) == .init(allowlist: [], problem: nil)) }
 
     @Test func invalidEntriesAreDroppedAndCounted() {

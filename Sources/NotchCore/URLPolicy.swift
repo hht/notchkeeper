@@ -1,6 +1,6 @@
 import Foundation
 
-/// 回答：卡片上的「打开 URL」能不能打开。默认只放行 https；`urlSchemes` 里列的也放行（用户 10-31，设置 › 插件）。
+/// 回答：卡片上的「打开 URL」能不能打开。默认只放行 https；`urlSchemes` 里列的也放行（设置 › 插件）。
 /// 自定义 scheme（raycast://、btt:// 这类）能拉起别的 App 执行动作，不在白名单里就拦下。
 /// 只管放不放行，不打开、不知道卡片
 public struct URLPolicy: Sendable {

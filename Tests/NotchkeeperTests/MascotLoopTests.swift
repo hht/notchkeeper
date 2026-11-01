@@ -2,7 +2,7 @@ import Testing
 import MascotCore
 @testable import Notchkeeper
 
-/// 收起态左耳不画 sign 装饰，也就不能给这些不存在的部件挂循环（10-29 实机崩溃：出口不符时左耳的循环找不到装饰层）
+/// 收起态左耳不画 sign 装饰，也就不能给这些不存在的部件挂循环（挂了会崩：出口不符时左耳的循环找不到装饰层）
 @Suite struct MascotLoopTests {
     @Test func hiddenSignsHaveNoDecoLoops() {
         for l in Look.allCases where l.isSign {

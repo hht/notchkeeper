@@ -23,7 +23,7 @@ public struct CardQueue<Item: Equatable & Sendable>: Sendable {
         }
     }
 
-    /// 每个外部插件至多排这么多张，再来就丢它最旧的那张（用户 10-31）：红卡挂久了，撤掉后不补放一长串
+    /// 每个外部插件至多排这么多张，再来就丢它最旧的那张：红卡挂久了，撤掉后不补放一长串
     public static var maxWaitingPerPlugin: Int { 3 }
 
     /// 一张临时卡

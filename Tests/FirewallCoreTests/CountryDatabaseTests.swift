@@ -127,7 +127,7 @@ import Testing
     }
 }
 
-/// 放行表的国内段像不像一个国家：真库（10-31）IPv4 覆盖 8.26%、最短 /10，IPv6 最短 /20
+/// 放行表的国内段像不像一个国家：真库（Clash Verge Rev 自带 mihomo v1.19.21 时目录里的 Country.mmdb）IPv4 覆盖 8.26%、最短 /10，IPv6 最短 /20
 @Suite struct CountryPlausibility {
     @Test func acceptsARealisticCountry() {
         #expect(CountryDatabase.isPlausible(["1.0.1.0/24", "36.0.0.0/10", "240e::/20"].map { IPNetwork($0)! }))

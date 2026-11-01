@@ -68,7 +68,7 @@ public struct ActivityBoard: Sendable {
     }
 
     private var live: [CardQueue<Card>.Key: Live] = [:]
-    /// 结束了的活动（end、过期、被挤掉）→ 结束那一步：之后只有比它新的 start 能重开，update 和 end 不收（照 ActivityKit，用户 10-31）。
+    /// 结束了的活动（end、过期、被挤掉）→ 结束那一步：之后只有比它新的 start 能重开，update 和 end 不收（照 ActivityKit）。
     /// 只记 `maxAge`，再旧的 `InboxGate` 已经不收
     private var ended: [CardQueue<Card>.Key: Step] = [:]
 

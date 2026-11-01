@@ -208,7 +208,7 @@ private func isFullTurn(_ t: Track) -> Bool {
     }
 }
 
-/// 循环在某一刻自己叠了多少：撤循环时只把这一份补间收尾，不碰同一层上还在跑的弹簧（10-29 审查）
+/// 循环在某一刻自己叠了多少：撤循环时只把这一份补间收尾，不碰同一层上还在跑的弹簧
 @Suite struct TrackValue {
     @Test func linearInterpolation() {
         let t = Track.keys(.yaw, .rotationY, [(0, 0), (2, 4)], timing: .linear, repeats: true)

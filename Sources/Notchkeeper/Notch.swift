@@ -144,7 +144,7 @@ final class NotchController {
     static let restLevel = NSWindow.Level(rawValue: NSWindow.Level.mainMenu.rawValue + 3)
     /// 展开时的层级：要压过铺满顶部的第三方菜单栏覆盖层，否则卡片上沿会被盖住一截。
     /// 只在展开期间用，收起后降回 restLevel，平时不挡下拉菜单。
-    /// 实测（2026-10-28，CGWindowListCopyWindowInfo，macOS 26.5）：控制中心 25 层，
+    /// 实测（CGWindowListCopyWindowInfo，macOS 26.5）：控制中心 25 层，
     /// Vibe Island 27 层（同 mainMenu + 3），iBar Pro 101 层（popUpMenu，铺满菜单栏），
     /// 红卡期间打开刘海旁的下拉菜单未被遮挡。
     static let openLevel = NSWindow.Level(rawValue: NSWindow.Level.popUpMenu.rawValue + 1)
@@ -493,7 +493,7 @@ final class NotchController {
     }
 
     /// 鼠标顶到屏幕最上沿时 NSEvent.mouseLocation.y 恰好等于 frame.maxY，而 NSRect.contains 不含上边界，
-    /// 所以命中区要越过屏幕顶边 1pt，否则贴顶的鼠标永远判在区外（2026-10-28 在刘海机型上用 CGWarpMouseCursorPosition 实测）
+    /// 所以命中区要越过屏幕顶边 1pt，否则贴顶的鼠标永远判在区外（在刘海机型上用 CGWarpMouseCursorPosition 实测）
     /// @see https://developer.apple.com/documentation/appkit/nsevent/mouselocation
     /// @see https://developer.apple.com/documentation/corefoundation/cgrect
     private static let topEdgeSlack: CGFloat = 1
@@ -654,7 +654,7 @@ struct NotchRoot: View {
     /// Pip 和右边的指示：收起、面板、卡片里是**同一个视图**，只按形态改位置和缩放，
     /// 跟着形状的同一个弹簧走（HIG Live Activities：「Maintain the relative placement of elements」，
     /// 展开态是收起态放大，元素不移除再进场）。布局尺寸固定、只动 position / scaleEffect，
-    /// 嵌进来的 Core Animation 视图在 macOS 14 上也会被逐帧插值（10-29 实测）。
+    /// 嵌进来的 Core Animation 视图在 macOS 14 上也会被逐帧插值（实测）。
     /// Pip 在左耳 → 面板左上 → 卡片左侧之间飞，到卡片上换成这张卡的造型、告示画回来（docs/ui.md「卡片」7）；
     /// 右边的一组在卡片形态时淡出，透明时停掉动画。
     /// 减弱动态效果时不飞：换形态就换一个新视图，旧的原地淡出、新的在新位置淡入（docs/mascot.md §5）
@@ -847,7 +847,7 @@ struct NotchDashboard: View {
                     .padding(.horizontal, NotchLayout.dashMargin)
             }
 
-            // 底栏是全局的，只放齿轮：哪个插件都不是必须的，不放某个插件自己的东西（用户 10-31：去掉「出口检查于…」）。
+            // 底栏是全局的，只放齿轮：哪个插件都不是必须的，不放某个插件自己的东西（比如「出口检查于…」）。
             // 守卫数据旧了由顶上的状态说（出口守卫没响应）
             HStack {
                 Spacer()
@@ -941,7 +941,7 @@ struct NotchGearButton: View {
 }
 
 /// 面板里的一行（`PanelRow`）：图标、标题和可选的副标题、状态指示、右侧距今多久或短值。已停止的会话图标和标题变暗，时间不暗（保住对比度）。
-/// 状态只用指示表达，不写字（用户 10-29）；状态名留给悬停提示和旁白
+/// 状态只用指示表达，不写字；状态名留给悬停提示和旁白
 struct PanelRowView: View {
     let row: PanelRow
     @State private var hover = false
@@ -1039,7 +1039,7 @@ struct PanelRowView: View {
     private var icon: some View {
         switch row.icon {
         case .claude:
-            // 是哪个 agent 只靠行首的厂商标志表示（用户 10-29）
+            // 是哪个 agent 只靠行首的厂商标志表示
             ClaudeMark()
                 .fill(ClaudeMark.color)
                 .frame(width: 15, height: 15)

@@ -1,7 +1,7 @@
 import Testing
 @testable import FirewallCore
 
-/// 照本机 Clash Verge 写出的 clash-verge.yaml 的样子（10-31，mihomo v1.19.21）：块状 YAML、列表和父键同一缩进、值可能带单引号。
+/// 照本机 Clash Verge 写出的 clash-verge.yaml 的样子（mihomo v1.19.21）：块状 YAML、列表和父键同一缩进、值可能带单引号。
 /// 地址换成文档用的 198.51.100.x 和 example 域名
 private let runtimeConfig = """
 mode: rule

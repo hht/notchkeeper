@@ -3,7 +3,7 @@ import CoreGraphics
 /// Pip 此刻做什么动作：给一个造型或动作，输出要提交给 Core Animation 的声明式 `[Track]`。
 /// 不知道图层怎么搭、动画怎么提交（App），也不知道什么时候该做（`IdleDirector`、App）。
 /// 所有 Track 都叠加（additive）在图层的静止值上：values 是相对静止值的偏移，所以朝向、注视、呼吸、动作可以同时生效。
-/// 实测（macOS 26，2026-10-29）：同一键路径的两个 additive 动画相加。
+/// 实测（macOS 26）：同一键路径的两个 additive 动画相加。
 /// 数字出自 docs/mascot.md §5。
 /// @see https://developer.apple.com/documentation/quartzcore/capropertyanimation/isadditive
 public enum Choreography {

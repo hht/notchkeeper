@@ -121,7 +121,7 @@ private func project(_ rest: CGPoint, headYaw: Double = 0) -> (x: Double, y: Dou
         #expect(abs(yaw * 180 / .pi + 20.5) < 0.1)
     }
 
-    /// 放回去还是静止中心：x 和 y 都对得上（10-29 审查：眼睛曾被画在中心上方 0.5 单位）
+    /// 放回去还是静止中心：x 和 y 都对得上，不偏到中心上方
     @Test func roundTrip() {
         for rest in [Anatomy.leftEye, Anatomy.rightEye] {
             let p = project(rest)

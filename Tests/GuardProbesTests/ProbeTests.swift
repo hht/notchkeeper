@@ -3,7 +3,7 @@ import Testing
 import GuardCore
 @testable import GuardProbes
 
-// 2026-10-28 在 Haitao 的 Mac 上 `route -n get 1.1.1.1` 的真实输出（Clash Verge TUN 开启）
+// `route -n get 1.1.1.1` 的真实输出（Clash Verge TUN 开启）
 private let routeOutputTUN = """
    route to: 1.1.1.1
 destination: 1.0.0.0

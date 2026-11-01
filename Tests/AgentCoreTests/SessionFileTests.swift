@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import AgentCore
 
-/// 照 10-29 实测的真实文件拼（docs/agent-integration.md「实测」），只改要测的字段
+/// 照实测的真实文件拼（docs/agent-integration.md「实测」），只改要测的字段
 private func file(_ overrides: [String: Any?] = [:]) -> Data {
     var json: [String: Any] = [
         "pid": 31301, "sessionId": "5d0c7c2e-0000-4000-8000-000000000000", "cwd": "/Users/u/Documents/Projects/notchkeeper",
@@ -47,14 +47,14 @@ private let procStart = Date(timeIntervalSince1970: 1_793_296_491)
         #expect(try state("waiting", waitingFor: waitingFor) == .needsYou(.approval))
     }
 
-    /// `dialog open`、没见过的取值、缺了 waitingFor：都还是需要你介入，归等你回答（用户 10-29）
+    /// `dialog open`、没见过的取值、缺了 waitingFor：都还是需要你介入，归等你回答
     @Test(arguments: ["input needed", "dialog open", "something new", nil] as [String?])
     func otherWaitsAreQuestions(_ waitingFor: String?) throws {
         #expect(try state("waiting", waitingFor: waitingFor) == .needsYou(.question))
     }
 }
 
-/// 只看终端里开的交互式 claude（用户 10-29）：`claude -p` 的 kind 也是 interactive，要靠 entrypoint 排除
+/// 只看终端里开的交互式 claude：`claude -p` 的 kind 也是 interactive，要靠 entrypoint 排除
 @Suite struct SessionFiltering {
     @Test(arguments: ["sdk-cli", "sdk-ts", "sdk-py", "claude-vscode", "claude-desktop", "remote"])
     func otherEntrypointsAreIgnored(_ entrypoint: String) throws {
@@ -66,7 +66,7 @@ private let procStart = Date(timeIntervalSince1970: 1_793_296_491)
         #expect(try SessionFile.parse(file(["kind": kind])) == nil)
     }
 
-    /// 会话刚起来时第一次写的文件没有 status、statusUpdatedAt，过一会儿原地补上（10-29 实测）：还没有状态，先不看，也不算解不开
+    /// 会话刚起来时第一次写的文件没有 status、statusUpdatedAt，过一会儿原地补上（实测）：还没有状态，先不看，也不算解不开
     @Test func sessionWithoutStatusYetIsIgnored() throws {
         #expect(try SessionFile.parse(file(["status": nil, "statusUpdatedAt": nil, "updatedAt": nil])) == nil)
     }

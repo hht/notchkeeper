@@ -30,7 +30,7 @@ private struct Sandbox {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/bash")
         p.arguments = [root.appendingPathComponent("scripts/\(script)").path] + arguments
-        // UTF-8 locale 和 Haitao 的终端一样：bash 3.2 在这个 locale 下会把紧跟 `$VAR` 的中文字符当成变量名的一部分
+        // UTF-8 locale 和用户的终端一样：bash 3.2 在这个 locale 下会把紧跟 `$VAR` 的中文字符当成变量名的一部分
         p.environment = ["HOME": home.path, "PATH": "\(shims.path):/usr/bin:/bin:/usr/sbin:/sbin", "LANG": "en_US.UTF-8"]
         let out = Pipe()
         p.standardOutput = out
