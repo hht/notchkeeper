@@ -41,6 +41,8 @@ final class AppState {
     @ObservationIgnored var onAlertAction: ((ViolationAlert.Action) -> Void)?
     /// AgentCore 判定的事件，连同同一次更新的会话列表
     @ObservationIgnored var onAgentEvents: (([AgentEvent], [Session]) -> Void)?
+    /// 外部插件被卸掉（设置页、`pipctl plugin uninstall`、手动删目录都算）：App 撤掉它排着的卡
+    @ObservationIgnored var onPluginsRemoved: ((Set<String>) -> Void)?
     /// 订阅 guard-state 显示流的长任务；`stopWatchingGuard()` / deinit 取消，流随之结束、监听关掉
     @ObservationIgnored private var guardTask: Task<Void, Never>?
     @ObservationIgnored private var agentWatcher: AgentWatcher?
@@ -148,13 +150,25 @@ final class AppState {
 
     /// 重读插件登记：启动、装卸终端插件、打开设置页时
     func reloadManifests() {
-        let m = InboxWatcher.manifests()
-        if m != manifests { manifests = m }
+        setManifests(InboxWatcher.manifests())
+    }
+
+    /// 卸掉了的插件（目录没了）：撤它的行，告诉 App 撤卡。没登记的插件发来的已经一律丢掉，留下的卡和行也不该再出来。
+    /// 目录还在、只是 manifest.json 一时读不了（编辑器正在写）的不算：撤掉的卡回不来
+    private func setManifests(_ m: [String: Manifest]) {
+        guard m != manifests else { return }
+        let removed = Set(manifests.keys).subtracting(m.keys)
+            .filter { !FileManager.default.fileExists(atPath: PluginPaths.plugins.appendingPathComponent($0).path) }
+        manifests = m
+        guard !removed.isEmpty else { return }
+        for id in removed { activities.remove(plugin: id) }
+        scheduleActivityExpiry()
+        onPluginsRemoved?(removed)
     }
 
     /// 收件箱收下的一批：记下当时的登记，活动记上面板，返回要弹或要刷新的卡（App 交给刘海）
     func applyInbox(_ batch: InboxWatcher.Batch) -> [ActivityBoard.CardChange] {
-        if batch.plugins != manifests { manifests = batch.plugins }
+        setManifests(batch.plugins)
         guard !batch.activities.isEmpty else { return [] }
         let now = Date()
         let changes = batch.activities.compactMap { activities.apply($0, now: now) }

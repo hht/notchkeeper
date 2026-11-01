@@ -8,11 +8,11 @@ import PluginCore
 // 每个开关直接绑定 ConfigStore，改了立刻写盘，不在视图里缓存配置值。
 
 enum SettingsPane: String, CaseIterable, Identifiable {
-    case general, plugins, exitGuard, claudeCode, terminal, mascot, stateTest, about
+    case general, plugins, exitGuard, claudeCode, terminal, firewall, mascot, stateTest, about
     var id: Self { self }
 
     /// 侧边栏分组，组与组之间空一行。内置插件和自带的终端插件各有一页，别的外部插件只在「插件」页里开关
-    static let groups: [[SettingsPane]] = [[.general], [.plugins, .exitGuard, .claudeCode, .terminal], [.mascot], [.stateTest], [.about]]
+    static let groups: [[SettingsPane]] = [[.general], [.plugins, .exitGuard, .claudeCode, .terminal], [.firewall], [.mascot], [.stateTest], [.about]]
 
     var title: String {
         switch self {
@@ -21,7 +21,8 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .exitGuard: return String(localized: "出口守卫")
         case .claudeCode: return "Claude Code"
         case .terminal: return String(localized: "终端")
-        case .mascot: return "Pip"
+        case .firewall: return String(localized: "防火墙")
+        case .mascot: return "Pip" // 和 App 同名
         case .stateTest: return String(localized: "状态测试")
         case .about: return String(localized: "关于")
         }
@@ -34,6 +35,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .exitGuard: return "shield.lefthalf.filled"
         case .claudeCode: return "sparkle"
         case .terminal: return "terminal.fill"
+        case .firewall: return "lock.shield.fill"
         case .mascot: return "face.smiling.inverse"
         case .stateTest: return "testtube.2"
         case .about: return "info.circle.fill"
@@ -47,6 +49,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .exitGuard: return .green
         case .claudeCode: return .brown
         case .terminal: return .gray
+        case .firewall: return .blue
         case .mascot: return .orange
         case .stateTest: return .purple
         case .about: return .gray
@@ -82,7 +85,7 @@ struct SettingsView: View {
                     }
                 }
             }
-            // 留着侧栏开关：工具栏一个按钮都没有时，系统按普通标题栏画，滚动时是一条硬边线；有按钮才是系统设置那种柔和渐隐（10-31 原型实测）
+            // 留着侧栏开关：工具栏一个按钮都没有时，系统按普通标题栏画，滚动时是一条硬边线；有按钮才是系统设置那种柔和渐隐（实测）
             .navigationSplitViewColumnWidth(215)
         } detail: {
             detail
@@ -102,6 +105,7 @@ struct SettingsView: View {
         case .exitGuard: ExitGuardPane(model: model, state: state, store: store)
         case .claudeCode: Form { PluginOffNote(store: store, plugin: PluginID.claudeCode); ClaudeModSection() }
         case .terminal: Form { TerminalPluginSection(state: state) }
+        case .firewall: FirewallPane()
         case .mascot: MascotPane(store: store)
         case .stateTest: StateTestPane(overrides: notch.overrides, state: state, notch: notch)
         case .about: AboutPane(store: store)
@@ -349,6 +353,8 @@ private struct PluginsPane: View {
     @ObservedObject var store: ConfigStore
     @State private var confirmGuardOff = false
     @State private var badScheme = false
+    @State private var dropped: URL?
+    @State private var dropTargeted = false
 
     var body: some View {
         let c = store.config
@@ -365,9 +371,11 @@ private struct PluginsPane: View {
                     }
                 }
             } footer: {
-                Text("关掉插件只关提醒，出口守卫照常在后台检查。外部插件在 ~/Library/Application Support/Notchkeeper/plugins/<id>/manifest.json 登记；关掉后，它发来的卡片和活动都会丢掉。")
+                Text("关掉插件只关提醒，出口守卫照常在后台检查。外部插件关掉后，它发来的卡片和活动都会丢掉。")
             }
             .disabled(store.fileUnreadable)
+
+            InstalledPluginsSection(state: state, dropped: $dropped)
 
             let enabled = ids.filter(c.isEnabled)
             if !enabled.isEmpty {
@@ -440,8 +448,22 @@ private struct PluginsPane: View {
                 }
             }
             .disabled(store.fileUnreadable)
+
+            CommandLineSection()
         }
         .onAppear { state.reloadManifests() } // 可能刚装了插件
+        // 拖进来的交给「已安装」那一段校验（不是文件夹的报「没有 manifest.json」）；只认第一个
+        .dropDestination(for: URL.self) { urls, _ in
+            guard let url = urls.first, url.isFileURL else { return false }
+            dropped = url
+            return true
+        } isTargeted: { dropTargeted = $0 }
+        .overlay {
+            if dropTargeted {
+                RoundedRectangle(cornerRadius: 10).strokeBorder(Color.accentColor, style: StrokeStyle(lineWidth: 2, dash: [6])).padding(6)
+                    .allowsHitTesting(false)
+            }
+        }
         .confirmationDialog("还有流量没走代理，确定关掉提醒？", isPresented: $confirmGuardOff) {
             Button("关掉提醒", role: .destructive) { store.config.setEnabled(false, for: PluginID.exitGuard) }
         } message: {
@@ -449,7 +471,7 @@ private struct PluginsPane: View {
         }
     }
 
-    /// 违规中关守卫要确认（用户 10-31）
+    /// 违规中关守卫要确认
     private func setGuard(_ on: Bool) {
         if !on, state.presentation.holdsViolation {
             confirmGuardOff = true
@@ -469,7 +491,7 @@ private struct PluginsPane: View {
 }
 
 /// 插件的图标和名字：内置的用设置页侧栏的图标，外部的用它登记的 SF Symbol
-private struct PluginLabel: View {
+struct PluginLabel: View {
     let plugin: String
     let state: AppState
     let detail: String?
@@ -486,6 +508,59 @@ private struct PluginLabel: View {
                 if let detail { Text(detail).font(.caption).foregroundStyle(.secondary) }
             }
         }
+    }
+}
+
+/// 命令行工具 pipctl 在哪，点了才链进 ~/.local/bin（`CommandLineTool`）。不靠 config.json，配置文件解不开也能用
+private struct CommandLineSection: View {
+    @State private var link = CommandLineTool.linkState()
+    @State private var error: String?
+
+    var body: some View {
+        Section {
+            LabeledContent {
+                switch link {
+                case .linked: Button("移除链接") { run { try CommandLineTool.removeLink() } }
+                case .absent: Button("链接到 ~/.local/bin") { run { try CommandLineTool.createLink() } }
+                case .occupied: EmptyView()
+                }
+            } label: {
+                Text("pipctl")
+                Text(error ?? caption)
+            }
+            LabeledContent {
+                Button("拷贝") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(CommandLineTool.installed.path, forType: .string)
+                }
+            } label: {
+                Text(CommandLineTool.installed.path)
+                    .font(.system(.body, design: .monospaced))
+                    .textSelection(.enabled)
+            }
+        } header: {
+            Text("命令行")
+        } footer: {
+            Text("脚本用 pipctl 发卡片、报活动，pipctl 不带参数看用法。~/.local/bin 要在 PATH 里才能直接敲 pipctl（终端里 echo $PATH 看）。")
+        }
+    }
+
+    private var caption: String {
+        switch link {
+        case .linked: return String(localized: "已链接：终端里可以直接用 pipctl")
+        case .absent: return String(localized: "未链接：用下面的完整路径，或链接到 ~/.local/bin")
+        case .occupied: return String(localized: "~/.local/bin/pipctl 已经是别的文件，不覆盖；用下面的完整路径")
+        }
+    }
+
+    private func run(_ action: () throws -> Void) {
+        error = nil
+        do {
+            try action()
+        } catch {
+            self.error = String(localized: "操作失败：\(error.localizedDescription)")
+        }
+        link = CommandLineTool.linkState()
     }
 }
 

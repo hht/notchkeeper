@@ -9,7 +9,7 @@ Haitao 本机自用的刘海应用（SwiftPM，macOS 14+），没有菜单栏图
 按顺序试：
 
 1. 什么都不做：开启后 2 分钟内没点「保留」，会自动回滚。
-2. 在 App 里关掉防火墙。
+2. 设置 › 防火墙：关掉开关，或「卸载」（跑的就是下面第 3 步的恢复脚本）。都要管理员密码，不需要网络。
 3. 终端里执行 **`cd ~/Documents/Projects/notchkeeper && sudo scripts/firewall-rescue.sh`**：卸掉防火墙的守护进程、规则和文件，不需要网络和 App，重复执行没有副作用。
 4. 还不行：`sudo scripts/firewall-rescue.sh --disable-pf`，连整个 pf 一起停掉（AirDrop、互联网共享等用到 pf 的功能要重开）。
 
@@ -19,17 +19,18 @@ Haitao 本机自用的刘海应用（SwiftPM，macOS 14+），没有菜单栏图
 
 - **出口守卫（只监测）**：后台进程 `guardd` 每 5 秒检查一次 Clash、utun 路由和出口 IP，结果写进 `guard-state.json`。App 读这个文件：出口违规时刘海亮红卡，恢复后弹出绿色恢复卡。
 - **状态变化提醒**：终端里的 Claude Code 回合结束、需要你介入时，刘海展开弹卡并响提示音，停几秒自动收回；几张卡排队放，红卡挂着时提醒卡盖在上面、放完回到红卡（`docs/ui.md`「卡片」）。
-- **外部插件**：脚本用 `nk notify --plugin <id> --title …` 往收件箱写一张卡，用 `nk activity start|update|end --plugin <id> --id <活动> --title … [--progress 0.4] [--alert]` 在面板里插件那一段报一个进行中的活动（`--alert` 时弹卡，之后的更新原地刷新）；`nk` 不带参数看全部用法。插件要先在 `~/Library/Application Support/Notchkeeper/plugins/<id>/manifest.json` 登记（`{"id","name","symbol"}`，`guard`、`claude` 留给内置插件）。自带一个终端插件：设置 › 终端「安装」后，把给出的 `source …` 一行加进 `~/.zshrc`，zsh 里跑了 10 秒以上的命令结束时弹卡。
+- **外部插件**：一个含 `manifest.json` 的插件文件夹，在设置 › 插件里安装、新建、卸载（或 `pipctl plugin install|uninstall|list`）；脚本用 `pipctl notify`、`pipctl activity`、`pipctl send` 弹卡、报活动。写法见 `docs/user-guide.md`「插件」。自带一个终端插件：设置 › 终端「安装」后，把给出的 `source …` 一行加进 `~/.zshrc`，zsh 里跑了 10 秒以上的命令结束时弹卡。
 - **插件设置**（设置 › 插件）：每个插件的开关（关的是提醒，不是判定）、面板里各段的顺序和最多露几行、收起时的常驻插件、链接白名单。
 - **会话列表**：鼠标悬停在刘海上会展开面板，显示出口 IP 和正在运行的终端 Claude Code 会话（超过 5 个可滚动）。
 - **Pip**：刘海、卡片和设置页里的吉祥物，表情随守卫状态变化。动画交给 Core Animation，空闲时呼吸、眨眼、做小动作，眼睛跟随鼠标（设置里可关）。
 
 ## 还没做
 
-- **防火墙**：设计见 `docs/firewall.md`，App 开关还没接。现在只能装测试规则（只拦去一个测试地址的流量，去别处的照常）：
-  - `scripts/install-firewall.sh --test-rules --test-address <IPv4> --dry-run`：编译，打印会装的辅助程序哈希、LaunchDaemon 和规则原文，什么都不改；
-  - `sudo scripts/install-firewall.sh --test-rules --test-address <IPv4> [--tunnel <网卡名>]`：打印同样的内容，输入 `yes` 才装。装完是关着的；开启用 `sudo /Library/PrivilegedHelperTools/notchkeeper-firewall enable --clash "$HOME/Library/Application Support/io.github.clash-verge-rev.clash-verge-rev"`（读一次 Clash Verge 的配置拍放行表），保留、关闭用 `… keep|disable`；
-  - 卸载、升级前都先跑 `sudo scripts/firewall-rescue.sh`；`sudo scripts/firewall-drill.sh` 装一套什么都不拦的假防火墙来演练恢复脚本。
+- **防火墙**：设计见 `docs/firewall.md`，用法见 `docs/user-guide.md`「防火墙」。设置 › 防火墙里安装、卸载、开关、保留（都要管理员密码；装之前先看会装的全部内容）。终端里装：
+  - `scripts/install-firewall.sh [--tunnel <网卡名>] --dry-run`：编译，打印会装的辅助程序哈希、LaunchDaemon 和规则原文，什么都不改；
+  - `sudo scripts/install-firewall.sh [--tunnel <网卡名>]`：打印同样的内容，输入 `yes` 才装；
+  - 加 `--test-rules --test-address <IPv4>` 装测试规则（只拦去这个地址的流量，去别处的照常）；
+  - 升级前先卸载（设置里的「卸载」，或 `sudo scripts/firewall-rescue.sh`）；`sudo scripts/firewall-drill.sh` 装一套什么都不拦的假防火墙来演练恢复脚本。
 
 ## 运行
 
@@ -94,4 +95,4 @@ NOTCHKEEPER_LIVE_PROBES=1 swift test --filter LiveProbes   # 真机只读冒烟�
 
 ## 文档
 
-规则和各份文档什么时候读，见 `CLAUDE.md`；接下来要做的见 `HANDOFF.md`。
+用法（含怎么写插件、防火墙拦什么）见 `docs/user-guide.md`；规则和各份文档什么时候读，见 `CLAUDE.md`；接下来要做的见 `HANDOFF.md`。

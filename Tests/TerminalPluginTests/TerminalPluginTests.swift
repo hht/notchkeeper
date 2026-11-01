@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-/// 一次 zsh 会话：临时目录里搭出 `plugins/terminal/notchkeeper.zsh` 和假的 `bin/nk`（把参数逐行写进 `calls/`），
+/// 一次 zsh 会话：临时目录里搭出 `plugins/terminal/notchkeeper.zsh` 和假的 `bin/pipctl`（把参数逐行写进 `calls/`），
 /// 交互式 zsh 读 stdin 里的命令。`pty` 时套 `script` 给它一个终端，才有 `$TTY`
 private struct Session {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent("terminal-plugin-\(UUID().uuidString)")
@@ -15,12 +15,12 @@ private struct Session {
         try fm.createDirectory(at: root.appendingPathComponent("bin"), withIntermediateDirectories: true)
         let source = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("../../Resources/plugins/terminal/notchkeeper.zsh")
         try fm.copyItem(at: source.standardized, to: plugin.appendingPathComponent("notchkeeper.zsh"))
-        let nk = root.appendingPathComponent("bin/nk")
-        try "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$(dirname \"$0\")/../calls/$(date +%s%N)-$$\"\n".write(to: nk, atomically: true, encoding: .utf8)
-        try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: nk.path)
+        let pipctl = root.appendingPathComponent("bin/pipctl")
+        try "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$(dirname \"$0\")/../calls/$(date +%s%N)-$$\"\n".write(to: pipctl, atomically: true, encoding: .utf8)
+        try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: pipctl.path)
     }
 
-    /// 跑完这些命令，等到假 nk 被调够 `expecting` 次（后台调用），返回每次的参数
+    /// 跑完这些命令，等到假 pipctl 被调够 `expecting` 次（后台调用），返回每次的参数
     func run(_ commands: [String], expecting: Int, pty: Bool = false) throws -> [[String]] {
         let script = (["notchkeeper_min_seconds=0.3", "source \(root.path)/plugins/terminal/notchkeeper.zsh"] + commands + ["exit"])
             .joined(separator: "\n") + "\n"
@@ -87,7 +87,7 @@ private func value(_ args: [String], _ option: String) -> [String] {
         #expect(calls.map { value($0, "--title") } == [["sleep 跑完了"]])
     }
 
-    /// 只交出命令名：参数、环境变量赋值不出 shell（用户定）
+    /// 只交出命令名：参数、环境变量赋值不出 shell
     @Test func onlyCommandNameLeavesShell() throws {
         let s = try Session()
         let calls = try s.run(["SECRET_TOKEN=abc env sleep 0.4 && echo password123"], expecting: 1)

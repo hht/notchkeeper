@@ -1,6 +1,6 @@
 #!/bin/bash
 # 编译 → 打包 Pip.app → 本机临时签名 (ad-hoc) → 启动。
-# App 显示名叫 Pip（用户 10-31 定）；bundle ID、可执行文件名、配置目录和各种 label 仍叫 notchkeeper，不用迁移
+# App 显示名叫 Pip；bundle ID、可执行文件名、配置目录和各种 label 仍叫 notchkeeper，不用迁移
 set -euo pipefail
 cd "$(dirname "$0")/.."
 CONFIG="${CONFIG:-release}"
@@ -8,7 +8,7 @@ echo "==> swift build -c $CONFIG"
 swift build -c "$CONFIG"
 BIN="$(swift build -c "$CONFIG" --show-bin-path)/Notchkeeper"
 APP="build/Pip.app"
-# 改名前的包：bundle ID 相同，留着的话开机启动可能拉起它，用旧文件覆盖已装的 mod 和 nk、占住单实例锁
+# 改名前的包：bundle ID 相同，留着的话开机启动可能拉起它，用旧文件覆盖已装的 mod 和命令行工具、占住单实例锁
 rm -rf build/Notchkeeper.app
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
@@ -16,16 +16,22 @@ cp "$BIN" "$APP/Contents/MacOS/Notchkeeper"
 cp Support/Info.plist "$APP/Contents/Info.plist"
 # Claude Code mod（docs/agent-integration.md「Notchkeeper mod」）：设置页安装时从这里拷出去。测试和 Claude Code 生成的类型声明不带
 rsync -a --exclude tests --exclude types --exclude tsconfig.json ClaudeMod/ "$APP/Contents/Resources/ClaudeMod/"
-# 终端插件（Resources/plugins/terminal）和它调的 nk：设置页安装时从这里拷出去
+# 终端插件（Resources/plugins/terminal）：设置页安装时从这里拷出去
 rsync -a Resources/plugins/ "$APP/Contents/Resources/plugins/"
 # String Catalog：swift build 不编译 .xcstrings，在这里编进各语言的 .lproj（docs/ui.md「多语言」）
 for catalog in Resources/*.xcstrings; do
   xcrun xcstringstool compile "$catalog" --output-directory "$APP/Contents/Resources"
 done
-cp "$(dirname "$BIN")/nk" "$APP/Contents/MacOS/nk"
+# 命令行工具 pipctl：App 每次启动拷到 <Notchkeeper>/bin/
+cp "$(dirname "$BIN")/pipctl" "$APP/Contents/MacOS/pipctl"
+# 防火墙的辅助程序和两份脚本：设置 › 防火墙「安装」「卸载」时拷到 /private/tmp 再提权跑（docs/firewall.md §4）
+cp "$(dirname "$BIN")/firewalld" "$APP/Contents/MacOS/firewalld"
+mkdir -p "$APP/Contents/Resources/firewall"
+cp scripts/install-firewall.sh scripts/firewall-rescue.sh "$APP/Contents/Resources/firewall/"
 echo "==> codesign (ad-hoc)"
 # 包里另一个可执行文件要先签，再签整个包
-codesign --force --sign - "$APP/Contents/MacOS/nk"
+codesign --force --sign - "$APP/Contents/MacOS/pipctl"
+codesign --force --sign - "$APP/Contents/MacOS/firewalld"
 codesign --force --sign - --identifier local.hht.notchkeeper "$APP"
 pkill -x Notchkeeper 2>/dev/null || true
 # 等旧实例真正退出（每 0.1s 查一次，最多 5s），新实例的单实例检查才不会因为它还在而退出

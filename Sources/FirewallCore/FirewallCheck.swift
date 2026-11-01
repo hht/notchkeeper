@@ -49,8 +49,11 @@ public struct FirewallCheck: Codable, Equatable, Sendable {
 
     /// 都过了才算在拦。没有上一轮可比（`evaluationsGrowing == nil`）不算不过：刚装上的那一轮不该报异常；
     /// 读不出 Evaluations 的数字算不过，否则格式变了就永远比不出来、永远「过」
-    public var passed: Bool {
-        pfEnabled == true && anchorPointPresent && rulesLoaded && tunnelPresent && evaluations != nil && evaluationsGrowing != false
+    public var passed: Bool { tunnelPresent && passedApartFromTunnel }
+
+    /// 规则真的在被求值，只差隧道网卡：这时是全拦（往安全方向出错）。pf 停了、anchor 空了时什么都没在拦，不能这么说
+    public var passedApartFromTunnel: Bool {
+        pfEnabled == true && anchorPointPresent && rulesLoaded && evaluations != nil && evaluationsGrowing != false
     }
 }
 

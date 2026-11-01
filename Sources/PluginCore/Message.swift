@@ -46,6 +46,9 @@ public struct Message: Equatable, Sendable {
     /// nil：这是一张普通卡，不是活动
     public var activity: Activity?
 
+    /// 一份消息至多这么大：卡上最多显示几百个字，再大的是写错了的
+    public static let maxBytes = 64 * 1024
+
     public static func parse(_ data: Data) throws(MessageError) -> Message {
         let wire: Wire
         do {
@@ -57,12 +60,12 @@ public struct Message: Equatable, Sendable {
     }
 
     /// 插件 id 会拼进 `plugins/<id>/manifest.json`：小写字母或数字开头，只有小写字母、数字和连字符，至多 32 个字符
-    static func isPluginID(_ s: String) -> Bool {
+    public static func isPluginID(_ s: String) -> Bool {
         guard let first = s.unicodeScalars.first, s.unicodeScalars.count <= 32, first != "-" else { return false }
         return s.unicodeScalars.allSatisfy { ("a"..."z").contains($0) || ("0"..."9").contains($0) || $0 == "-" }
     }
 
-    /// 脚本常用 `date -u +%FT%TZ`，JS 的 `toISOString()` 带毫秒：10-31 实测 macOS 26.5 上 `.iso8601` 两种都认（测试覆盖）
+    /// 脚本常用 `date -u +%FT%TZ`，JS 的 `toISOString()` 带毫秒：macOS 26.5 上实测 `.iso8601` 两种都认（测试覆盖）
     private static let decoder: JSONDecoder = {
         let d = JSONDecoder()
         d.dateDecodingStrategy = .iso8601
@@ -177,7 +180,7 @@ public enum MessageError: Error, Equatable, Sendable {
     case badActivity
 }
 
-/// 收件箱文件的 JSON 格式（`nk` 拼的也是它）。缺字段、类型不对在这里就解不开
+/// 收件箱文件的 JSON 格式（`pipctl` 拼的也是它）。缺字段、类型不对在这里就解不开
 private struct Wire: Decodable {
     var v: Int
     var plugin: String

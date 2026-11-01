@@ -3,4 +3,6 @@ public enum PluginID {
     public static let exitGuard = "guard"
     public static let claudeCode = "claude"
     public static let builtIn: Set<String> = [exitGuard, claudeCode]
+    /// 自带的终端插件：算外部插件（走收件箱），但 `plugins/terminal/` 归 App，每次启动整个换成新版，不能装别的插件进去
+    public static let terminal = "terminal"
 }

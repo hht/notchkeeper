@@ -16,13 +16,14 @@ public struct FirewallRules: Equatable, Sendable {
     /// 两张放行表和测试表的文件名（在 `directory` 下）；恢复脚本和安装脚本里也有，改了一起改
     public static let clashTableFile = "clash.table", cnTableFile = "cn.table", testTableFile = "test.table"
 
-    /// `tunnel` 是 Clash 的 TUN 网卡名；会原样拼进 root 加载的规则，所以只收 BSD 网卡名的样子（小写字母开头、数字结尾），别的返回 `nil`。
+    /// `tunnel` 是 Clash 的 TUN 网卡名；会原样拼进 root 加载的规则，只收 `utun` 加数字（macOS 的 TUN 网卡都叫 utunN），别的返回 `nil`。
+    /// 填成真实存在的物理网卡（en0）时第一条 `pass quick on $tun` 会把它上面的流量全放行，核对还照样过，所以不能只看像不像网卡名。
     /// `directory` 是放行表文件所在的目录（root 0755，docs/firewall.md §4）。
     /// 哪种规则都不写 `user` / `group`：它们让 pf 在内核里死锁、只能重启（§5）
     public init?(tunnel: String, scope: Scope = .everyone, directory: String) {
-        let letters = tunnel.prefix { ("a"..."z").contains($0) }
-        let digits = tunnel.dropFirst(letters.count)
-        guard !letters.isEmpty, !digits.isEmpty, digits.allSatisfy({ ("0"..."9").contains($0) }) else { return nil }
+        // 按 Unicode 标量比：按 Character 比时「1」后面跟一个组合符号也算数字
+        let digits = tunnel.unicodeScalars.dropFirst(4)
+        guard tunnel.hasPrefix("utun"), !digits.isEmpty, digits.allSatisfy({ ("0"..."9").contains($0) }) else { return nil }
         // 目录是调用方写死的常量，带引号或换行就是代码写错了
         guard !directory.contains(where: { $0 == "\"" || $0.isNewline }) else { preconditionFailure("表目录不能带引号或换行") }
         let test = scope == .testTable

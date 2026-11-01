@@ -63,7 +63,7 @@ public struct Card: Identifiable, Equatable, Sendable {
     }
 
     public static let maxText = 200
-    /// 右侧短值、插件名和图标名：长了会把标题挤没
+    /// 右侧短值和插件名：长了会把标题挤没
     public static let maxValue = 24
     public static let maxLines = 3
     public static let maxFacts = 4
@@ -84,7 +84,7 @@ public struct Card: Identifiable, Equatable, Sendable {
                 block: Block? = nil, action: Action? = nil, buttons: [Button] = []) {
         self.id = id
         if case .plugin(let id, let name, let symbol) = source {
-            self.source = .plugin(id: id, name: Self.capped(name, to: Self.maxValue), symbol: Self.capped(symbol, to: Self.maxValue))
+            self.source = .plugin(id: id, name: Self.capped(name, to: Self.maxValue), symbol: symbol)
         } else {
             self.source = source
         }

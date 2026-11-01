@@ -38,7 +38,7 @@ private func minimal(_ extra: String = "") -> String {
         }
     }
 
-    /// 缺的字段用默认值：outcome 是 info（和 `nk` 一致）
+    /// 缺的字段用默认值：outcome 是 info（和 `pipctl` 一致）
     @Test func missingOutcomeIsInfo() throws {
         #expect(try parse(minimal().replacingOccurrences(of: #","outcome":"done""#, with: "")).outcome == .info)
     }

@@ -28,6 +28,8 @@
 | inbox | 收件箱 | 外部插件写消息的目录，App 监听 |
 | message | 消息 | 外部插件写进收件箱的一份 JSON，说要弹哪张卡（`PluginCore` 的 `Message`）。不叫「通知」 |
 | manifest | 登记 | `plugins/<id>/manifest.json`：外部插件的 id、名字、图标。没登记的插件发来的消息丢掉 |
+| plugin folder | 插件文件夹 | 一个外部插件的全部文件：含 `manifest.json`，装进 `plugins/<id>/`（`PluginStore`）；换下来的、卸掉的挪进 `backup/plugins/`。不叫「插件包」 |
+| pipctl | 命令行工具 | 脚本发消息、装卸插件用的命令（`pipctl notify`、`pipctl plugin install`），原名 `nk` |
 | activity | 活动 | 外部插件报的一件进行中的事（照 ActivityKit 的 start / update / end），在面板里插件那一段占一行。不叫「任务」「进度」 |
 | urgency | 紧急程度 | 插件此刻多急：calm 平静 / active 进行中 / attention 要你看 / critical 严重（只有守卫）。代码里是 `PluginStatus.Urgency` |
 | lead | 上位 | 收起时 Pip 和右耳显示的那个插件：最急的，都平静时是常驻插件 |

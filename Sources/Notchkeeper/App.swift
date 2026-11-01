@@ -29,6 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         ClaudeMod.refreshIfInstalled()
+        CommandLineTool.install()
         TerminalPlugin.refreshIfInstalled()
         notch = NotchController()
         settings = SettingsWindowController(state: state, notch: notch)
@@ -39,6 +40,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         state.onAlertAction = { [weak self] in self?.notch.alertAction($0) }
         notch.onAlertDismissed = { [weak self] in self?.state.dismissViolation() }
         state.onAgentEvents = { [weak self] in self?.notch.agentEvents($0, sessions: $1) }
+        state.onPluginsRemoved = { [weak self] ids in self?.notch.discard { $0.externalPluginID.map(ids.contains) ?? false } }
 
         #if DEBUG
         listenForDemo()

@@ -18,7 +18,9 @@ private func card(_ outcome: Card.Outcome = .done, source: Card.Source = .plugin
         // 右侧短值太长会把标题挤没
         #expect(c.value?.count == Card.maxValue)
         guard case .plugin(_, let name, let symbol) = c.source, case .text(let t) = c.block else { Issue.record("来源或块变了"); return }
-        #expect(name.count == Card.maxValue && symbol.count == Card.maxValue && t[0].count == Card.maxText)
+        #expect(name.count == Card.maxValue && t[0].count == Card.maxText)
+        // 图标名截断了就不是图标名了：长度由 `Manifest` 登记时拦
+        #expect(symbol == long)
         // 换副标题也截断
         #expect(c.replacingSubtitle(long).subtitle?.count == Card.maxText)
     }

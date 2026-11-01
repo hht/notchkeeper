@@ -43,6 +43,50 @@ private func message(plugin: String = "terminal", id: UUID = UUID(), sent: Date 
     func malformedRejected(_ json: String) {
         #expect(throws: ManifestError.malformed) { try parse(json) }
     }
+
+    /// 名字卡上只放得下 `Card.maxValue` 个字：安装时就拦，免得装上了才发现被截断
+    @Test(arguments: [#"{"id":"terminal","name":"\#(String(repeating: "长", count: 25))","symbol":"terminal"}"#,
+                      #"{"id":"terminal","name":"终端","symbol":"\#(String(repeating: "a", count: 65))"}"#])
+    func tooLongRejectedAtInstall(_ json: String) {
+        #expect(throws: ManifestError.tooLong) { try Manifest.parse(Data(json.utf8), directoryName: nil) }
+    }
+
+    /// 已经装着的（装好后登记被改长了）照常收卡：名字由卡片截短，图标名对不上由 App 换成拼图块
+    @Test func tooLongStillRegistered() throws {
+        let name = String(repeating: "长", count: 25)
+        #expect(try parse(#"{"id":"terminal","name":"\#(name)","symbol":"terminal"}"#).name == name)
+    }
+
+    @Test func longestAccepted() throws {
+        let name = String(repeating: "长", count: Card.maxValue)
+        #expect(try Manifest.parse(Data(#"{"id":"terminal","name":"\#(name)","symbol":"terminal"}"#.utf8), directoryName: nil).name == name)
+    }
+}
+
+/// 收件箱和登记都是外部写的：任何字节都只会解析失败，不会让 App 崩溃（准则 5）
+@Suite struct ParsingNeverTraps {
+    /// 固定种子：失败了能复现（准则 4）
+    @Test func randomBytes() {
+        var rng = SplitMix64(seed: 0x5EED)
+        for _ in 0..<2000 {
+            let data = Data((0..<Int.random(in: 0...200, using: &rng)).map { _ in UInt8.random(in: 0...255, using: &rng) })
+            _ = try? Message.parse(data)
+            _ = try? Manifest.parse(data, directoryName: nil)
+        }
+    }
+
+    /// 合法消息的每一个前缀、以及逐字节改坏的版本
+    @Test func mutatedValidMessages() {
+        let valid = Data(#"{"v":1,"plugin":"ci","id":"8D3B7C1E-2F4A-4B6C-9D8E-1A2B3C4D5E6F","at":"2026-10-31T00:00:00Z","title":"x","outcome":"done","block":{"type":"progress","value":1e308},"buttons":[{"type":"Action.OpenUrl","title":"a","url":"https://a.com"}],"activity":{"id":"a","event":"start"}}"#.utf8)
+        for i in valid.indices {
+            _ = try? Message.parse(valid.prefix(i))
+            for byte: UInt8 in [0, 0x22, 0x5C, 0x7B, 0x7D, 0xFF] {
+                var bad = valid
+                bad[i] = byte
+                _ = try? Message.parse(bad)
+            }
+        }
+    }
 }
 
 @Suite struct InboxAdmission {
@@ -136,7 +180,7 @@ private func message(plugin: String = "terminal", id: UUID = UUID(), sent: Date 
     }
 }
 
-/// 内置插件的 id 留着（用户 10-31）：设置里的开关按 id 存，外部插件用了会和内置的串
+/// 内置插件的 id 留着：设置里的开关按 id 存，外部插件用了会和内置的串
 @Suite struct ReservedPluginIDs {
     @Test(arguments: ["guard", "claude"])
     func builtInIDsRejected(_ id: String) {
@@ -204,5 +248,19 @@ private func activity(_ event: Message.Activity.Event = .update, alert: Bool = f
         var m = message(sent: at(86400))
         m.activity = .init(id: "x", event: .start, alert: false)
         #expect(try gate.admitActivity(m, plugins: plugins, now: t0).at == t0)
+    }
+}
+
+/// 测试用的确定性随机数
+/// @see https://prng.di.unimi.it/splitmix64.c
+private struct SplitMix64: RandomNumberGenerator {
+    var state: UInt64
+    init(seed: UInt64) { state = seed }
+    mutating func next() -> UInt64 {
+        state &+= 0x9E3779B97F4A7C15
+        var z = state
+        z = (z ^ (z >> 30)) &* 0xBF58476D1CE4E5B9
+        z = (z ^ (z >> 27)) &* 0x94D049BB133111EB
+        return z ^ (z >> 31)
     }
 }

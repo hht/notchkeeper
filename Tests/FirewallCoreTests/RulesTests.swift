@@ -37,13 +37,15 @@ private let directory = "/Library/Application Support/Notchkeeper"
         #expect(FirewallRules(tunnel: "utun1024", directory: directory)?.text == documentedRules)
     }
 
-    /// 网卡名原样拼进 root 加载的规则，只收 BSD 网卡名的样子：字母开头、数字结尾
-    @Test(arguments: ["", "utun", "1024", "utun 1024", "utun1024\"", "utun1024\nblock all", "UTUN1024", "utun1024}", "u\u{301}tun0"])
-    func rejectsNonInterfaceNames(_ name: String) {
+    /// 网卡名原样拼进 root 加载的规则，只收 `utun` 加数字。物理网卡（en0）、网桥（bridge0）也是真网卡：
+    /// 填了它，第一条 `pass quick on $tun` 就把物理网卡上的流量全放行，核对「TUN 网卡在」照样过
+    @Test(arguments: ["", "utun", "1024", "utun 1024", "utun1024\"", "utun1024\nblock all", "UTUN1024", "utun1024}", "u\u{301}tun0",
+                      "en0", "en1", "bridge0", "lo0", "awdl0", "xutun0", "utun1\u{301}"])
+    func rejectsNonTunnelNames(_ name: String) {
         #expect(FirewallRules(tunnel: name, directory: directory) == nil)
     }
 
-    @Test(arguments: ["utun0", "utun1024", "en0"])
+    @Test(arguments: ["utun0", "utun1024"])
     func acceptsInterfaceNames(_ name: String) {
         #expect(FirewallRules(tunnel: name, directory: directory) != nil)
     }
